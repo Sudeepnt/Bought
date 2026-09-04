@@ -12,10 +12,13 @@ import {
   Globe2,
   LockKeyhole,
   Menu,
+  Pause,
+  Play,
   Radio,
   ShieldCheck,
   Sparkles,
   Trophy,
+  Video,
   WalletCards,
   X,
   Zap,
@@ -622,6 +625,7 @@ export default function Home() {
   const [position, setPosition] = useState(5);
   const [myPrice, setMyPrice] = useState(6200);
   const [notice, setNotice] = useState('');
+  const [videoPlaying, setVideoPlaying] = useState(false);
   const marketStateRef = useRef<{
     phase: Phase;
     now: Date;
@@ -661,6 +665,7 @@ export default function Home() {
 
   const selectCategory = (category: string) => {
     setActiveCategory(category);
+    setVideoPlaying(false);
     setNotice(
       category === 'all'
         ? 'All categories selected. Highest bids across the market.'
@@ -719,6 +724,7 @@ export default function Home() {
       setNotice(message);
       return { ok: false, message };
     }
+    setVideoPlaying(false);
     setWallet((value) => value - debit);
     setMyPrice(next);
     setPosition(1);
@@ -922,30 +928,40 @@ export default function Home() {
         </div>
       </div>
 
-      <nav className="category-nav" aria-label="Browse global categories">
-        <button
-          className={`category-nav-item ${activeCategory === 'all' ? 'is-active' : ''}`}
-          onClick={() => selectCategory('all')}
-          aria-pressed={activeCategory === 'all'}
-        >
-          <span className="category-nav-glyph">◎</span> ALL
-        </button>
-        {categories.map((category) => (
-          <button
-            className={`category-nav-item ${activeCategory === category.label ? 'is-active' : ''}`}
-            key={category.label}
-            onClick={() => selectCategory(category.label)}
-            aria-pressed={activeCategory === category.label}
+      <nav
+        className="category-nav"
+        id="categories"
+        aria-label="Choose a global category"
+      >
+        <div className="category-nav-heading">
+          <span className="eyebrow">CATEGORY VIEW</span>
+          <strong>
+            <Globe2 size={13} /> CHOOSE ONE ROOM
+          </strong>
+        </div>
+        <label className="category-select-wrap" htmlFor="category-select">
+          <span>MARKET CATEGORY</span>
+          <select
+            id="category-select"
+            value={activeCategory}
+            onChange={(event) => selectCategory(event.target.value)}
           >
-            <span className={`category-nav-glyph glyph-${category.tone}`}>
-              {category.glyph}
-            </span>
-            {category.label}
-          </button>
-        ))}
-        <a className="category-nav-explore" href="#categories">
-          EXPLORE <ChevronRight size={13} />
-        </a>
+            <option value="all">ALL / HIGHEST ACROSS EVERY CATEGORY</option>
+            {categories.map((category) => (
+              <option value={category.label} key={category.label}>
+                {category.label}
+              </option>
+            ))}
+          </select>
+          <ChevronRight size={14} aria-hidden="true" />
+        </label>
+        <div className="category-nav-state">
+          <span className="status-dot is-live" />
+          <span>
+            {activeCategory === 'all' ? 'ALL CATEGORIES' : activeCategory}
+          </span>
+          <strong>/ TOP 10 BY TOTAL BID</strong>
+        </div>
       </nav>
 
       <div className="app-frame" id="top">
@@ -1134,6 +1150,71 @@ export default function Home() {
                   <span className="leader-rank-label">
                     POSITION <strong>#01</strong>
                   </span>
+                </div>
+                <div
+                  className={`leader-video ${videoPlaying ? 'is-playing' : ''}`}
+                >
+                  <div
+                    className="leader-video-stage"
+                    aria-label={`Video preview from ${topRow.name}`}
+                  >
+                    <div className="leader-video-grid" aria-hidden="true" />
+                    <div className="leader-video-header">
+                      <span>
+                        <Video size={12} /> VIDEO TAKE / PREVIEW
+                      </span>
+                      <span>
+                        {phase === 'live'
+                          ? 'OPEN TO THE ROOM'
+                          : 'LOCKED EXPOSURE'}
+                      </span>
+                    </div>
+                    <div className="leader-video-center">
+                      <span className="leader-video-state">
+                        {videoPlaying ? 'PLAYING TAKE' : 'CURRENT LEADER'}
+                      </span>
+                      <button
+                        type="button"
+                        className="leader-video-play"
+                        onClick={() => setVideoPlaying((value) => !value)}
+                        aria-label={
+                          videoPlaying
+                            ? 'Pause current video take'
+                            : 'Play current video take'
+                        }
+                      >
+                        {videoPlaying ? (
+                          <Pause size={20} />
+                        ) : (
+                          <Play size={20} />
+                        )}
+                      </button>
+                      <strong>
+                        {videoPlaying
+                          ? 'Watching the take'
+                          : 'Watch the current take'}
+                      </strong>
+                      <span>{topRow.name} / 00:30</span>
+                    </div>
+                    <div className="leader-video-signal" aria-hidden="true">
+                      {[...Array(12)].map((_, index) => (
+                        <i key={index} />
+                      ))}
+                    </div>
+                    <div className="leader-video-footer">
+                      <span>THE TAKE / {topRow.statement}</span>
+                      <span>00:30</span>
+                    </div>
+                  </div>
+                  <div className="leader-video-caption">
+                    <span className="eyebrow">
+                      PUBLIC VIDEO / {topRow.countryCode}
+                    </span>
+                    <p>
+                      See the person behind the position before you decide to
+                      move.
+                    </p>
+                  </div>
                 </div>
                 <div className="leader-card-body">
                   <div className="leader-rank-display">#1</div>
@@ -1346,119 +1427,6 @@ export default function Home() {
                 </div>
               </section>
             </aside>
-          </section>
-
-          <section className="category-directory panel" id="categories">
-            <div className="directory-header">
-              <div>
-                <p className="kicker">
-                  <Globe2 size={13} /> GLOBAL CATEGORY INDEX
-                </p>
-                <h2>All categories.</h2>
-                <p>
-                  Click any category to open its top 10, ranked by total bid.
-                  The ladder stays shared.
-                </p>
-              </div>
-              <div className="directory-stat">
-                <strong>28</strong>
-                <span>
-                  CATEGORIES
-                  <br />
-                  ONE ROOM
-                </span>
-              </div>
-            </div>
-
-            <div className="active-category-line">
-              <span>
-                <span className="status-dot is-live" /> BROWSE THE INDEX
-              </span>
-              <strong>
-                {activeCategory === 'all'
-                  ? 'ALL CATEGORIES'
-                  : activeCategory.toUpperCase()}
-              </strong>
-              <span className="active-category-hint">TOP 10 / TOTAL BID</span>
-            </div>
-
-            <div className="hot-directory">
-              <div className="directory-subheading">
-                <span className="hot-pip" /> MOST ACTIVE CATEGORIES{' '}
-                <span>where attention is moving now</span>
-              </div>
-              <div className="hot-directory-grid">
-                {categories.slice(2, 5).map((category, index) => (
-                  <button
-                    className="hot-category-card"
-                    key={category.label}
-                    onClick={() => selectCategory(category.label)}
-                    aria-pressed={activeCategory === category.label}
-                  >
-                    <div className="hot-card-top">
-                      <span className={`category-glyph glyph-${category.tone}`}>
-                        {category.glyph}
-                      </span>
-                      <span>#{String(index + 1).padStart(2, '0')} ACTIVE</span>
-                    </div>
-                    <strong>{category.label}</strong>
-                    <div className="hot-card-bottom">
-                      <span>
-                        TOP BID{' '}
-                        {formatMoney(
-                          categoryLadder.find(
-                            (row) => row.category === category.label,
-                          )?.price ?? 0,
-                        )}
-                      </span>
-                      <span>TOP 10 / OPEN</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="category-card-grid">
-              {categories.map((category) => (
-                <button
-                  className={`category-card ${activeCategory === category.label ? 'is-selected' : ''}`}
-                  key={category.label}
-                  onClick={() => selectCategory(category.label)}
-                  aria-pressed={activeCategory === category.label}
-                >
-                  <div className="category-card-heading">
-                    <span className={`category-glyph glyph-${category.tone}`}>
-                      {category.glyph}
-                    </span>
-                    <strong>{category.label}</strong>
-                    <ChevronRight size={15} />
-                  </div>
-                  <div className="category-leader-list">
-                    {categoryLadder
-                      .filter((row) => row.category === category.label)
-                      .slice(0, 3)
-                      .map((row) => (
-                        <div className="category-leader" key={row.handle}>
-                          <span className="category-leader-rank">
-                            #{row.rank}
-                          </span>
-                          <span
-                            className={`category-leader-avatar avatar-tone-${row.rank % 5}`}
-                          >
-                            {row.name.slice(0, 1)}
-                          </span>
-                          <span className="category-leader-name">
-                            {row.name}
-                          </span>
-                          <span className="category-leader-price">
-                            {formatMoney(row.price)}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                </button>
-              ))}
-            </div>
           </section>
 
           <section className="command-strip" id="how-it-works">
