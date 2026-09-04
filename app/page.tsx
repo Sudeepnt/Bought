@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   Activity,
   ArrowDownRight,
@@ -733,6 +734,9 @@ export default function Home() {
             <span className="eyebrow">UTC PRIMARY CLOCK</span>
             <time>{timeAt(now, 'UTC', true)}</time>
           </div>
+          <Link className="waitlist-toplink" href="/waitlist">
+            JOIN WAITLIST <ArrowUpRight size={13} />
+          </Link>
           <Button className="wallet-button" variant="outline" size="sm">
             <WalletCards size={14} />
             {formatMoney(wallet)}
