@@ -1,8 +1,8 @@
 'use client';
+/* oxlint-disable next/no-html-link-for-pages */
 
 import { useState } from 'react';
 import { ArrowRight, Check, Clock3, Globe2, Mail, Trophy } from 'lucide-react';
-import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,21 +71,21 @@ export default function WaitlistPage() {
   return (
     <main className="waitlist-shell">
       <header className="waitlist-topbar">
-        <Link
+        <a
           className="brand-mark"
           href="/waitlist"
           aria-label="BOUGHT waitlist home"
         >
           <span className="brand-dot" />
           <span>BOUGHT</span>
-        </Link>
+        </a>
         <div className="waitlist-topbar-meta">
           <span className="status-dot is-live" />
           <span>EARLY ACCESS OPEN</span>
           <span className="status-separator">/</span>
-          <Link href="/#top">
+          <a href="/#top">
             VIEW MARKET <ArrowRight size={13} />
-          </Link>
+          </a>
         </div>
       </header>
 
