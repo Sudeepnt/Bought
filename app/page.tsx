@@ -834,13 +834,14 @@ export default function Home() {
                 <Radio size={13} /> GLOBAL ATTENTION EXCHANGE
               </p>
               <h1>
-                One market.
+                Global attention.
                 <br />
-                <em>Everywhere.</em>
+                <em>Exchange open.</em>
               </h1>
               <p className="intro-copy">
-                Spend to be seen. Build your position on one global ladder, then
-                hold the room while the world catches up.
+                LIVE GLOBAL LADDER / 184 COUNTRIES / UTC-NATIVE
+                <br />
+                BID TO MOVE UP. HOLD YOUR POSITION THROUGH THE CLOSE.
               </p>
             </div>
             <div className="intro-aside">
