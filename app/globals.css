@@ -2081,6 +2081,54 @@ h2 em {
   background: #ff7546;
   color: var(--ink);
 }
+.waitlist-provider-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.waitlist-provider-row > span {
+  color: var(--muted-dark);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  margin-right: 3px;
+}
+.waitlist-provider-button {
+  align-items: baseline;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: var(--mono);
+  font-size: 10px;
+  gap: 5px;
+  letter-spacing: 0.03em;
+  min-height: 30px;
+  padding: 0 9px;
+  transition:
+    border-color 140ms ease,
+    color 140ms ease,
+    background 140ms ease;
+}
+.waitlist-provider-button strong {
+  color: var(--paper);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+.waitlist-provider-button:hover,
+.waitlist-provider-button:focus-visible {
+  background: rgba(255, 91, 42, 0.08);
+  border-color: var(--hot);
+  color: var(--paper);
+  outline: none;
+}
+.waitlist-provider-button:active {
+  background: rgba(255, 91, 42, 0.16);
+}
 .waitlist-founding-band {
   align-items: center;
   border-bottom: 1px solid var(--line);

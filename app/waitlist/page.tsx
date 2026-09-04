@@ -1,7 +1,7 @@
 'use client';
 /* oxlint-disable next/no-html-link-for-pages */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ArrowRight, Check, Clock3, Globe2, Mail, Trophy } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,21 @@ export default function WaitlistPage() {
   const [email, setEmail] = useState('');
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState('');
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  const chooseProvider = (domain: string) => {
+    const localPart = email.trim().split('@')[0].trim();
+    const nextEmail = `${localPart}@${domain}`;
+    setEmail(nextEmail);
+    setError('');
+
+    requestAnimationFrame(() => {
+      const input = emailInputRef.current;
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(localPart.length, localPart.length);
+    });
+  };
 
   const joinWaitlist = (event: { preventDefault: () => void }) => {
     event.preventDefault();
@@ -166,17 +181,40 @@ export default function WaitlistPage() {
                 <div className="waitlist-input-row">
                   <Input
                     id="waitlist-email"
+                    ref={emailInputRef}
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    placeholder="you@example.com"
+                    placeholder="your name"
                     aria-describedby={
-                      error ? 'waitlist-error' : 'waitlist-note'
+                      error
+                        ? 'waitlist-provider-note waitlist-error'
+                        : 'waitlist-provider-note waitlist-note'
                     }
                   />
                   <Button type="submit">
                     JOIN <ArrowRight size={15} />
                   </Button>
+                </div>
+                <div
+                  className="waitlist-provider-row"
+                  id="waitlist-provider-note"
+                >
+                  <span>CHOOSE YOUR PROVIDER</span>
+                  <button
+                    type="button"
+                    className="waitlist-provider-button"
+                    onClick={() => chooseProvider('gmail.com')}
+                  >
+                    <strong>GMAIL</strong> <span>@gmail.com</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="waitlist-provider-button"
+                    onClick={() => chooseProvider('yahoo.com')}
+                  >
+                    <strong>YAHOO</strong> <span>@yahoo.com</span>
+                  </button>
                 </div>
                 {error ? (
                   <p className="waitlist-error" id="waitlist-error">
