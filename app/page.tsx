@@ -113,6 +113,213 @@ const markets: Market[] = [
   },
 ];
 
+type Category = {
+  label: string;
+  short: string;
+  glyph: string;
+  tone: string;
+  leaders: [string, string, string];
+};
+
+const categories: Category[] = [
+  {
+    label: 'Leaderboards & Attention Markets',
+    short: 'Attention Index',
+    glyph: '✣',
+    tone: 'orange',
+    leaders: ['Winning Room', 'Open Ladder', 'OneWord'],
+  },
+  {
+    label: 'SEO & AI Visibility',
+    short: 'Visibility Index',
+    glyph: '⌕',
+    tone: 'blue',
+    leaders: ['Outrank', 'CrowdReply', 'ZeroRank'],
+  },
+  {
+    label: 'Marketing & Advertising',
+    short: 'Marketing Index',
+    glyph: '◈',
+    tone: 'coral',
+    leaders: ['Tutti', 'Letter Friend', 'Affiliateo'],
+  },
+  {
+    label: 'Productivity & Personal Tools',
+    short: 'Productivity Index',
+    glyph: '≡',
+    tone: 'lime',
+    leaders: ['Turingo', 'Tracked', 'MyThoughts'],
+  },
+  {
+    label: 'AI Agents & Infrastructure',
+    short: 'Agents Index',
+    glyph: '⌘',
+    tone: 'violet',
+    leaders: ['see.io', 'JONI', 'Pecan AI'],
+  },
+  {
+    label: 'Other',
+    short: 'Other Index',
+    glyph: '⊹',
+    tone: 'stone',
+    leaders: ['Divi', 'shp.ee', 'Make a Hug'],
+  },
+  {
+    label: 'Crypto, Web3 & Investing',
+    short: 'Crypto Index',
+    glyph: '₿',
+    tone: 'gold',
+    leaders: ['Orynth', 'PumpFunCoin', 'Fiber'],
+  },
+  {
+    label: 'Developer Tools',
+    short: 'Developer Index',
+    glyph: '</>',
+    tone: 'sky',
+    leaders: ['Modulate', 'Context.dev', 'Trylle'],
+  },
+  {
+    label: 'Health, Fitness & Wellness',
+    short: 'Health Index',
+    glyph: '♡',
+    tone: 'green',
+    leaders: ['Fuel Log', 'My Workout Logs', 'PeptiPrices'],
+  },
+  {
+    label: 'Business, Finance & Legal',
+    short: 'Business Index',
+    glyph: '⚖',
+    tone: 'navy',
+    leaders: ['FloPay', 'myTB.ai', 'Klover'],
+  },
+  {
+    label: 'Games & Entertainment',
+    short: 'Games Index',
+    glyph: '✦',
+    tone: 'pink',
+    leaders: ['Colonist', 'TorrentClaw', 'Crypto Casinos'],
+  },
+  {
+    label: 'Ecommerce & Retail',
+    short: 'Commerce Index',
+    glyph: '□',
+    tone: 'teal',
+    leaders: ['Four', 'Yoho', 'Peptide Hub'],
+  },
+  {
+    label: 'Travel, Local & Lifestyle',
+    short: 'Travel Index',
+    glyph: '⌖',
+    tone: 'orange',
+    leaders: ['Wento', 'Overnightly', 'Service Dog Certs'],
+  },
+  {
+    label: 'Directories, Launch & Discovery',
+    short: 'Discovery Index',
+    glyph: '⊞',
+    tone: 'blue',
+    leaders: ['indie.game', 'Tiny Startups', 'ONEWORD'],
+  },
+  {
+    label: 'Agencies, Studios & Services',
+    short: 'Services Index',
+    glyph: '▱',
+    tone: 'coral',
+    leaders: ['AY Automate', 'Launch Club', 'Limestone Digital'],
+  },
+  {
+    label: 'AI Media Generation',
+    short: 'Media Index',
+    glyph: '✺',
+    tone: 'purple',
+    leaders: ['VisualLift', 'Luo Solutions', 'Klodsy'],
+  },
+  {
+    label: 'Social Media & Creator Tools',
+    short: 'Social Index',
+    glyph: '⌁',
+    tone: 'pink',
+    leaders: ['Linkie', 'Publer', 'ContentStudio'],
+  },
+  {
+    label: 'Education & Learning',
+    short: 'Learning Index',
+    glyph: '△',
+    tone: 'violet',
+    leaders: ['Otio', 'Educate 10M', 'Unive'],
+  },
+  {
+    label: 'People & Profiles',
+    short: 'People Index',
+    glyph: '◎',
+    tone: 'green',
+    leaders: ['RobbyFrank', 'MayThe5th', 'Adrieves'],
+  },
+  {
+    label: 'Design & Creative',
+    short: 'Design Index',
+    glyph: '✎',
+    tone: 'gold',
+    leaders: ['NeoCam', 'Influencer AI', 'HorizonX'],
+  },
+  {
+    label: 'Hiring, Jobs & Careers',
+    short: 'Hiring Index',
+    glyph: '▣',
+    tone: 'blue',
+    leaders: ['LATAMHire', 'Spin Hire', 'Simple CV'],
+  },
+  {
+    label: 'Domains & Web Assets',
+    short: 'Domains Index',
+    glyph: '⌁',
+    tone: 'orange',
+    leaders: ['NameRockstar', 'NextBrand', 'Domain Registrar'],
+  },
+  {
+    label: 'Security, Privacy & Compliance',
+    short: 'Security Index',
+    glyph: '◇',
+    tone: 'green',
+    leaders: ['Comp AI', 'Screenata', 'Veyl'],
+  },
+  {
+    label: 'Media & News',
+    short: 'News Index',
+    glyph: '▤',
+    tone: 'coral',
+    leaders: ['Hark News', 'Coverage Desk', 'Mangii'],
+  },
+  {
+    label: 'Sales & Lead Generation',
+    short: 'Sales Index',
+    glyph: '↗',
+    tone: 'lime',
+    leaders: ['AutoMailer', 'RAEK', 'Prospactive'],
+  },
+  {
+    label: 'Real Estate & Property',
+    short: 'Property Index',
+    glyph: '⌂',
+    tone: 'navy',
+    leaders: ['Buy or Sell', 'FlyDragon', 'Dumpster Desk'],
+  },
+  {
+    label: 'Writing & Content',
+    short: 'Writing Index',
+    glyph: '¶',
+    tone: 'purple',
+    leaders: ['StealthGPT', 'Capital Mischief', 'ReverseGPT'],
+  },
+  {
+    label: 'Audio, Voice & Podcasting',
+    short: 'Audio Index',
+    glyph: '◖',
+    tone: 'sky',
+    leaders: ['Palabra.ai', 'ekto', 'Wave'],
+  },
+];
+
 const ladder: LadderRow[] = [
   {
     rank: 1,
@@ -275,6 +482,7 @@ function Delta({ value }: { value: number }) {
 export default function Home() {
   const [now, setNow] = useState(() => new Date(0));
   const [activeMarket, setActiveMarket] = useState(markets[0]);
+  const [activeCategory, setActiveCategory] = useState('all');
   const [activeTab, setActiveTab] = useState('market');
   const [selectedRow, setSelectedRow] = useState<LadderRow | null>(null);
   const [orderOpen, setOrderOpen] = useState(false);
@@ -544,6 +752,33 @@ export default function Home() {
         </div>
       </div>
 
+      <nav className="category-nav" aria-label="Browse global categories">
+        <button
+          className={`category-nav-item ${activeCategory === 'all' ? 'is-active' : ''}`}
+          onClick={() => setActiveCategory('all')}
+        >
+          <span className="category-nav-glyph">◎</span> ALL
+        </button>
+        {categories.map((category) => (
+          <button
+            className={`category-nav-item ${activeCategory === category.label ? 'is-active' : ''}`}
+            key={category.label}
+            onClick={() => {
+              setActiveCategory(category.label);
+              setNotice(`${category.label} selected. The ladder stays global.`);
+            }}
+          >
+            <span className={`category-nav-glyph glyph-${category.tone}`}>
+              {category.glyph}
+            </span>
+            {category.label}
+          </button>
+        ))}
+        <a className="category-nav-explore" href="#categories">
+          EXPLORE <ChevronRight size={13} />
+        </a>
+      </nav>
+
       <div className="app-frame" id="top">
         <aside className="side-rail">
           <div className="rail-section">
@@ -577,6 +812,9 @@ export default function Home() {
             </a>
             <a className="rail-link" href="#how-it-works">
               <ShieldCheck size={14} /> How it works
+            </a>
+            <a className="rail-link" href="#categories">
+              <Globe2 size={14} /> All categories
             </a>
           </div>
           <div className="rail-footer">
@@ -869,6 +1107,121 @@ export default function Home() {
                 </div>
               </section>
             </aside>
+          </section>
+
+          <section className="category-directory panel" id="categories">
+            <div className="directory-header">
+              <div>
+                <p className="kicker">
+                  <Globe2 size={13} /> GLOBAL CATEGORY INDEX
+                </p>
+                <h2>All categories.</h2>
+                <p>Every category has its own view. The ladder stays shared.</p>
+              </div>
+              <div className="directory-stat">
+                <strong>28</strong>
+                <span>
+                  CATEGORIES
+                  <br />
+                  ONE ROOM
+                </span>
+              </div>
+            </div>
+
+            <div className="active-category-line">
+              <span>
+                <span className="status-dot is-live" /> BROWSE THE INDEX
+              </span>
+              <strong>
+                {activeCategory === 'all'
+                  ? 'ALL MARKETS'
+                  : activeCategory.toUpperCase()}
+              </strong>
+              <span className="active-category-hint">
+                Select a category to pin it.
+              </span>
+            </div>
+
+            <div className="hot-directory">
+              <div className="directory-subheading">
+                <span className="hot-pip" /> MOST ACTIVE CATEGORIES{' '}
+                <span>where attention is moving now</span>
+              </div>
+              <div className="hot-directory-grid">
+                {categories.slice(2, 5).map((category, index) => (
+                  <button
+                    className="hot-category-card"
+                    key={category.label}
+                    onClick={() => {
+                      setActiveCategory(category.label);
+                      setNotice(
+                        `${category.label} selected. The ladder stays global.`,
+                      );
+                    }}
+                  >
+                    <div className="hot-card-top">
+                      <span className={`category-glyph glyph-${category.tone}`}>
+                        {category.glyph}
+                      </span>
+                      <span>#{String(index + 1).padStart(2, '0')} ACTIVE</span>
+                    </div>
+                    <strong>{category.label}</strong>
+                    <div className="hot-card-bottom">
+                      <span>{5 - index} CLAIMS</span>
+                      <span>
+                        {index === 0 ? '08 MIN' : `${index + 2}H AGO`}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="category-card-grid">
+              {categories.map((category, categoryIndex) => (
+                <button
+                  className={`category-card ${activeCategory === category.label ? 'is-selected' : ''}`}
+                  key={category.label}
+                  onClick={() => {
+                    setActiveCategory(category.label);
+                    setNotice(
+                      `${category.label} selected. The ladder stays global.`,
+                    );
+                  }}
+                >
+                  <div className="category-card-heading">
+                    <span className={`category-glyph glyph-${category.tone}`}>
+                      {category.glyph}
+                    </span>
+                    <strong>{category.label}</strong>
+                    <ChevronRight size={15} />
+                  </div>
+                  <div className="category-leader-list">
+                    {category.leaders.map((leader, leaderIndex) => (
+                      <div className="category-leader" key={leader}>
+                        <span className="category-leader-rank">
+                          #{leaderIndex + 1}
+                        </span>
+                        <span
+                          className={`category-leader-avatar avatar-tone-${(categoryIndex + leaderIndex) % 5}`}
+                        >
+                          {leader.slice(0, 1)}
+                        </span>
+                        <span className="category-leader-name">{leader}</span>
+                        <span className="category-leader-price">
+                          {formatMoney(
+                            Math.max(
+                              165,
+                              11400 - categoryIndex * 315 - leaderIndex * 138,
+                            ),
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
           </section>
 
           <section className="command-strip" id="how-it-works">
