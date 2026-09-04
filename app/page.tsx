@@ -273,7 +273,7 @@ function Delta({ value }: { value: number }) {
 }
 
 export default function Home() {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(() => new Date(0));
   const [activeMarket, setActiveMarket] = useState(markets[0]);
   const [activeTab, setActiveTab] = useState('market');
   const [selectedRow, setSelectedRow] = useState<LadderRow | null>(null);
