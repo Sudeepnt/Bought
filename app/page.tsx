@@ -40,6 +40,7 @@ type LadderRow = {
   watched: string;
   conviction: number;
   color: string;
+  category: string;
   you?: boolean;
 };
 
@@ -335,6 +336,7 @@ const ladder: LadderRow[] = [
     watched: '14.2k',
     conviction: 92,
     color: 'coral',
+    category: 'Leaderboards & Attention Markets',
   },
   {
     rank: 2,
@@ -349,6 +351,7 @@ const ladder: LadderRow[] = [
     watched: '9.8k',
     conviction: 78,
     color: 'lime',
+    category: 'Leaderboards & Attention Markets',
   },
   {
     rank: 3,
@@ -363,6 +366,7 @@ const ladder: LadderRow[] = [
     watched: '7.4k',
     conviction: 71,
     color: 'sky',
+    category: 'Leaderboards & Attention Markets',
   },
   {
     rank: 4,
@@ -377,6 +381,7 @@ const ladder: LadderRow[] = [
     watched: '6.6k',
     conviction: 64,
     color: 'violet',
+    category: 'Leaderboards & Attention Markets',
   },
   {
     rank: 5,
@@ -391,9 +396,133 @@ const ladder: LadderRow[] = [
     watched: '5.1k',
     conviction: 59,
     color: 'orange',
+    category: 'Leaderboards & Attention Markets',
     you: true,
   },
 ];
+
+type EntrySeed = Pick<
+  LadderRow,
+  | 'name'
+  | 'handle'
+  | 'initials'
+  | 'country'
+  | 'countryCode'
+  | 'statement'
+  | 'color'
+>;
+
+const supportingEntries: EntrySeed[] = [
+  {
+    name: 'Maya Chen',
+    handle: '@mayachen',
+    initials: 'MC',
+    country: 'Singapore',
+    countryCode: 'SG',
+    statement: 'A sharper position for a louder idea.',
+    color: 'sky',
+  },
+  {
+    name: 'Jon Bell',
+    handle: '@jonbell',
+    initials: 'JB',
+    country: 'United States',
+    countryCode: 'US',
+    statement: 'Worth watching before the close.',
+    color: 'lime',
+  },
+  {
+    name: 'Nia Patel',
+    handle: '@niapatel',
+    initials: 'NP',
+    country: 'India',
+    countryCode: 'IN',
+    statement: 'Make the claim impossible to ignore.',
+    color: 'coral',
+  },
+  {
+    name: 'Leo Santos',
+    handle: '@leosantos',
+    initials: 'LS',
+    country: 'Brazil',
+    countryCode: 'BR',
+    statement: 'The next move is already forming.',
+    color: 'violet',
+  },
+  {
+    name: 'Ava Mensah',
+    handle: '@avamensah',
+    initials: 'AM',
+    country: 'Ghana',
+    countryCode: 'GH',
+    statement: 'Attention follows conviction.',
+    color: 'orange',
+  },
+  {
+    name: 'Owen Smith',
+    handle: '@owensmith',
+    initials: 'OS',
+    country: 'United Kingdom',
+    countryCode: 'GB',
+    statement: 'Early is a position, not a mood.',
+    color: 'sky',
+  },
+  {
+    name: 'Zara Ali',
+    handle: '@zaraali',
+    initials: 'ZA',
+    country: 'United Arab Emirates',
+    countryCode: 'AE',
+    statement: 'The room rewards a clear point of view.',
+    color: 'lime',
+  },
+];
+
+const slugify = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+const categoryLadder: LadderRow[] = categories.flatMap(
+  (category, categoryIndex) => {
+    const categoryLeaders: EntrySeed[] = category.leaders.map(
+      (leader, leaderIndex) => {
+        const seed = supportingEntries[(categoryIndex + leaderIndex) % 7];
+        return {
+          ...seed,
+          name: leader,
+          handle: `@${slugify(leader)}`,
+          initials: leader
+            .replace(/[^A-Za-z]/g, '')
+            .slice(0, 2)
+            .toUpperCase(),
+          statement: `${category.short} / position ${leaderIndex + 1} is moving.`,
+        };
+      },
+    );
+
+    return [...categoryLeaders, ...supportingEntries]
+      .slice(0, 10)
+      .map((entry, entryIndex) => ({
+        ...entry,
+        rank: entryIndex + 1,
+        category: category.label,
+        price: Math.max(
+          425,
+          18200 -
+            categoryIndex * 405 -
+            entryIndex * 172 +
+            ((categoryIndex * 37 + entryIndex * 19) % 84),
+        ),
+        change: Number(
+          (6.5 - categoryIndex * 0.12 - entryIndex * 0.46).toFixed(1),
+        ),
+        watched: `${Math.max(
+          2.1,
+          8.2 - categoryIndex * 0.14 - entryIndex * 0.08,
+        ).toFixed(1)}k`,
+        conviction: Math.max(42, 94 - entryIndex * 5 - (categoryIndex % 4) * 2),
+      }));
+  },
+);
 
 const countries = [
   { name: 'Mumbai', zone: 'Asia/Kolkata', code: 'IN' },
@@ -482,7 +611,7 @@ function Delta({ value }: { value: number }) {
 
 export default function Home() {
   const [now, setNow] = useState(() => new Date(0));
-  const [activeMarket, setActiveMarket] = useState(markets[0]);
+  const [activeMarket] = useState(markets[0]);
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeTab, setActiveTab] = useState('market');
   const [selectedRow, setSelectedRow] = useState<LadderRow | null>(null);
@@ -530,16 +659,44 @@ export default function Home() {
           43200) *
         100;
 
+  const selectCategory = (category: string) => {
+    setActiveCategory(category);
+    setNotice(
+      category === 'all'
+        ? 'All categories selected. Highest bids across the market.'
+        : `${category} selected. The ladder stays global.`,
+    );
+    window.requestAnimationFrame(() => {
+      document.getElementById('index')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  };
+
+  const rankedCategoryRows = useMemo(() => {
+    const rows =
+      activeCategory === 'all'
+        ? categoryLadder
+        : categoryLadder.filter((row) => row.category === activeCategory);
+    return [...rows]
+      .sort((left, right) => right.price - left.price)
+      .slice(0, 10)
+      .map((row, index) => ({ ...row, rank: index + 1 }));
+  }, [activeCategory]);
+  const userRow = ladder.find((row) => row.you) ?? ladder[4];
   const liveLadder = useMemo(() => {
-    if (position !== 1) return ladder;
+    const userCanLeadThisView =
+      position === 1 &&
+      (activeCategory === 'all' || userRow.category === activeCategory);
+    if (!userCanLeadThisView) return rankedCategoryRows;
     return [
-      { ...ladder[4], rank: 1, price: myPrice },
-      { ...ladder[0], rank: 2 },
-      { ...ladder[1], rank: 3 },
-      { ...ladder[2], rank: 4 },
-      { ...ladder[3], rank: 5 },
-    ];
-  }, [myPrice, position]);
+      { ...userRow, rank: 1, price: myPrice },
+      ...rankedCategoryRows.filter((row) => row.handle !== userRow.handle),
+    ]
+      .slice(0, 10)
+      .map((row, index) => ({ ...row, rank: index + 1 }));
+  }, [activeCategory, myPrice, position, rankedCategoryRows, userRow]);
   const topRow = liveLadder[0];
   const chaseLadder = liveLadder.slice(1);
 
@@ -705,6 +862,13 @@ export default function Home() {
   }, []);
 
   const phaseLabel = phase === 'live' ? 'AUCTION LIVE' : 'LOCKED EXPOSURE';
+  const activeCategoryCode =
+    activeCategory === 'all'
+      ? 'ALL'
+      : (categories
+          .find((category) => category.label === activeCategory)
+          ?.short.replace(' Index', '')
+          .toUpperCase() ?? 'CATEGORY');
   const phaseDescription =
     phase === 'live'
       ? 'The floor is open. Every position can move.'
@@ -761,7 +925,8 @@ export default function Home() {
       <nav className="category-nav" aria-label="Browse global categories">
         <button
           className={`category-nav-item ${activeCategory === 'all' ? 'is-active' : ''}`}
-          onClick={() => setActiveCategory('all')}
+          onClick={() => selectCategory('all')}
+          aria-pressed={activeCategory === 'all'}
         >
           <span className="category-nav-glyph">◎</span> ALL
         </button>
@@ -769,10 +934,8 @@ export default function Home() {
           <button
             className={`category-nav-item ${activeCategory === category.label ? 'is-active' : ''}`}
             key={category.label}
-            onClick={() => {
-              setActiveCategory(category.label);
-              setNotice(`${category.label} selected. The ladder stays global.`);
-            }}
+            onClick={() => selectCategory(category.label)}
+            aria-pressed={activeCategory === category.label}
           >
             <span className={`category-nav-glyph glyph-${category.tone}`}>
               {category.glyph}
@@ -902,8 +1065,17 @@ export default function Home() {
             <div className="panel market-board" id="index">
               <div className="panel-header">
                 <div>
-                  <p className="eyebrow">THE FLOOR / GLOBAL LADDER</p>
-                  <h2>{activeMarket.name}</h2>
+                  <p className="eyebrow">
+                    THE FLOOR /{' '}
+                    {activeCategory === 'all'
+                      ? 'ALL CATEGORIES'
+                      : activeCategory.toUpperCase()}
+                  </p>
+                  <h2>
+                    {activeCategory === 'all'
+                      ? 'All categories'
+                      : activeCategory}
+                  </h2>
                 </div>
                 <Badge variant="outline" className="live-badge">
                   <span
@@ -913,33 +1085,29 @@ export default function Home() {
                 </Badge>
               </div>
 
-              <div className="market-tabs" role="tablist" aria-label="Markets">
-                {markets.map((market) => (
-                  <button
-                    key={market.code}
-                    className={`market-tab ${activeMarket.code === market.code ? 'is-active' : ''}`}
-                    onClick={() => setActiveMarket(market)}
-                    role="tab"
-                    aria-selected={activeMarket.code === market.code}
-                  >
-                    <span className={`market-swatch swatch-${market.tone}`} />
-                    <span>{market.code}</span>
-                  </button>
-                ))}
+              <div className="category-board-meta">
+                <span>
+                  <span className="status-dot is-live" /> TOP 10 BY TOTAL BID
+                </span>
+                <strong>
+                  {activeCategory === 'all'
+                    ? 'HIGHEST ACROSS EVERY CATEGORY'
+                    : 'HIGHEST IN THIS CATEGORY'}
+                </strong>
               </div>
 
               <div className="market-summary">
                 <div>
                   <span className="eyebrow">TOP POSITION</span>
-                  <strong>{formatMoney(activeMarket.price)}</strong>
+                  <strong>{formatMoney(topRow.price)}</strong>
                 </div>
                 <div>
                   <span className="eyebrow">24H CHANGE</span>
-                  <Delta value={activeMarket.change} />
+                  <Delta value={topRow.change} />
                 </div>
                 <div>
-                  <span className="eyebrow">IN THE ROOM</span>
-                  <strong>{activeMarket.participants}</strong>
+                  <span className="eyebrow">WATCHING TOP</span>
+                  <strong>{topRow.watched}</strong>
                 </div>
                 <div className="sparkline" aria-label="Market trend rising">
                   <i />
@@ -1011,13 +1179,13 @@ export default function Home() {
               </div>
 
               <div className="ladder-section-label">
-                <span>THE CHASE</span>
-                <span>POSITIONS 02—05 / KEEP CLIMBING</span>
+                <span>THE CHASE / TOP 10</span>
+                <span>POSITIONS 02—10 / HIGHEST BIDS FIRST</span>
               </div>
 
               <div
                 className="ladder-table"
-                aria-label={`${activeMarket.name} global ladder`}
+                aria-label={`${activeCategory === 'all' ? 'All categories' : activeCategory} top 10 global ladder`}
               >
                 <div className="ladder-head">
                   <span>POS</span>
@@ -1187,7 +1355,10 @@ export default function Home() {
                   <Globe2 size={13} /> GLOBAL CATEGORY INDEX
                 </p>
                 <h2>All categories.</h2>
-                <p>Every category has its own view. The ladder stays shared.</p>
+                <p>
+                  Click any category to open its top 10, ranked by total bid.
+                  The ladder stays shared.
+                </p>
               </div>
               <div className="directory-stat">
                 <strong>28</strong>
@@ -1205,12 +1376,10 @@ export default function Home() {
               </span>
               <strong>
                 {activeCategory === 'all'
-                  ? 'ALL MARKETS'
+                  ? 'ALL CATEGORIES'
                   : activeCategory.toUpperCase()}
               </strong>
-              <span className="active-category-hint">
-                Select a category to pin it.
-              </span>
+              <span className="active-category-hint">TOP 10 / TOTAL BID</span>
             </div>
 
             <div className="hot-directory">
@@ -1223,12 +1392,8 @@ export default function Home() {
                   <button
                     className="hot-category-card"
                     key={category.label}
-                    onClick={() => {
-                      setActiveCategory(category.label);
-                      setNotice(
-                        `${category.label} selected. The ladder stays global.`,
-                      );
-                    }}
+                    onClick={() => selectCategory(category.label)}
+                    aria-pressed={activeCategory === category.label}
                   >
                     <div className="hot-card-top">
                       <span className={`category-glyph glyph-${category.tone}`}>
@@ -1238,10 +1403,15 @@ export default function Home() {
                     </div>
                     <strong>{category.label}</strong>
                     <div className="hot-card-bottom">
-                      <span>{5 - index} CLAIMS</span>
                       <span>
-                        {index === 0 ? '08 MIN' : `${index + 2}H AGO`}
+                        TOP BID{' '}
+                        {formatMoney(
+                          categoryLadder.find(
+                            (row) => row.category === category.label,
+                          )?.price ?? 0,
+                        )}
                       </span>
+                      <span>TOP 10 / OPEN</span>
                     </div>
                   </button>
                 ))}
@@ -1249,16 +1419,12 @@ export default function Home() {
             </div>
 
             <div className="category-card-grid">
-              {categories.map((category, categoryIndex) => (
+              {categories.map((category) => (
                 <button
                   className={`category-card ${activeCategory === category.label ? 'is-selected' : ''}`}
                   key={category.label}
-                  onClick={() => {
-                    setActiveCategory(category.label);
-                    setNotice(
-                      `${category.label} selected. The ladder stays global.`,
-                    );
-                  }}
+                  onClick={() => selectCategory(category.label)}
+                  aria-pressed={activeCategory === category.label}
                 >
                   <div className="category-card-heading">
                     <span className={`category-glyph glyph-${category.tone}`}>
@@ -1268,27 +1434,27 @@ export default function Home() {
                     <ChevronRight size={15} />
                   </div>
                   <div className="category-leader-list">
-                    {category.leaders.map((leader, leaderIndex) => (
-                      <div className="category-leader" key={leader}>
-                        <span className="category-leader-rank">
-                          #{leaderIndex + 1}
-                        </span>
-                        <span
-                          className={`category-leader-avatar avatar-tone-${(categoryIndex + leaderIndex) % 5}`}
-                        >
-                          {leader.slice(0, 1)}
-                        </span>
-                        <span className="category-leader-name">{leader}</span>
-                        <span className="category-leader-price">
-                          {formatMoney(
-                            Math.max(
-                              165,
-                              11400 - categoryIndex * 315 - leaderIndex * 138,
-                            ),
-                          )}
-                        </span>
-                      </div>
-                    ))}
+                    {categoryLadder
+                      .filter((row) => row.category === category.label)
+                      .slice(0, 3)
+                      .map((row) => (
+                        <div className="category-leader" key={row.handle}>
+                          <span className="category-leader-rank">
+                            #{row.rank}
+                          </span>
+                          <span
+                            className={`category-leader-avatar avatar-tone-${row.rank % 5}`}
+                          >
+                            {row.name.slice(0, 1)}
+                          </span>
+                          <span className="category-leader-name">
+                            {row.name}
+                          </span>
+                          <span className="category-leader-price">
+                            {formatMoney(row.price)}
+                          </span>
+                        </div>
+                      ))}
                   </div>
                 </button>
               ))}
@@ -1440,7 +1606,7 @@ export default function Home() {
           {orderOpen && selectedRow && (
             <>
               <p className="kicker">
-                <Zap size={13} /> ORDER TICKET / {activeMarket.code}
+                <Zap size={13} /> ORDER TICKET / {activeCategoryCode}
               </p>
               <h2>
                 Move above

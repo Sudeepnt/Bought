@@ -2129,6 +2129,37 @@ h2 em {
 .waitlist-provider-button:active {
   background: rgba(255, 91, 42, 0.16);
 }
+.category-board-meta {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  margin: 16px 22px 0;
+  padding: 10px 0;
+}
+.category-board-meta > span,
+.category-board-meta > strong {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+.category-board-meta > span {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  gap: 6px;
+}
+.category-board-meta > span .status-dot {
+  background: var(--hot);
+  height: 5px;
+  width: 5px;
+}
+.category-board-meta > strong {
+  color: var(--hot);
+  font-weight: 500;
+  text-align: right;
+}
 .waitlist-founding-band {
   align-items: center;
   border-bottom: 1px solid var(--line);
@@ -2814,6 +2845,16 @@ h2 em {
   .ladder-section-label {
     padding-left: 16px;
     padding-right: 16px;
+  }
+  .category-board-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+  .category-board-meta > strong {
+    text-align: left;
   }
 }
 @media (max-width: 850px) {
