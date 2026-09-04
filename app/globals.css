@@ -2081,6 +2081,43 @@ h2 em {
   background: #ff7546;
   color: var(--ink);
 }
+.waitlist-founding-band {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 28px;
+  grid-template-columns: 92px minmax(0, 1fr) minmax(260px, 0.65fr);
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: 39px 24px;
+}
+.waitlist-founding-mark {
+  border-right: 1px solid var(--line-strong);
+  color: var(--hot);
+  font-family: var(--mono);
+  font-size: 47px;
+  font-weight: 500;
+  letter-spacing: -0.1em;
+  line-height: 1;
+  min-height: 63px;
+  padding-top: 5px;
+}
+.waitlist-founding-copy h2 {
+  color: var(--paper);
+  font-size: 27px;
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  line-height: 1.05;
+  margin: 10px 0 0;
+  max-width: 420px;
+}
+.waitlist-founding-band > p {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 310px;
+}
 .waitlist-note,
 .waitlist-error {
   font-family: var(--mono);
@@ -2363,6 +2400,15 @@ h2 em {
   .waitlist-faq {
     padding: 60px 16px;
   }
+  .waitlist-founding-band {
+    gap: 21px;
+    grid-template-columns: 70px minmax(0, 1fr);
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .waitlist-founding-band > p {
+    grid-column: 2;
+  }
   .waitlist-step-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -2419,6 +2465,17 @@ h2 em {
   }
   .waitlist-form-panel {
     padding: 20px;
+  }
+  .waitlist-founding-band {
+    align-items: start;
+    grid-template-columns: 55px minmax(0, 1fr);
+  }
+  .waitlist-founding-mark {
+    font-size: 35px;
+    min-height: 48px;
+  }
+  .waitlist-founding-copy h2 {
+    font-size: 24px;
   }
   .waitlist-form-panel h2 {
     font-size: 26px;

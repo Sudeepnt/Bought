@@ -10,27 +10,27 @@ import { Input } from '@/components/ui/input';
 const steps = [
   {
     number: '01',
-    label: 'CHOOSE',
-    title: 'Choose what you want seen.',
-    copy: 'Bring a product, project, opinion, profile, or idea to one of BOUGHT’s global markets.',
+    label: 'BRING',
+    title: 'Bring what matters to you.',
+    copy: 'A product, project, opinion, or identity you want the world to notice.',
   },
   {
     number: '02',
-    label: 'BID',
-    title: 'Spend to move up.',
-    copy: 'During the live auction, your spend determines your position on the public ladder.',
+    label: 'BACK',
+    title: 'Put conviction behind it.',
+    copy: 'Spend to move into a higher position. Your rank is visible to everyone in the room.',
   },
   {
     number: '03',
     label: 'HOLD',
-    title: 'Keep the room for 12 hours.',
-    copy: 'When the auction locks, the ladder stops moving. Your position stays visible while the world catches up.',
+    title: 'Hold the room.',
+    copy: 'When the auction closes, your position stays exposed for 12 hours while the world catches up.',
   },
   {
     number: '04',
-    label: 'DROP',
-    title: 'Return for the next opening.',
-    copy: 'At the next UTC drop, the board opens again. One market. One ladder. A new chance to rise.',
+    label: 'RETURN',
+    title: 'See what happens next.',
+    copy: 'At the next UTC drop, rise, defend your place, or come back stronger.',
   },
 ];
 
@@ -38,17 +38,17 @@ const faq = [
   {
     question: 'What am I joining?',
     answer:
-      'The early-access list for BOUGHT, a global attention exchange where positions are earned through a shared auction.',
+      'The founding queue for BOUGHT: a global attention exchange where people earn a public position through a shared auction.',
   },
   {
     question: 'Do I pay anything now?',
     answer:
-      'No. Joining the waitlist only reserves your place for launch updates and the first market invitation.',
+      'No. The waitlist is free. It does not create a position or promise an outcome; it gives you first access information.',
   },
   {
-    question: 'When does the market open?',
+    question: 'Will this change my life?',
     answer:
-      'The live schedule runs in UTC: 12 hours of auction, followed by 12 hours of locked exposure. The first drop time will be sent by email.',
+      'No platform can promise that. BOUGHT gives your conviction a public room; what happens after people see it depends on what you bring and what the room does with it.',
   },
 ];
 
@@ -100,29 +100,30 @@ export default function WaitlistPage() {
       <section className="waitlist-hero">
         <div className="waitlist-hero-copy">
           <p className="kicker">
-            <Globe2 size={13} /> GLOBAL ATTENTION EXCHANGE
+            <Globe2 size={13} /> FOUNDING ROOM / GLOBAL ATTENTION EXCHANGE
           </p>
           <h1>
-            Get your name
+            Be early to the
             <br />
-            <em>on the ladder.</em>
+            <em>room that remembers.</em>
           </h1>
           <p className="waitlist-lede">
-            BOUGHT is one shared market for being seen. People, products, and
-            ideas compete for a visible position on the same global ladder.
+            The internet is full of people doing work that never gets its
+            moment. BOUGHT gives products, projects, opinions, and identities a
+            public position—and puts the whole world in the same room.
           </p>
           <div className="waitlist-proof-row">
             <div>
-              <strong>01</strong>
-              <span>MARKET</span>
+              <strong>FIRST</strong>
+              <span>DROP ACCESS</span>
             </div>
             <div>
-              <strong>184</strong>
-              <span>COUNTRIES</span>
+              <strong>ONE</strong>
+              <span>SHARED LADDER</span>
             </div>
             <div>
-              <strong>24H</strong>
-              <span>FULL CYCLE</span>
+              <strong>BEFORE</strong>
+              <span>THE CROWD</span>
             </div>
           </div>
         </div>
@@ -132,7 +133,7 @@ export default function WaitlistPage() {
           aria-labelledby="waitlist-form-title"
         >
           <div className="waitlist-form-head">
-            <span className="eyebrow">EARLY ACCESS / 001</span>
+            <span className="eyebrow">FOUNDING ROOM / REQUEST 001</span>
             <span className="waitlist-live-label">
               <span className="status-dot is-live" /> OPEN
             </span>
@@ -154,10 +155,11 @@ export default function WaitlistPage() {
             </output>
           ) : (
             <>
-              <h2 id="waitlist-form-title">Be there for the first drop.</h2>
+              <h2 id="waitlist-form-title">Take your place early.</h2>
               <p className="waitlist-form-copy">
-                Leave your email for early access. You are not buying a position
-                yet—just reserving a place to enter the first market.
+                If you believe your work, product, or point of view deserves a
+                room, put your name down. We’ll tell you when the first auction
+                opens and how to enter.
               </p>
               <form onSubmit={joinWaitlist} className="waitlist-form">
                 <label htmlFor="waitlist-email">EMAIL ADDRESS</label>
@@ -190,14 +192,33 @@ export default function WaitlistPage() {
         </section>
       </section>
 
+      <section
+        className="waitlist-founding-band"
+        aria-labelledby="founding-title"
+      >
+        <div className="waitlist-founding-mark">01</div>
+        <div className="waitlist-founding-copy">
+          <p className="eyebrow">THE PART BEFORE THE STORY</p>
+          <h2 id="founding-title">
+            The first people in help decide what gets remembered.
+          </h2>
+        </div>
+        <p>
+          You are not joining to watch from the edge. You are joining to bring
+          something of your own, make a claim, and find out what the room does
+          with it.
+        </p>
+      </section>
+
       <section className="waitlist-explainer" aria-labelledby="how-title">
         <div className="waitlist-section-heading">
           <div>
             <p className="eyebrow">WHAT HAPPENS INSIDE</p>
-            <h2 id="how-title">A simple market rhythm.</h2>
+            <h2 id="how-title">The ritual is simple. The feeling is not.</h2>
           </div>
           <p>
-            Not a feed. Not a raffle. A position you choose, fund, and hold.
+            You are not signing up to watch. You are signing up to put something
+            of yours on the board.
           </p>
         </div>
         <div className="waitlist-step-grid">
@@ -237,11 +258,11 @@ export default function WaitlistPage() {
         </div>
         <div className="waitlist-cycle-copy">
           <p className="eyebrow">THE GLOBAL CLOCK</p>
-          <h2 id="cycle-title">Everyone gets a few hours.</h2>
+          <h2 id="cycle-title">The world will not arrive at once.</h2>
           <p>
-            The market is coordinated by UTC, not one country’s morning. When
-            the auction is live somewhere, the same ladder is live everywhere.
-            Your local time can differ; the room does not.
+            That is the point. A global room needs a shared clock, so no single
+            country owns the opening. When it is your hour, you act. When it is
+            someone else’s, they see you.
           </p>
           <div className="waitlist-cycle-meta">
             <Clock3 size={14} /> NEXT MARKET TIME WILL BE SENT TO THE WAITLIST
