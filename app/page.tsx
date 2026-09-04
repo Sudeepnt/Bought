@@ -539,6 +539,8 @@ export default function Home() {
       { ...ladder[3], rank: 5 },
     ];
   }, [myPrice, position]);
+  const topRow = liveLadder[0];
+  const chaseLadder = liveLadder.slice(1);
 
   const openOrder = (row: LadderRow) => {
     setSelectedRow(row);
@@ -949,6 +951,66 @@ export default function Home() {
               </div>
 
               <div
+                className="leader-card"
+                aria-label={`Current leader: ${topRow.name} at ${formatMoney(topRow.price)}`}
+              >
+                <div className="leader-card-top">
+                  <span className="leader-kicker">
+                    <span className="status-dot is-live" /> CURRENT LEADER
+                  </span>
+                  <span className="leader-rank-label">
+                    POSITION <strong>#01</strong>
+                  </span>
+                </div>
+                <div className="leader-card-body">
+                  <div className="leader-rank-display">#1</div>
+                  <div
+                    className={`avatar leader-avatar avatar-${topRow.color}`}
+                  >
+                    {topRow.initials}
+                  </div>
+                  <div className="leader-copy">
+                    <div className="leader-name-line">
+                      <strong>{topRow.name}</strong>{' '}
+                      {topRow.you && <Badge className="you-badge">YOU</Badge>}
+                    </div>
+                    <div className="leader-statement">{topRow.statement}</div>
+                    <div className="player-meta">
+                      {topRow.handle} <span>/</span> {topRow.countryCode}
+                    </div>
+                  </div>
+                  <div className="leader-price">
+                    <span className="eyebrow">POSITION VALUE</span>
+                    <strong>{formatMoney(topRow.price)}</strong>
+                    <Delta value={topRow.change} />
+                  </div>
+                  <Button
+                    className="leader-action"
+                    onClick={() => openOrder(topRow)}
+                    disabled={phase === 'locked' || topRow.you}
+                  >
+                    {topRow.you
+                      ? 'YOU HOLD #1'
+                      : phase === 'live'
+                        ? 'TAKE THE LEAD'
+                        : 'LOCKED'}{' '}
+                    <ArrowUpRight size={15} />
+                  </Button>
+                </div>
+                <div className="leader-card-footer">
+                  <span>
+                    <Trophy size={13} /> {topRow.watched} watching the top spot
+                  </span>
+                  <span>Every move is public</span>
+                </div>
+              </div>
+
+              <div className="ladder-section-label">
+                <span>THE CHASE</span>
+                <span>POSITIONS 02—05 / KEEP CLIMBING</span>
+              </div>
+
+              <div
                 className="ladder-table"
                 aria-label={`${activeMarket.name} global ladder`}
               >
@@ -960,7 +1022,7 @@ export default function Home() {
                   <span>ROOM</span>
                   <span />
                 </div>
-                {liveLadder.map((row) => (
+                {chaseLadder.map((row) => (
                   <div
                     className={`ladder-row ${row.you ? 'is-you' : ''}`}
                     key={`${row.handle}-${row.rank}`}
@@ -1061,10 +1123,14 @@ export default function Home() {
                 </div>
                 <Button
                   className="primary-action"
-                  onClick={() => openOrder(ladder[0])}
-                  disabled={phase === 'locked'}
+                  onClick={() => openOrder(topRow)}
+                  disabled={phase === 'locked' || topRow.you}
                 >
-                  {phase === 'live' ? 'TAKE POSITION' : 'WATCH THE CLOSE'}{' '}
+                  {topRow.you
+                    ? 'YOU HOLD #1'
+                    : phase === 'live'
+                      ? 'TAKE THE LEAD'
+                      : 'WATCH THE CLOSE'}{' '}
                   <ArrowUpRight size={15} />
                 </Button>
                 <Button
