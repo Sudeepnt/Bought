@@ -29,27 +29,42 @@ export default function WatchlistPage() {
               <span className="eyebrow">TRACKED POSITIONS</span>
               <h2>Watch the chase.</h2>
             </div>
-            <span className="watchlist-count"><Eye size={14} /> 08 LIVE</span>
+            <span className="watchlist-count">
+              <Eye size={14} /> 08 LIVE
+            </span>
           </div>
           <div className="watchlist-table">
-            {watchlist.map(([rank, initials, name, category, bid, watching]) => (
-              <button className="watchlist-row" type="button" key={name}>
-                <span className="watch-rank">{rank}</span>
-                <ProfileAvatar initials={initials} className="watch-avatar" />
-                <span className="watch-player"><strong>{name}</strong><em>{category}</em></span>
-                <strong>{bid}</strong>
-                <span className="watching"><Eye size={13} />{watching}</span>
-                <ArrowUpRight size={16} />
-              </button>
-            ))}
+            {watchlist.map(
+              ([rank, initials, name, category, bid, watching]) => (
+                <button className="watchlist-row" type="button" key={name}>
+                  <span className="watch-rank">{rank}</span>
+                  <ProfileAvatar initials={initials} className="watch-avatar" />
+                  <span className="watch-player">
+                    <strong>{name}</strong>
+                    <em>{category}</em>
+                  </span>
+                  <strong>{bid}</strong>
+                  <span className="watching">
+                    <Eye size={13} />
+                    {watching}
+                  </span>
+                  <ArrowUpRight size={16} />
+                </button>
+              ),
+            )}
           </div>
         </div>
         <aside className="watchlist-callout">
           <span className="eyebrow">MARKET ALERT</span>
           <Zap size={23} />
           <h2>Four watched positions moved in the last hour.</h2>
-          <p>Stay close to the tape. The best time to act is before the room agrees.</p>
-          <button type="button">SET AN ALERT <ArrowUpRight size={14} /></button>
+          <p>
+            Stay close to the tape. The best time to act is before the room
+            agrees.
+          </p>
+          <button type="button">
+            SET AN ALERT <ArrowUpRight size={14} />
+          </button>
         </aside>
       </section>
     </MarketPageShell>

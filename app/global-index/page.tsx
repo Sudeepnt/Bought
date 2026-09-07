@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- CSS grid preserves a compact responsive data table. */
 import { ArrowUpRight, Globe2, TrendingUp } from 'lucide-react';
 
 import { MarketPageShell } from '@/components/market-page-shell';
@@ -22,7 +23,9 @@ export default function GlobalIndexPage() {
         <div className="route-stat-card hot-stat">
           <span>GLOBAL POSITION VALUE</span>
           <strong>₹184.6K</strong>
-          <em><TrendingUp size={14} /> +4.2% / 24H</em>
+          <em>
+            <TrendingUp size={14} /> +4.2% / 24H
+          </em>
         </div>
         <div className="route-stat-card">
           <span>ACTIVE BIDS</span>
@@ -32,7 +35,9 @@ export default function GlobalIndexPage() {
         <div className="route-stat-card">
           <span>LIVE COUNTRIES</span>
           <strong>184</strong>
-          <em><Globe2 size={14} /> ONE LADDER</em>
+          <em>
+            <Globe2 size={14} /> ONE LADDER
+          </em>
         </div>
         <div className="route-stat-card">
           <span>NEXT DROP</span>
@@ -47,17 +52,32 @@ export default function GlobalIndexPage() {
             <span className="eyebrow">MARKET MOVERS</span>
             <h2>Highest positions across the floor.</h2>
           </div>
-          <span className="route-live"><i /> LIVE DATA</span>
+          <span className="route-live">
+            <i /> LIVE DATA
+          </span>
         </div>
-        <div className="index-table" role="table" aria-label="Global category index">
+        <div
+          className="index-table"
+          role="table"
+          aria-label="Global category index"
+        >
           <div className="index-table-head" role="row">
-            <span>MARKET</span><span>LEADING BID</span><span>24H</span><span>BIDS</span><span />
+            <span>MARKET</span>
+            <span>LEADING BID</span>
+            <span>24H</span>
+            <span>BIDS</span>
+            <span />
           </div>
           {indexRows.map(([market, bid, change, bids], index) => (
             <div className="index-table-row" role="row" key={market}>
-              <span><b>{String(index + 1).padStart(2, '0')}</b>{market}</span>
+              <span>
+                <b>{String(index + 1).padStart(2, '0')}</b>
+                {market}
+              </span>
               <strong>{bid}</strong>
-              <em><ArrowUpRight size={14} /> {change}</em>
+              <em>
+                <ArrowUpRight size={14} /> {change}
+              </em>
               <span>{bids}</span>
               <ArrowUpRight size={16} aria-hidden="true" />
             </div>

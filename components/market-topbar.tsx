@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Moon, Search, Sun, WalletCards } from 'lucide-react';
+import Link from 'next/link';
 
-import { Button } from '@/components/ui/button';
 import { ProfileAvatar } from '@/components/profile-avatar';
 
 export type MarketPage =
@@ -13,15 +13,18 @@ export type MarketPage =
   | 'magazine'
   | 'notes'
   | 'rules'
-  | 'categories';
+  | 'categories'
+  | 'waitlist';
 
 const navigation: Array<{ key: MarketPage; label: string; href: string }> = [
   { key: 'floor', label: 'TODAY', href: '/' },
   { key: 'index', label: 'ALL-TIME', href: '/global-index' },
   { key: 'categories', label: 'CATEGORIES', href: '/categories' },
-  { key: 'watchlist', label: 'TRIBES', href: '/watchlist' },
-  { key: 'index', label: 'PRICE INDEX', href: '/global-index' },
+  { key: 'watchlist', label: 'WATCHLIST', href: '/watchlist' },
+  { key: 'magazine', label: 'MAGAZINE', href: '/magazine' },
+  { key: 'notes', label: 'NOTES', href: '/field-notes' },
   { key: 'rules', label: 'HOW IT WORKS', href: '/how-it-works' },
+  { key: 'waitlist', label: 'WAITLIST', href: '/waitlist' },
 ];
 
 const tickerItems = [
@@ -55,14 +58,20 @@ export function MarketTopbar({
   const isLive = now.getUTCHours() < 12;
 
   useEffect(() => {
-    setNow(new Date());
+    const initialFrame = window.requestAnimationFrame(() => setNow(new Date()));
     const timer = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.cancelAnimationFrame(initialFrame);
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
-    const savedTheme = window.localStorage.getItem('bought-theme');
-    if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme);
+    const frame = window.requestAnimationFrame(() => {
+      const savedTheme = window.localStorage.getItem('bought-theme');
+      if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
@@ -73,34 +82,46 @@ export function MarketTopbar({
   return (
     <>
       <header className="topbar">
-        <a className="brand-mark" href="/" aria-label="BOUGHT home">
+        <Link className="brand-mark" href="/" aria-label="BOUGHT home">
           <span className="brand-dot" />
           <span>BOUGHT</span>
-        </a>
+        </Link>
 
         <nav className="top-navigation" aria-label="Market pages">
           {navigation.map((item, index) => (
-            <a
+            <Link
               className={`top-navigation-link ${active === item.key ? 'is-active' : ''}`}
               href={item.href}
               key={`${item.label}-${index}`}
-              aria-current={active === item.key && item.label !== 'PRICE INDEX' ? 'page' : undefined}
+              aria-current={
+                active === item.key && item.label !== 'PRICE INDEX'
+                  ? 'page'
+                  : undefined
+              }
             >
               {item.label}
-            </a>
+            </Link>
           ))}
         </nav>
 
-        <div className="topbar-search" role="search">
+        <search className="topbar-search">
           <Search size={15} />
           <span>Search drops, people, companies...</span>
+        </search>
+        <div className="online-status">
+          <i /> 412 online
         </div>
-        <div className="online-status"><i /> 412 online</div>
-        <ProfileAvatar initials="SK" className="header-avatar" alt="Account profile" />
+        <ProfileAvatar
+          initials="SK"
+          className="header-avatar"
+          alt="Account profile"
+        />
 
         <div className="topbar-actions">
           <div className="topbar-status" aria-live="polite">
-            <span className={`status-dot ${isLive ? 'is-live' : 'is-locked'}`} />
+            <span
+              className={`status-dot ${isLive ? 'is-live' : 'is-locked'}`}
+            />
             {isLive ? 'LIVE' : 'LOCKED'}
           </div>
           <div className="clock-readout">
@@ -110,15 +131,17 @@ export function MarketTopbar({
           <button
             className="theme-toggle"
             type="button"
-            onClick={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}
+            onClick={() =>
+              setTheme((value) => (value === 'dark' ? 'light' : 'dark'))
+            }
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           >
             {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           </button>
-          <Button className="wallet-button" variant="outline" size="sm">
+          <button className="wallet-button" type="button">
             <WalletCards size={14} />₹{balance.toLocaleString('en-IN')}
-          </Button>
+          </button>
         </div>
       </header>
 
