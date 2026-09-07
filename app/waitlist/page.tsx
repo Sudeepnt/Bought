@@ -6,6 +6,7 @@ import { ArrowRight, Check, Clock3, Globe2, Mail, Trophy } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MarketTopbar } from '@/components/market-topbar';
 
 const steps = [
   {
@@ -84,34 +85,9 @@ export default function WaitlistPage() {
   };
 
   return (
-    <main className="waitlist-shell">
-      <header className="waitlist-topbar">
-        <a
-          className="brand-mark"
-          href="/waitlist"
-          aria-label="BOUGHT waitlist home"
-        >
-          <span className="brand-dot" />
-          <span>BOUGHT</span>
-        </a>
-        <div className="waitlist-topbar-meta">
-          <span className="status-dot is-live" />
-          <span>EARLY ACCESS OPEN</span>
-          <span className="status-separator">/</span>
-          <a href="/#top">
-            VIEW MARKET <ArrowRight size={13} />
-          </a>
-        </div>
-      </header>
-
-      <div className="waitlist-ticker" aria-label="BOUGHT product description">
-        <span>ONE GLOBAL AUCTION</span>
-        <span>ONE PUBLIC LADDER</span>
-        <span>12H LIVE / 12H LOCKED</span>
-        <span>UTC-NATIVE</span>
-        <span>EARLY ACCESS NOW OPEN</span>
-      </div>
-
+    <main className="waitlist-shell dashboard-shell">
+      <MarketTopbar active="floor" />
+      <div className="waitlist-current-wrap">
       <section className="waitlist-hero">
         <div className="waitlist-hero-copy">
           <p className="kicker">
@@ -332,6 +308,7 @@ export default function WaitlistPage() {
         </div>
         <span>EARLY ACCESS / UTC-NATIVE / 2026</span>
       </footer>
+      </div>
     </main>
   );
 }

@@ -1,1692 +1,252 @@
 'use client';
-/* oxlint-disable next/no-html-link-for-pages */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
-  Activity,
   ArrowDownRight,
   ArrowUpRight,
-  BookOpen,
+  AlarmClock,
+  BarChart3,
+  Bell,
   ChevronRight,
-  Clock3,
-  Globe2,
-  LockKeyhole,
-  Menu,
-  Pause,
+  Eye,
   Play,
-  Radio,
-  ShieldCheck,
-  Sparkles,
-  Trophy,
-  Video,
-  WalletCards,
-  X,
-  Zap,
+  Users,
 } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MarketTopbar } from '@/components/market-topbar';
+import { ProfileAvatar } from '@/components/profile-avatar';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
-type Phase = 'live' | 'locked';
-
-type LadderRow = {
-  rank: number;
-  name: string;
-  handle: string;
-  initials: string;
-  country: string;
-  countryCode: string;
-  statement: string;
-  price: number;
-  change: number;
-  watched: string;
-  conviction: number;
-  color: string;
-  category: string;
-  you?: boolean;
-};
-
-type Market = {
-  name: string;
-  code: string;
-  participants: string;
-  price: number;
-  change: number;
-  tone: string;
-};
-
-type ModelContext = {
-  registerTool: (
-    tool: {
-      name: string;
-      title?: string;
-      description: string;
-      inputSchema: Record<string, unknown>;
-      execute: (input: unknown) => unknown;
-      annotations?: {
-        readOnlyHint?: boolean;
-        untrustedContentHint?: boolean;
-      };
-    },
-    options?: { signal?: AbortSignal },
-  ) => void | Promise<void>;
-};
-
-type ModelDocument = Document & { modelContext?: ModelContext };
-
-const markets: Market[] = [
-  {
-    name: 'Unpopular Opinion',
-    code: 'UO',
-    participants: '24.8k',
-    price: 11400,
-    change: 14.2,
-    tone: 'orange',
-  },
-  {
-    name: 'Building in Public',
-    code: 'BIP',
-    participants: '18.2k',
-    price: 9100,
-    change: 8.4,
-    tone: 'green',
-  },
-  {
-    name: 'The Ask',
-    code: 'ASK',
-    participants: '12.9k',
-    price: 8750,
-    change: -3.1,
-    tone: 'red',
-  },
-  {
-    name: 'Defend Your Stack',
-    code: 'DYS',
-    participants: '9.4k',
-    price: 6200,
-    change: 5.8,
-    tone: 'blue',
-  },
-  {
-    name: 'Indian D2C',
-    code: 'D2C',
-    participants: '7.1k',
-    price: 5400,
-    change: 2.6,
-    tone: 'purple',
-  },
+const leaderboard = [
+  ['Ananya R.', '@ananyabuilds', 'UNPOPULAR OPINION', '₹11,400', 'AR', 'coral'],
+  ['Arjun S.', '@arjunsays', 'BUILDING', '₹8,900', 'AS', 'green'],
+  ['Priya M.', '@priyamakes', 'MONEY', '₹6,200', 'PM', 'orange'],
+  ['Rahul K.', '@rahulbuilds', 'BEEF', '₹6,200', 'RK', 'blue'],
+  ['Karan V.', '@karanv', 'UNPOPULAR OPINION', '₹4,800', 'KV', 'purple'],
 ];
 
-type Category = {
-  label: string;
-  short: string;
-  glyph: string;
-  tone: string;
-  leaders: [string, string, string];
-};
-
-const categories: Category[] = [
-  {
-    label: 'Leaderboards & Attention Markets',
-    short: 'Attention Index',
-    glyph: '✣',
-    tone: 'orange',
-    leaders: ['Winning Room', 'Open Ladder', 'OneWord'],
-  },
-  {
-    label: 'SEO & AI Visibility',
-    short: 'Visibility Index',
-    glyph: '⌕',
-    tone: 'blue',
-    leaders: ['Outrank', 'CrowdReply', 'ZeroRank'],
-  },
-  {
-    label: 'Marketing & Advertising',
-    short: 'Marketing Index',
-    glyph: '◈',
-    tone: 'coral',
-    leaders: ['Tutti', 'Letter Friend', 'Affiliateo'],
-  },
-  {
-    label: 'Productivity & Personal Tools',
-    short: 'Productivity Index',
-    glyph: '≡',
-    tone: 'lime',
-    leaders: ['Turingo', 'Tracked', 'MyThoughts'],
-  },
-  {
-    label: 'AI Agents & Infrastructure',
-    short: 'Agents Index',
-    glyph: '⌘',
-    tone: 'violet',
-    leaders: ['see.io', 'JONI', 'Pecan AI'],
-  },
-  {
-    label: 'Other',
-    short: 'Other Index',
-    glyph: '⊹',
-    tone: 'stone',
-    leaders: ['Divi', 'shp.ee', 'Make a Hug'],
-  },
-  {
-    label: 'Crypto, Web3 & Investing',
-    short: 'Crypto Index',
-    glyph: '₿',
-    tone: 'gold',
-    leaders: ['Orynth', 'PumpFunCoin', 'Fiber'],
-  },
-  {
-    label: 'Developer Tools',
-    short: 'Developer Index',
-    glyph: '</>',
-    tone: 'sky',
-    leaders: ['Modulate', 'Context.dev', 'Trylle'],
-  },
-  {
-    label: 'Health, Fitness & Wellness',
-    short: 'Health Index',
-    glyph: '♡',
-    tone: 'green',
-    leaders: ['Fuel Log', 'My Workout Logs', 'PeptiPrices'],
-  },
-  {
-    label: 'Business, Finance & Legal',
-    short: 'Business Index',
-    glyph: '⚖',
-    tone: 'navy',
-    leaders: ['FloPay', 'myTB.ai', 'Klover'],
-  },
-  {
-    label: 'Games & Entertainment',
-    short: 'Games Index',
-    glyph: '✦',
-    tone: 'pink',
-    leaders: ['Colonist', 'TorrentClaw', 'Crypto Casinos'],
-  },
-  {
-    label: 'Ecommerce & Retail',
-    short: 'Commerce Index',
-    glyph: '□',
-    tone: 'teal',
-    leaders: ['Four', 'Yoho', 'Peptide Hub'],
-  },
-  {
-    label: 'Travel, Local & Lifestyle',
-    short: 'Travel Index',
-    glyph: '⌖',
-    tone: 'orange',
-    leaders: ['Wento', 'Overnightly', 'Service Dog Certs'],
-  },
-  {
-    label: 'Directories, Launch & Discovery',
-    short: 'Discovery Index',
-    glyph: '⊞',
-    tone: 'blue',
-    leaders: ['indie.game', 'Tiny Startups', 'ONEWORD'],
-  },
-  {
-    label: 'Agencies, Studios & Services',
-    short: 'Services Index',
-    glyph: '▱',
-    tone: 'coral',
-    leaders: ['AY Automate', 'Launch Club', 'Limestone Digital'],
-  },
-  {
-    label: 'AI Media Generation',
-    short: 'Media Index',
-    glyph: '✺',
-    tone: 'purple',
-    leaders: ['VisualLift', 'Luo Solutions', 'Klodsy'],
-  },
-  {
-    label: 'Social Media & Creator Tools',
-    short: 'Social Index',
-    glyph: '⌁',
-    tone: 'pink',
-    leaders: ['Linkie', 'Publer', 'ContentStudio'],
-  },
-  {
-    label: 'Education & Learning',
-    short: 'Learning Index',
-    glyph: '△',
-    tone: 'violet',
-    leaders: ['Otio', 'Educate 10M', 'Unive'],
-  },
-  {
-    label: 'People & Profiles',
-    short: 'People Index',
-    glyph: '◎',
-    tone: 'green',
-    leaders: ['RobbyFrank', 'MayThe5th', 'Adrieves'],
-  },
-  {
-    label: 'Design & Creative',
-    short: 'Design Index',
-    glyph: '✎',
-    tone: 'gold',
-    leaders: ['NeoCam', 'Influencer AI', 'HorizonX'],
-  },
-  {
-    label: 'Hiring, Jobs & Careers',
-    short: 'Hiring Index',
-    glyph: '▣',
-    tone: 'blue',
-    leaders: ['LATAMHire', 'Spin Hire', 'Simple CV'],
-  },
-  {
-    label: 'Domains & Web Assets',
-    short: 'Domains Index',
-    glyph: '⌁',
-    tone: 'orange',
-    leaders: ['NameRockstar', 'NextBrand', 'Domain Registrar'],
-  },
-  {
-    label: 'Security, Privacy & Compliance',
-    short: 'Security Index',
-    glyph: '◇',
-    tone: 'green',
-    leaders: ['Comp AI', 'Screenata', 'Veyl'],
-  },
-  {
-    label: 'Media & News',
-    short: 'News Index',
-    glyph: '▤',
-    tone: 'coral',
-    leaders: ['Hark News', 'Coverage Desk', 'Mangii'],
-  },
-  {
-    label: 'Sales & Lead Generation',
-    short: 'Sales Index',
-    glyph: '↗',
-    tone: 'lime',
-    leaders: ['AutoMailer', 'RAEK', 'Prospactive'],
-  },
-  {
-    label: 'Real Estate & Property',
-    short: 'Property Index',
-    glyph: '⌂',
-    tone: 'navy',
-    leaders: ['Buy or Sell', 'FlyDragon', 'Dumpster Desk'],
-  },
-  {
-    label: 'Writing & Content',
-    short: 'Writing Index',
-    glyph: '¶',
-    tone: 'purple',
-    leaders: ['StealthGPT', 'Capital Mischief', 'ReverseGPT'],
-  },
-  {
-    label: 'Audio, Voice & Podcasting',
-    short: 'Audio Index',
-    glyph: '◖',
-    tone: 'sky',
-    leaders: ['Palabra.ai', 'ekto', 'Wave'],
-  },
+const activity = [
+  ['Rahul K.', 'took #4 in', 'BEEF', '₹6,200', '12s ago', 'RK', 'blue'],
+  ['Priya M.', 'entered', 'MONEY', '₹4,100', '21s ago', 'PM', 'orange'],
+  ['Arjun S.', 'moved to #2 in', 'BUILDING', '₹8,900', '31s ago', 'AS', 'green'],
+  ['Karan V.', 'outbid in', 'UNPOPULAR OPINION', '₹11,500', '45s ago', 'KV', 'purple'],
+  ['Someone just joined', 'from', 'Bengaluru', '', '1m ago', 'SJ', 'coral'],
 ];
 
-const ladder: LadderRow[] = [
-  {
-    rank: 1,
-    name: 'Ananya Rao',
-    handle: '@ananyabuilds',
-    initials: 'AR',
-    country: 'India',
-    countryCode: 'IN',
-    statement: 'Your design system is productivity theatre.',
-    price: 11400,
-    change: 18.4,
-    watched: '14.2k',
-    conviction: 92,
-    color: 'coral',
-    category: 'Leaderboards & Attention Markets',
-  },
-  {
-    rank: 2,
-    name: 'Ethan Cole',
-    handle: '@ethancole',
-    initials: 'EC',
-    country: 'United States',
-    countryCode: 'US',
-    statement: 'Every AI roadmap is a budget spreadsheet.',
-    price: 9100,
-    change: 8.4,
-    watched: '9.8k',
-    conviction: 78,
-    color: 'lime',
-    category: 'Leaderboards & Attention Markets',
-  },
-  {
-    rank: 3,
-    name: 'Farah Khan',
-    handle: '@farahmakes',
-    initials: 'FK',
-    country: 'United Kingdom',
-    countryCode: 'GB',
-    statement: "You don't need another community.",
-    price: 8750,
-    change: -3.1,
-    watched: '7.4k',
-    conviction: 71,
-    color: 'sky',
-    category: 'Leaderboards & Attention Markets',
-  },
-  {
-    rank: 4,
-    name: 'Lucas Meyer',
-    handle: '@lucasbuilds',
-    initials: 'LM',
-    country: 'Germany',
-    countryCode: 'DE',
-    statement: 'The best product roadmap is a shorter one.',
-    price: 7600,
-    change: 5.8,
-    watched: '6.6k',
-    conviction: 64,
-    color: 'violet',
-    category: 'Leaderboards & Attention Markets',
-  },
-  {
-    rank: 5,
-    name: 'Sudeep K.',
-    handle: '@sudeepkiccha',
-    initials: 'SK',
-    country: 'India',
-    countryCode: 'IN',
-    statement: 'Attention is the only market that never closes.',
-    price: 6200,
-    change: 11.6,
-    watched: '5.1k',
-    conviction: 59,
-    color: 'orange',
-    category: 'Leaderboards & Attention Markets',
-    you: true,
-  },
+const trending = [
+  ['I switched from Notion to Anytype. Here’s why.', '₹9,200', 'WHY I SWITCHED', '1:36', 'RK', 'blue'],
+  ['We spent ₹50,000 on LinkedIn ads. Here are the results.', '₹7,800', 'SHOW THE RECEIPTS', '2:12', 'PM', 'orange'],
+  ['Is Claude still worth $30 when Kimi K3 does it for $3?', '₹6,400', 'WORTH IT?', '1:48', 'EC', 'green'],
+  ['Roast my landing page. Be brutal.', '₹5,900', 'TEARDOWN', '2:05', 'AS', 'coral'],
+  ['You said AI can replace SDRs. Prove it.', '₹5,900', 'PROVE IT?', '1:22', 'KV', 'purple'],
+  ["Reacting to Y Combinator's new AI fund.", '₹4,600', 'REACT', '3:14', 'AR', 'blue'],
 ];
 
-type EntrySeed = Pick<
-  LadderRow,
-  | 'name'
-  | 'handle'
-  | 'initials'
-  | 'country'
-  | 'countryCode'
-  | 'statement'
-  | 'color'
->;
-
-const supportingEntries: EntrySeed[] = [
-  {
-    name: 'Maya Chen',
-    handle: '@mayachen',
-    initials: 'MC',
-    country: 'Singapore',
-    countryCode: 'SG',
-    statement: 'A sharper position for a louder idea.',
-    color: 'sky',
-  },
-  {
-    name: 'Jon Bell',
-    handle: '@jonbell',
-    initials: 'JB',
-    country: 'United States',
-    countryCode: 'US',
-    statement: 'Worth watching before the close.',
-    color: 'lime',
-  },
-  {
-    name: 'Nia Patel',
-    handle: '@niapatel',
-    initials: 'NP',
-    country: 'India',
-    countryCode: 'IN',
-    statement: 'Make the claim impossible to ignore.',
-    color: 'coral',
-  },
-  {
-    name: 'Leo Santos',
-    handle: '@leosantos',
-    initials: 'LS',
-    country: 'Brazil',
-    countryCode: 'BR',
-    statement: 'The next move is already forming.',
-    color: 'violet',
-  },
-  {
-    name: 'Ava Mensah',
-    handle: '@avamensah',
-    initials: 'AM',
-    country: 'Ghana',
-    countryCode: 'GH',
-    statement: 'Attention follows conviction.',
-    color: 'orange',
-  },
-  {
-    name: 'Owen Smith',
-    handle: '@owensmith',
-    initials: 'OS',
-    country: 'United Kingdom',
-    countryCode: 'GB',
-    statement: 'Early is a position, not a mood.',
-    color: 'sky',
-  },
-  {
-    name: 'Zara Ali',
-    handle: '@zaraali',
-    initials: 'ZA',
-    country: 'United Arab Emirates',
-    countryCode: 'AE',
-    statement: 'The room rewards a clear point of view.',
-    color: 'lime',
-  },
-];
-
-const slugify = (value: string) =>
-  value.toLowerCase().replace(/[^a-z0-9]+/g, '');
-
-const categoryLadder: LadderRow[] = categories.flatMap(
-  (category, categoryIndex) => {
-    const categoryLeaders: EntrySeed[] = category.leaders.map(
-      (leader, leaderIndex) => {
-        const seed = supportingEntries[(categoryIndex + leaderIndex) % 7];
-        return {
-          ...seed,
-          name: leader,
-          handle: `@${slugify(leader)}`,
-          initials: leader
-            .replace(/[^A-Za-z]/g, '')
-            .slice(0, 2)
-            .toUpperCase(),
-          statement: `${category.short} / position ${leaderIndex + 1} is moving.`,
-        };
-      },
-    );
-
-    return [...categoryLeaders, ...supportingEntries]
-      .slice(0, 10)
-      .map((entry, entryIndex) => ({
-        ...entry,
-        rank: entryIndex + 1,
-        category: category.label,
-        price: Math.max(
-          425,
-          18200 -
-            categoryIndex * 405 -
-            entryIndex * 172 +
-            ((categoryIndex * 37 + entryIndex * 19) % 84),
-        ),
-        change: Number(
-          (6.5 - categoryIndex * 0.12 - entryIndex * 0.46).toFixed(1),
-        ),
-        watched: `${Math.max(
-          2.1,
-          8.2 - categoryIndex * 0.14 - entryIndex * 0.08,
-        ).toFixed(1)}k`,
-        conviction: Math.max(42, 94 - entryIndex * 5 - (categoryIndex % 4) * 2),
-      }));
-  },
-);
-
-const countries = [
-  { name: 'Mumbai', zone: 'Asia/Kolkata', code: 'IN' },
-  { name: 'New York', zone: 'America/New_York', code: 'US' },
-  { name: 'London', zone: 'Europe/London', code: 'GB' },
-  { name: 'Singapore', zone: 'Asia/Singapore', code: 'SG' },
-  { name: 'Sydney', zone: 'Australia/Sydney', code: 'AU' },
-  { name: 'Dubai', zone: 'Asia/Dubai', code: 'AE' },
-];
-
-const tickerItems = [
-  'GLOBAL LADDER +1.8%',
-  'UO / ANANYA RAO ₹11,400',
-  '24.8K WATCHING THE FLOOR',
-  'NEXT DROP 00:00 UTC',
-  'NEW POSITION: @MARCUSK',
-  'BIP / ETHAN COLE ₹9,100',
-];
-
-const formatMoney = (value: number) => `₹${value.toLocaleString('en-IN')}`;
-
-function getPhase(date: Date): Phase {
-  return date.getUTCHours() < 12 ? 'live' : 'locked';
+function Money({ value }: { value: string }) {
+  return <span className="dashboard-money">{value}</span>;
 }
 
-function getBoundary(date: Date, phase: Phase) {
-  const boundary = new Date(date);
-  if (phase === 'live') {
-    boundary.setUTCHours(12, 0, 0, 0);
-  } else {
-    boundary.setUTCDate(boundary.getUTCDate() + 1);
-    boundary.setUTCHours(0, 0, 0, 0);
-  }
-  return boundary;
+function Avatar({ initials, tone = 'coral' }: { initials: string; tone?: string }) {
+  return <ProfileAvatar initials={initials} className={`dashboard-avatar avatar-${tone}`} />;
 }
 
-function getNextDrop(date: Date) {
-  const drop = new Date(date);
-  drop.setUTCDate(drop.getUTCDate() + 1);
-  drop.setUTCHours(0, 0, 0, 0);
-  return drop;
-}
-
-function formatCountdown(ms: number) {
-  const safe = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(safe / 3600)
-    .toString()
-    .padStart(2, '0');
-  const minutes = Math.floor((safe % 3600) / 60)
-    .toString()
-    .padStart(2, '0');
-  const seconds = (safe % 60).toString().padStart(2, '0');
-  return `${hours}:${minutes}:${seconds}`;
-}
-
-function timeAt(date: Date, timeZone: string, withSeconds = false) {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    ...(withSeconds ? { second: '2-digit' } : {}),
-    hour12: false,
-  }).format(date);
-}
-
-function dateAt(date: Date, timeZone: string) {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
-    .format(date)
-    .toUpperCase();
-}
-
-function Delta({ value }: { value: number }) {
-  const up = value >= 0;
+function Delta({ value, down = false }: { value: string; down?: boolean }) {
   return (
-    <span className={`delta ${up ? 'delta-up' : 'delta-down'}`}>
-      {up ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-      {Math.abs(value).toFixed(1)}%
+    <span className={`dashboard-delta ${down ? 'is-down' : ''}`}>
+      {down ? <ArrowDownRight size={13} /> : <ArrowUpRight size={13} />}
+      {value}
     </span>
   );
 }
 
 export default function Home() {
   const [now, setNow] = useState(() => new Date(0));
-  const [activeMarket] = useState(markets[0]);
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [activeTab, setActiveTab] = useState('market');
-  const [selectedRow, setSelectedRow] = useState<LadderRow | null>(null);
-  const [orderOpen, setOrderOpen] = useState(false);
-  const [recordOpen, setRecordOpen] = useState(false);
-  const [bid, setBid] = useState('11501');
-  const [wallet, setWallet] = useState(18600);
-  const [position, setPosition] = useState(5);
-  const [myPrice, setMyPrice] = useState(6200);
-  const [notice, setNotice] = useState('');
   const [videoPlaying, setVideoPlaying] = useState(false);
-  const marketStateRef = useRef<{
-    phase: Phase;
-    now: Date;
-    boundary: Date;
-    nextDrop: Date;
-    activeMarket: Market;
-    liveLadder: LadderRow[];
-    wallet: number;
-    position: number;
-    myPrice: number;
-  } | null>(null);
-  const openOrderRef = useRef<(row: LadderRow) => void>(() => undefined);
-  const positionActionRef = useRef<
-    (next: number) => { ok: boolean; message: string }
-  >(() => ({ ok: false, message: 'Unavailable' }));
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewSent, setReviewSent] = useState(false);
 
   useEffect(() => {
+    setNow(new Date());
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
-  const phase = getPhase(now);
-  const boundary = getBoundary(now, phase);
-  const nextDrop = getNextDrop(now);
-  const progress =
-    phase === 'live'
-      ? ((now.getUTCHours() * 3600 +
-          now.getUTCMinutes() * 60 +
-          now.getUTCSeconds()) /
-          43200) *
-        100
-      : (((now.getUTCHours() - 12) * 3600 +
-          now.getUTCMinutes() * 60 +
-          now.getUTCSeconds()) /
-          43200) *
-        100;
-
-  const selectCategory = (category: string) => {
-    setActiveCategory(category);
-    setVideoPlaying(false);
-    setNotice(
-      category === 'all'
-        ? 'All categories selected. Highest bids across the market.'
-        : `${category} selected. The ladder stays global.`,
-    );
-    window.requestAnimationFrame(() => {
-      document.getElementById('index')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
-    });
-  };
-
-  const rankedCategoryRows = useMemo(() => {
-    const rows =
-      activeCategory === 'all'
-        ? categoryLadder
-        : categoryLadder.filter((row) => row.category === activeCategory);
-    return [...rows]
-      .sort((left, right) => right.price - left.price)
-      .slice(0, 10)
-      .map((row, index) => ({ ...row, rank: index + 1 }));
-  }, [activeCategory]);
-  const userRow = ladder.find((row) => row.you) ?? ladder[4];
-  const liveLadder = useMemo(() => {
-    const userCanLeadThisView =
-      position === 1 &&
-      (activeCategory === 'all' || userRow.category === activeCategory);
-    if (!userCanLeadThisView) return rankedCategoryRows;
-    return [
-      { ...userRow, rank: 1, price: myPrice },
-      ...rankedCategoryRows.filter((row) => row.handle !== userRow.handle),
-    ]
-      .slice(0, 10)
-      .map((row, index) => ({ ...row, rank: index + 1 }));
-  }, [activeCategory, myPrice, position, rankedCategoryRows, userRow]);
-  const topRow = liveLadder[0];
-  const chaseLadder = liveLadder.slice(1);
-
-  const openOrder = (row: LadderRow) => {
-    setSelectedRow(row);
-    setBid(String(Math.max(row.price + 101, myPrice + 101)));
-    setOrderOpen(true);
-    setRecordOpen(false);
-  };
-
-  const executeBid = (next: number) => {
-    if (!Number.isFinite(next) || next <= myPrice) {
-      const message = `Enter more than ${formatMoney(myPrice)} to move up.`;
-      setNotice(message);
-      return { ok: false, message };
-    }
-    const debit = next - myPrice;
-    if (debit > wallet) {
-      const message = 'Your available balance cannot cover this move.';
-      setNotice(message);
-      return { ok: false, message };
-    }
-    setVideoPlaying(false);
-    setWallet((value) => value - debit);
-    setMyPrice(next);
-    setPosition(1);
-    const message = `Position taken. You are now #1 at ${formatMoney(next)}.`;
-    setNotice(message);
-    setOrderOpen(false);
-    return { ok: true, message };
-  };
-
-  const placeBid = () => {
-    executeBid(Number(bid));
-  };
-
-  useEffect(() => {
-    marketStateRef.current = {
-      phase,
-      now,
-      boundary,
-      nextDrop,
-      activeMarket,
-      liveLadder,
-      wallet,
-      position,
-      myPrice,
+  const countdown = useMemo(() => {
+    const target = new Date(now);
+    target.setUTCHours(0, 0, 0, 0);
+    if (target.getTime() <= now.getTime()) target.setUTCDate(target.getUTCDate() + 1);
+    const seconds = Math.floor((target.getTime() - now.getTime()) / 1000);
+    return {
+      totalSeconds: Math.max(0, seconds),
+      hours: Math.floor(seconds / 3600).toString().padStart(2, '0'),
+      minutes: Math.floor((seconds % 3600) / 60).toString().padStart(2, '0'),
+      seconds: (seconds % 60).toString().padStart(2, '0'),
     };
-    openOrderRef.current = openOrder;
-    positionActionRef.current = executeBid;
-  });
+  }, [now]);
 
-  useEffect(() => {
-    const context = (document as ModelDocument).modelContext;
-    if (!context?.registerTool) return;
-    const lifecycle = new AbortController();
-    const register = (tool: Parameters<ModelContext['registerTool']>[0]) => {
-      try {
-        void Promise.resolve(
-          context.registerTool(tool, { signal: lifecycle.signal }),
-        ).catch(() => undefined);
-      } catch {
-        // Unsupported or rejected registrations should never affect the visible site.
-      }
-    };
-
-    register({
-      name: 'read_market_state',
-      title: 'Read market state',
-      description:
-        'Read the current UTC phase, countdown, active market, top position, and the user position without changing state.',
-      inputSchema: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: true, untrustedContentHint: false },
-      execute: () => {
-        const state = marketStateRef.current;
-        if (!state) throw new Error('Market state is not ready.');
-        return {
-          phase: state.phase === 'live' ? 'auction_live' : 'locked_exposure',
-          utc: state.now.toISOString(),
-          phaseEndsAt: state.boundary.toISOString(),
-          nextDropAt: state.nextDrop.toISOString(),
-          market: state.activeMarket.code,
-          topPosition: state.activeMarket.price,
-          userPosition: state.position,
-          userSpend: state.myPrice,
-          availableBalance: state.wallet,
-        };
-      },
-    });
-    register({
-      name: 'start_order_ticket',
-      title: 'Start an order ticket',
-      description:
-        'Open the visible order ticket for a player handle during the live auction. This stages a position and does not place it.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          handle: {
-            type: 'string',
-            description: 'Player handle such as @ananyabuilds',
-          },
-        },
-        required: ['handle'],
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
-      execute: (input) => {
-        const state = marketStateRef.current;
-        const handle =
-          typeof (input as { handle?: unknown })?.handle === 'string'
-            ? (input as { handle: string }).handle
-            : '';
-        if (!state || !handle) throw new Error('A player handle is required.');
-        if (state.phase === 'locked')
-          throw new Error(
-            'The market is in locked exposure. Wait for the next drop.',
-          );
-        const row = state.liveLadder.find(
-          (candidate) => candidate.handle === handle,
-        );
-        if (!row) throw new Error(`No player found for ${handle}.`);
-        openOrderRef.current(row);
-        return {
-          status: 'order_ticket_open',
-          market: state.activeMarket.code,
-          handle: row.handle,
-          currentPosition: row.price,
-        };
-      },
-    });
-    register({
-      name: 'place_position',
-      title: 'Place a position',
-      description:
-        'Place a new position on the visible global ladder during the live auction. The new position must be above the current user spend.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          newPosition: {
-            type: 'integer',
-            minimum: 1,
-            description: 'New total spend in BOUGHT credits',
-          },
-        },
-        required: ['newPosition'],
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
-      execute: (input) => {
-        const value = (input as { newPosition?: unknown })?.newPosition;
-        if (typeof value !== 'number' || !Number.isInteger(value))
-          throw new Error('newPosition must be an integer.');
-        const result = positionActionRef.current(value);
-        if (!result.ok) throw new Error(result.message);
-        return { status: 'position_placed', newPosition: value, globalRank: 1 };
-      },
-    });
-
-    return () => lifecycle.abort();
-  }, []);
-
-  const phaseLabel = phase === 'live' ? 'AUCTION LIVE' : 'LOCKED EXPOSURE';
-  const activeCategoryCode =
-    activeCategory === 'all'
-      ? 'ALL'
-      : (categories
-          .find((category) => category.label === activeCategory)
-          ?.short.replace(' Index', '')
-          .toUpperCase() ?? 'CATEGORY');
-  const phaseDescription =
-    phase === 'live'
-      ? 'The floor is open. Every position can move.'
-      : 'The ladder is sealed. Watch the exposure settle.';
+  function submitReview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!reviewText.trim()) return;
+    setReviewSent(true);
+    setReviewText('');
+  }
 
   return (
-    <main className="market-shell">
+    <main className="market-shell dashboard-shell">
       <div className="scanlines" aria-hidden="true" />
+      <MarketTopbar active="floor" />
 
-      <header className="topbar">
-        <a className="brand-mark" href="#top" aria-label="BOUGHT home">
-          <span className="brand-dot" />
-          <span>BOUGHT</span>
-        </a>
-
-        <div className="market-status" aria-live="polite">
-          <span
-            className={`status-dot ${phase === 'live' ? 'is-live' : 'is-locked'}`}
-          />
-          <span>{phaseLabel}</span>
-          <span className="status-separator">/</span>
-          <span className="muted">{dateAt(now, 'UTC')}</span>
-        </div>
-
-        <div className="topbar-actions">
-          <div className="clock-readout">
-            <span className="eyebrow">UTC PRIMARY CLOCK</span>
-            <time>{timeAt(now, 'UTC', true)}</time>
+      <div className="dashboard-wrap">
+        <section className="dashboard-status-row dashboard-status-panel" aria-label="Market status">
+          <div className="total-panel dashboard-panel">
+            <div><span className="dashboard-eyebrow">TODAY&apos;S TOTAL</span><strong>₹4,71,220</strong></div>
+            <div><Delta value="+23%" /><span>vs yesterday</span></div>
           </div>
-          <a className="waitlist-toplink" href="/waitlist">
-            JOIN WAITLIST <ArrowUpRight size={13} />
-          </a>
-          <Button className="wallet-button" variant="outline" size="sm">
-            <WalletCards size={14} />
-            {formatMoney(wallet)}
-          </Button>
-          <button className="mobile-menu" aria-label="Open menu">
-            <Menu size={18} />
-          </button>
-        </div>
-      </header>
-
-      <div className="ticker" aria-label="Live market tape">
-        <div className="ticker-track">
-          {[...tickerItems, ...tickerItems].map((item, index) => (
-            <span key={`${item}-${index}`} className="ticker-item">
-              <span className="ticker-bullet">◆</span>
-              {item}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <nav
-        className="category-nav"
-        id="categories"
-        aria-label="Choose a global category"
-      >
-        <div className="category-nav-heading">
-          <span className="eyebrow">CATEGORY VIEW</span>
-          <strong>
-            <Globe2 size={13} /> CHOOSE ONE ROOM
-          </strong>
-        </div>
-        <label className="category-select-wrap" htmlFor="category-select">
-          <span>MARKET CATEGORY</span>
-          <select
-            id="category-select"
-            value={activeCategory}
-            onChange={(event) => selectCategory(event.target.value)}
-          >
-            <option value="all">ALL / HIGHEST ACROSS EVERY CATEGORY</option>
-            {categories.map((category) => (
-              <option value={category.label} key={category.label}>
-                {category.label}
-              </option>
-            ))}
-          </select>
-          <ChevronRight size={14} aria-hidden="true" />
-        </label>
-        <div className="category-nav-state">
-          <span className="status-dot is-live" />
-          <span>
-            {activeCategory === 'all' ? 'ALL CATEGORIES' : activeCategory}
-          </span>
-          <strong>/ TOP 10 BY TOTAL BID</strong>
-        </div>
-      </nav>
-
-      <div className="app-frame" id="top">
-        <aside className="side-rail">
-          <div className="rail-section">
-            <span className="rail-label">MARKETS</span>
-            <Tabs
-              value={activeTab}
-              onValueChange={setActiveTab}
-              orientation="vertical"
-            >
-              <TabsList variant="line" className="rail-tabs">
-                <TabsTrigger value="market" className="rail-tab">
-                  <Activity size={14} /> The floor
-                </TabsTrigger>
-                <TabsTrigger value="index" className="rail-tab">
-                  <Trophy size={14} /> Global index
-                </TabsTrigger>
-                <TabsTrigger value="watchlist" className="rail-tab">
-                  <Zap size={14} /> Watchlist{' '}
-                  <span className="rail-count">08</span>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+          <div className="next-position dashboard-panel">
+            <div><span className="dashboard-eyebrow">THE OPEN POSITION</span><strong>BE THE NEXT #1</strong><p>Get the most visibility for your message.</p></div>
+            <div className="next-position-mark"><Bell size={17} /><span>EXPOSURE OPEN</span></div>
           </div>
-          <div className="rail-section rail-editorial">
-            <span className="rail-label">EDITORIAL</span>
-            <a className="rail-link" href="#magazine">
-              <BookOpen size={14} /> Magazine
-            </a>
-            <a className="rail-link" href="#articles">
-              <Sparkles size={14} /> Field notes
-            </a>
-            <a className="rail-link" href="#how-it-works">
-              <ShieldCheck size={14} /> How it works
-            </a>
-            <a className="rail-link" href="#categories">
-              <Globe2 size={14} /> All categories
-            </a>
+          <div className={`status-countdown dashboard-panel ${countdown.totalSeconds < 3600 ? 'is-urgent' : ''}`}>
+            <div className="countdown-icon"><AlarmClock size={40} strokeWidth={1.8} /></div>
+            <div className="countdown-label"><strong>NEXT DROP</strong><span>BIDDING STARTS IN</span></div>
+            <div className="countdown-value"><strong>{countdown.hours} : {countdown.minutes} : {countdown.seconds}</strong><span><b>HOURS</b><b>MINUTES</b><b>SECONDS</b></span></div>
           </div>
-          <div className="rail-footer">
-            <div className="rail-footer-line">
-              <span className="status-dot is-live" /> MARKET DATA LIVE
+        </section>
+
+        <div className="live-feed dashboard-panel">
+          <span className="live-feed-label"><i /> LIVE FEED</span>
+          <div className="live-feed-viewport" aria-label="Continuously updating live feed">
+            <div className="live-feed-track">
+              {[...activity, ...activity].map(([name, action, category, amount, time], index) => (
+                <span key={`${name}-${time}-${index}`}><b>{name}</b> {action} <strong>{category}</strong> {amount && <em>· {amount}</em>} <small>· {time}</small></span>
+              ))}
             </div>
-            <div>v0.1 / UTC-NATIVE</div>
           </div>
-        </aside>
+          <button type="button" aria-label="Open live feed"><ChevronRight size={15} /></button>
+        </div>
 
-        <div className="content-column">
-          <section className="market-intro">
-            <div>
-              <p className="kicker">
-                <Radio size={13} /> GLOBAL ATTENTION EXCHANGE
-              </p>
-              <h1>
-                Global attention.
-                <br />
-                <em>Exchange open.</em>
-              </h1>
-              <p className="intro-copy">
-                LIVE GLOBAL LADDER / 184 COUNTRIES / UTC-NATIVE
-                <br />
-                BID TO MOVE UP. HOLD YOUR POSITION THROUGH THE CLOSE.
-              </p>
-            </div>
-            <div className="intro-aside">
-              <div className="mini-label">TODAY&apos;S DROP</div>
-              <div className="drop-time">
-                00:00 <span>UTC</span>
-              </div>
-              <p>
-                12H AUCTION <span className="accent-slash">/</span> 12H LOCKED
-                EXPOSURE
-              </p>
-            </div>
-          </section>
-
-          <section className="phase-panel panel" aria-label="Market phase">
-            <div className="phase-copy">
-              <div className="phase-heading">
-                <span
-                  className={`status-dot ${phase === 'live' ? 'is-live' : 'is-locked'}`}
-                />{' '}
-                {phaseLabel}
-              </div>
-              <p>{phaseDescription}</p>
-            </div>
-            <div className="phase-clock">
-              <span className="eyebrow">
-                {phase === 'live' ? 'CLOSES IN' : 'DROP IN'}
-              </span>
-              <strong>
-                {formatCountdown(boundary.getTime() - now.getTime())}
-              </strong>
-            </div>
-            <div
-              className="phase-meter"
-              aria-label={`${Math.round(progress)} percent through current market phase`}
-            >
-              <div
-                className="phase-meter-fill"
-                style={{ width: `${Math.max(1, Math.min(100, progress))}%` }}
-              />
-              <div className="phase-meter-labels">
-                <span>00:00 OPEN</span>
-                <span>12:00 LOCK</span>
-                <span>00:00 DROP</span>
+        <section className="dashboard-top-grid">
+          <article className="leader-spot dashboard-panel">
+            <div className="dashboard-section-head"><span>TOP POSITION RIGHT NOW <i /> LIVE</span></div>
+            <div className="leader-visual">
+              <div className="leader-portrait"><img src="/ananya-rao-hero.png" alt="Ananya Rao, current leader" /></div>
+              <div className="leader-overlay">
+                <strong className="leader-rank">#1</strong>
+                <span className="leader-category">UNPOPULAR OPINION</span>
+                <Money value="₹11,400" />
+                <div className="leader-metrics"><span>14,201 VIEWS</span><Delta value="6 OUTBID" /></div>
+                <p>“Your design<br />system is a<br />productivity<br />theatre.”</p>
+                <div className="leader-person"><strong>ANANYA R.</strong><span>@ananyabuilds</span><small>Founder · DesignOps</small></div>
+                <button className="hero-play" type="button" onClick={() => setVideoPlaying((value) => !value)} aria-label={videoPlaying ? 'Pause video take' : 'Play video take'}>{videoPlaying ? 'Ⅱ' : <Play size={22} fill="currentColor" />}</button>
+                <a className="leader-cta" href="/categories" aria-label="Take this spot for ₹11,500"><span>TAKE THIS SPOT</span><strong>₹11,500</strong></a>
               </div>
             </div>
-            <div className="phase-rule">
-              <Clock3 size={14} /> Next drop{' '}
-              <strong>{timeAt(nextDrop, 'UTC')}</strong> UTC
-            </div>
-          </section>
+          </article>
 
-          <section className="market-grid">
-            <div className="panel market-board" id="index">
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">
-                    THE FLOOR /{' '}
-                    {activeCategory === 'all'
-                      ? 'ALL CATEGORIES'
-                      : activeCategory.toUpperCase()}
-                  </p>
-                  <h2>
-                    {activeCategory === 'all'
-                      ? 'All categories'
-                      : activeCategory}
-                  </h2>
-                </div>
-                <Badge variant="outline" className="live-badge">
-                  <span
-                    className={`status-dot ${phase === 'live' ? 'is-live' : 'is-locked'}`}
-                  />{' '}
-                  {phaseLabel}
-                </Badge>
-              </div>
-
-              <div className="category-board-meta">
-                <span>
-                  <span className="status-dot is-live" /> TOP 10 BY TOTAL BID
-                </span>
-                <strong>
-                  {activeCategory === 'all'
-                    ? 'HIGHEST ACROSS EVERY CATEGORY'
-                    : 'HIGHEST IN THIS CATEGORY'}
-                </strong>
-              </div>
-
-              <div className="market-summary">
-                <div>
-                  <span className="eyebrow">TOP POSITION</span>
-                  <strong>{formatMoney(topRow.price)}</strong>
-                </div>
-                <div>
-                  <span className="eyebrow">24H CHANGE</span>
-                  <Delta value={topRow.change} />
-                </div>
-                <div>
-                  <span className="eyebrow">WATCHING TOP</span>
-                  <strong>{topRow.watched}</strong>
-                </div>
-                <div className="sparkline" aria-label="Market trend rising">
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                </div>
-              </div>
-
-              <div
-                className="leader-card"
-                aria-label={`Current leader: ${topRow.name} at ${formatMoney(topRow.price)}`}
-              >
-                <div className="leader-card-top">
-                  <span className="leader-kicker">
-                    <span className="status-dot is-live" /> CURRENT LEADER
-                  </span>
-                  <span className="leader-rank-label">
-                    POSITION <strong>#01</strong>
-                  </span>
-                </div>
-                <div
-                  className={`leader-video ${videoPlaying ? 'is-playing' : ''}`}
-                >
-                  <div
-                    className="leader-video-stage"
-                    aria-label={`Video preview from ${topRow.name}`}
-                  >
-                    <div className="leader-video-grid" aria-hidden="true" />
-                    <div className="leader-video-header">
-                      <span>
-                        <Video size={12} /> VIDEO TAKE / PREVIEW
-                      </span>
-                      <span>
-                        {phase === 'live'
-                          ? 'OPEN TO THE ROOM'
-                          : 'LOCKED EXPOSURE'}
-                      </span>
-                    </div>
-                    <div className="leader-video-center">
-                      <span className="leader-video-state">
-                        {videoPlaying ? 'PLAYING TAKE' : 'CURRENT LEADER'}
-                      </span>
-                      <button
-                        type="button"
-                        className="leader-video-play"
-                        onClick={() => setVideoPlaying((value) => !value)}
-                        aria-label={
-                          videoPlaying
-                            ? 'Pause current video take'
-                            : 'Play current video take'
-                        }
-                      >
-                        {videoPlaying ? (
-                          <Pause size={20} />
-                        ) : (
-                          <Play size={20} />
-                        )}
-                      </button>
-                      <strong>
-                        {videoPlaying
-                          ? 'Watching the take'
-                          : 'Watch the current take'}
-                      </strong>
-                      <span>{topRow.name} / 00:30</span>
-                    </div>
-                    <div className="leader-video-signal" aria-hidden="true">
-                      {[...Array(12)].map((_, index) => (
-                        <i key={index} />
-                      ))}
-                    </div>
-                    <div className="leader-video-footer">
-                      <span>THE TAKE / {topRow.statement}</span>
-                      <span>00:30</span>
-                    </div>
-                  </div>
-                  <div className="leader-video-caption">
-                    <span className="eyebrow">
-                      PUBLIC VIDEO / {topRow.countryCode}
-                    </span>
-                    <p>
-                      See the person behind the position before you decide to
-                      move.
-                    </p>
-                  </div>
-                </div>
-                <div className="leader-card-body">
-                  <div className="leader-rank-display">#1</div>
-                  <div
-                    className={`avatar leader-avatar avatar-${topRow.color}`}
-                  >
-                    {topRow.initials}
-                  </div>
-                  <div className="leader-copy">
-                    <div className="leader-name-line">
-                      <strong>{topRow.name}</strong>{' '}
-                      {topRow.you && <Badge className="you-badge">YOU</Badge>}
-                    </div>
-                    <div className="leader-statement">{topRow.statement}</div>
-                    <div className="player-meta">
-                      {topRow.handle} <span>/</span> {topRow.countryCode}
-                    </div>
-                  </div>
-                  <div className="leader-price">
-                    <span className="eyebrow">POSITION VALUE</span>
-                    <strong>{formatMoney(topRow.price)}</strong>
-                    <Delta value={topRow.change} />
-                  </div>
-                  <Button
-                    className="leader-action"
-                    onClick={() => openOrder(topRow)}
-                    disabled={phase === 'locked' || topRow.you}
-                  >
-                    {topRow.you
-                      ? 'YOU HOLD #1'
-                      : phase === 'live'
-                        ? 'TAKE THE LEAD'
-                        : 'LOCKED'}{' '}
-                    <ArrowUpRight size={15} />
-                  </Button>
-                </div>
-                <div className="leader-card-footer">
-                  <span>
-                    <Trophy size={13} /> {topRow.watched} watching the top spot
-                  </span>
-                  <span>Every move is public</span>
-                </div>
-              </div>
-
-              <div className="ladder-section-label">
-                <span>THE CHASE / TOP 10</span>
-                <span>POSITIONS 02—10 / HIGHEST BIDS FIRST</span>
-              </div>
-
-              <div
-                className="ladder-table"
-                aria-label={`${activeCategory === 'all' ? 'All categories' : activeCategory} top 10 global ladder`}
-              >
-                <div className="ladder-head">
-                  <span>POS</span>
-                  <span>PLAYER / STATEMENT</span>
-                  <span>POSITION</span>
-                  <span>MOVE</span>
-                  <span>ROOM</span>
-                  <span />
-                </div>
-                {chaseLadder.map((row) => (
-                  <div
-                    className={`ladder-row ${row.you ? 'is-you' : ''}`}
-                    key={`${row.handle}-${row.rank}`}
-                  >
-                    <span className="rank-number">
-                      {String(row.rank).padStart(2, '0')}
-                    </span>
-                    <div className="player-cell">
-                      <div className={`avatar avatar-${row.color}`}>
-                        {row.initials}
-                      </div>
-                      <div>
-                        <div className="player-name">
-                          {row.name}{' '}
-                          {row.you && <Badge className="you-badge">YOU</Badge>}
-                        </div>
-                        <div className="player-statement">{row.statement}</div>
-                        <div className="player-meta">
-                          {row.handle} <span>/</span> {row.countryCode}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="position-value">
-                      {formatMoney(row.price)}
-                    </span>
-                    <Delta value={row.change} />
-                    <div className="room-cell">
-                      <span>{row.watched}</span>
-                      <div className="conviction-bar">
-                        <span style={{ width: `${row.conviction}%` }} />
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="row-action"
-                      onClick={() => openOrder(row)}
-                      aria-label={`Take position against ${row.name}`}
-                      disabled={phase === 'locked'}
-                    >
-                      <ChevronRight size={16} />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <div className="ladder-footer">
-                <span>
-                  <Globe2 size={14} /> 1 ladder / 184 countries
-                </span>
-                <button
-                  onClick={() =>
-                    setNotice(
-                      'The global index is built from every active market, not split by region.',
-                    )
-                  }
-                >
-                  VIEW METHODOLOGY <ChevronRight size={13} />
+          <section className="leaderboard-panel dashboard-panel">
+            <div className="dashboard-section-head"><span>TODAY&apos;S LEADERBOARD</span><a href="/global-index">VIEW ALL</a></div>
+            <div className="leaderboard-list">
+              {leaderboard.map(([name, handle, category, price, initials, tone], index) => (
+                <button className={`leaderboard-row ${index === 0 ? 'is-top' : ''}`} type="button" key={name}>
+                  <span className="leaderboard-rank">{index + 1}</span>
+                  <Avatar initials={initials} tone={tone} />
+                  <span className="leaderboard-person"><strong>{name}</strong><small>{handle}</small></span>
+                  <span className="leaderboard-category">{category}</span>
+                  <strong className="leaderboard-price">{price}</strong>
                 </button>
-              </div>
+              ))}
             </div>
-
-            <aside className="right-rail">
-              <section className="panel order-panel">
-                <div className="panel-header compact">
-                  <div>
-                    <p className="eyebrow">YOUR POSITION</p>
-                    <h3>
-                      {position === 1 ? 'You moved up.' : 'Get on the board.'}
-                    </h3>
-                  </div>
-                  <span className="position-badge">
-                    #{String(position).padStart(2, '0')}
-                  </span>
-                </div>
-                <div className="position-visual">
-                  <div className="position-circle">
-                    <strong>{formatMoney(myPrice)}</strong>
-                    <span>YOUR SPEND</span>
-                  </div>
-                  <div className="position-copy">
-                    <div className="delta delta-up">
-                      <ArrowUpRight size={13} /> +11.6%
-                    </div>
-                    <p>vs last drop</p>
-                  </div>
-                </div>
-                <div className="position-stats">
-                  <div>
-                    <span>GLOBAL RANK</span>
-                    <strong>
-                      #{String(position).padStart(2, '0')} / 24.8k
-                    </strong>
-                  </div>
-                  <div>
-                    <span>AVAILABLE</span>
-                    <strong>{formatMoney(wallet)}</strong>
-                  </div>
-                </div>
-                <Button
-                  className="primary-action"
-                  onClick={() => openOrder(topRow)}
-                  disabled={phase === 'locked' || topRow.you}
-                >
-                  {topRow.you
-                    ? 'YOU HOLD #1'
-                    : phase === 'live'
-                      ? 'TAKE THE LEAD'
-                      : 'WATCH THE CLOSE'}{' '}
-                  <ArrowUpRight size={15} />
-                </Button>
-                <Button
-                  variant="outline"
-                  className="secondary-action"
-                  onClick={() => {
-                    setRecordOpen(true);
-                    setOrderOpen(false);
-                  }}
-                >
-                  <Radio size={14} /> RECORD YOUR TAKE
-                </Button>
-              </section>
-
-              <section className="panel world-panel">
-                <div className="panel-header compact">
-                  <div>
-                    <p className="eyebrow">THE WORLD IS OPEN</p>
-                    <h3>One room, many clocks.</h3>
-                  </div>
-                  <Globe2 size={17} className="muted-icon" />
-                </div>
-                <div className="country-list">
-                  {countries.map((country) => (
-                    <div
-                      className="country-row"
-                      key={country.code + country.name}
-                    >
-                      <span className="country-code">{country.code}</span>
-                      <span>{country.name}</span>
-                      <time>{timeAt(now, country.zone)}</time>
-                      <span
-                        className={`phase-mini ${phase === 'live' ? 'is-live' : ''}`}
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="utc-note">
-                  <Clock3 size={13} /> Every market event resolves in UTC.
-                </div>
-              </section>
-            </aside>
+            <a className="panel-footer-link" href="/global-index">VIEW FULL BOARD <ArrowUpRight size={13} /></a>
           </section>
 
-          <section className="command-strip" id="how-it-works">
-            <div className="command-number">01</div>
-            <div>
-              <span className="eyebrow">THE RULE</span>
-              <strong>One auction. One ladder.</strong>
-            </div>
-            <div className="command-divider" />
-            <div className="command-number">02</div>
-            <div>
-              <span className="eyebrow">THE RHYTHM</span>
-              <strong>12H live / 12H locked.</strong>
-            </div>
-            <div className="command-divider" />
-            <div className="command-number">03</div>
-            <div>
-              <span className="eyebrow">THE FEELING</span>
-              <strong>Spend. Rise. Be remembered.</strong>
+          <section className="activity-dashboard dashboard-panel">
+            <div className="dashboard-section-head"><span>LIVE ACTIVITY</span><select aria-label="Activity filter"><option>ALL</option><option>POSITION MOVES</option><option>NEW ENTRIES</option></select></div>
+            <div className="activity-dashboard-list">
+              {activity.map(([name, action, category, amount, time, initials, tone]) => (
+                <button className="activity-dashboard-row" type="button" key={`${name}-${time}`}>
+                  <Avatar initials={initials} tone={tone} />
+                  <span><strong>{name}</strong><small>{action} <b>{category}</b></small>{amount && <em>{amount}</em>}</span>
+                  <time>{time}</time>
+                </button>
+              ))}
             </div>
           </section>
+        </section>
 
-          <section className="editorial-grid" id="articles">
-            <div className="section-heading">
-              <div>
-                <p className="kicker">
-                  <BookOpen size={13} /> FROM THE EDITORIAL DESK
-                </p>
-                <h2>What the market is saying.</h2>
-              </div>
-              <a href="#magazine">
-                OPEN THE MAGAZINE <ChevronRight size={14} />
-              </a>
-            </div>
-            <div className="article-cards">
-              <article className="article-card feature-card">
-                <div className="article-index">
-                  01 <span>FIELD NOTE</span>
+        <section className="dashboard-mid-grid dashboard-mid-grid-compact">
+          <section className="revenue-dashboard dashboard-panel">
+            <div className="dashboard-section-head"><span>TOTAL REVENUE <small>(ALL TIME)</small></span></div>
+            <Money value="₹1,84,32,220" />
+            <div className="revenue-chart" aria-label="Revenue chart"><span style={{ height: '22%' }} /><span style={{ height: '31%' }} /><span style={{ height: '38%' }} /><span style={{ height: '49%' }} /><span style={{ height: '62%' }} /><span style={{ height: '82%' }} /></div>
+            <div className="revenue-months"><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span></div>
+            <small className="chart-note">365 DAYS · 12 CATEGORIES · 1 MARKET</small>
+          </section>
+
+          <div className="dashboard-side-stack">
+            <section className="club-dashboard dashboard-panel">
+              <span className="club-crown">♛</span><strong>THE BOUGHT CLUB</strong><p>Founding members get monthly slots, priority access and a permanent badge.</p><span className="club-price">₹— <small>/ MONTH</small></span><a href="/waitlist">JOIN THE CLUB</a>
+            </section>
+
+            <article className="review-dashboard dashboard-panel">
+              <div className="review-dashboard-body">
+                <ProfileAvatar initials="JB" className="review-avatar" alt="Arnav, Indie Hacker" />
+                <div className="review-copy">
+                  <p>&ldquo;This platform cuts through the fake noise. Love it.&rdquo;</p>
+                  <span>— Arnav, Indie Hacker</span>
                 </div>
-                <h3>The price of being seen.</h3>
-                <p>
-                  Visibility is no longer a vanity metric. It is a position you
-                  can take, hold, and defend.
-                </p>
-                <a href="#magazine">
-                  READ NOTE <ArrowUpRight size={14} />
-                </a>
+              </div>
+              <Dialog open={reviewOpen} onOpenChange={(open) => { setReviewOpen(open); if (open) setReviewSent(false); }}>
+                <DialogTrigger className="review-add-trigger" type="button">ADD A REVIEW</DialogTrigger>
+                <DialogContent className="review-dialog">
+                  <DialogHeader>
+                    <DialogTitle>Share your BOUGHT review</DialogTitle>
+                    <DialogDescription>Tell the room what feels different about having a real position on the ladder.</DialogDescription>
+                  </DialogHeader>
+                  {reviewSent ? (
+                    <div className="review-success">Review sent. Thanks for adding your voice to the room.</div>
+                  ) : (
+                    <form className="review-form" onSubmit={submitReview}>
+                      <label htmlFor="review-text">Your review</label>
+                      <textarea id="review-text" value={reviewText} onChange={(event) => setReviewText(event.target.value)} placeholder="What do you think of BOUGHT?" maxLength={280} required />
+                      <DialogFooter className="review-dialog-footer">
+                        <button type="submit" disabled={!reviewText.trim()}>SEND REVIEW</button>
+                      </DialogFooter>
+                    </form>
+                  )}
+                </DialogContent>
+              </Dialog>
+            </article>
+          </div>
+        </section>
+
+        <section className="trending-dashboard dashboard-panel">
+          <div className="dashboard-section-head"><span>TRENDING DROPS</span><a href="/categories">VIEW ALL</a></div>
+          <div className="trending-row">
+            {trending.map(([title, price, tag, duration, initials, tone]) => (
+              <article className="trending-card" key={title}>
+                <div className={`trend-thumb avatar-${tone}`}><Avatar initials={initials} tone={tone} /><span>{duration}</span></div>
+                <h3>{title}</h3><span className={`trend-tag tone-${tone}`}>{tag}</span><strong>{price}</strong>
               </article>
-              <article className="article-card">
-                <div className="article-index">
-                  02 <span>THE CLOSE</span>
-                </div>
-                <h3>Why the room changes after lock.</h3>
-                <p>12 hours of exposure turn a bid into social proof.</p>
-                <a href="#magazine">
-                  READ NOTE <ArrowUpRight size={14} />
-                </a>
-              </article>
-              <article className="article-card dark-card">
-                <div className="article-index">
-                  03 <span>WORLD DESK</span>
-                </div>
-                <h3>Everyone arrives at a different hour.</h3>
-                <p>One shared market makes the overlap the product.</p>
-                <a href="#magazine">
-                  READ NOTE <ArrowUpRight size={14} />
-                </a>
-              </article>
-            </div>
-          </section>
+            ))}
+            <button className="trending-next" type="button" aria-label="Next trending drops"><ChevronRight size={22} /></button>
+          </div>
+        </section>
 
-          <section className="magazine-feature" id="magazine">
-            <div className="magazine-cover">
-              <div className="cover-top">
-                <span>BOUGHT</span>
-                <span>ISSUE 01</span>
-              </div>
-              <div className="cover-stamp">
-                THE
-                <br />
-                COST
-                <br />
-                OF
-                <br />
-                BEING
-                <br />
-                <em>SEEN</em>
-              </div>
-              <div className="cover-bottom">
-                <span>GLOBAL ATTENTION EXCHANGE</span>
-                <span>2026</span>
-              </div>
-            </div>
-            <div className="magazine-copy">
-              <p className="kicker">
-                <Sparkles size={13} /> THE VIRTUAL MAGAZINE
-              </p>
-              <h2>A field guide to having a position.</h2>
-              <p>
-                Weekly dispatches from the people who spend, climb, and keep the
-                room moving. Read the issue while the next auction runs.
-              </p>
-              <div className="magazine-meta">
-                <span>42 PAGES</span>
-                <span>6 DISPATCHES</span>
-                <span>ONE GLOBAL EDITION</span>
-              </div>
-              <Button
-                className="primary-action magazine-action"
-                onClick={() =>
-                  setNotice('Issue 01 is queued for the virtual reading room.')
-                }
-              >
-                READ ISSUE 01 <ArrowUpRight size={15} />
-              </Button>
-            </div>
-          </section>
-
-          <footer className="site-footer">
-            <div>
-              <span className="brand-dot" /> <strong>BOUGHT</strong>
-            </div>
-            <span>THE GLOBAL ATTENTION EXCHANGE</span>
-            <span>UTC / ALWAYS OPEN</span>
-          </footer>
-        </div>
+        <footer className="dashboard-footer">
+          <div className="footer-brand"><span className="brand-wordmark">BOUGHT</span><span>Real attention. Real opinions. Real value.</span></div>
+          <div className="footer-stats"><span><BarChart3 size={17} /><b>2,843</b><small>Total Drops</small></span><span><Eye size={17} /><b>1,27,500</b><small>Total Views</small></span><span><Users size={17} /><b>8,410</b><small>Active Users</small></span></div>
+          <div className="footer-links"><a href="/how-it-works">About</a><a href="/how-it-works">How it works</a><a href="/categories">Categories</a><a href="/how-it-works">Terms</a><a href="/how-it-works">Privacy</a><a href="/how-it-works">Contact</a></div>
+        </footer>
       </div>
-
-      {(orderOpen || recordOpen) && (
-        <dialog
-          open
-          className="action-drawer"
-          aria-label={orderOpen ? 'Order ticket' : 'Recording room'}
-        >
-          <button
-            className="drawer-close"
-            onClick={() => {
-              setOrderOpen(false);
-              setRecordOpen(false);
-            }}
-            aria-label="Close panel"
-          >
-            <X size={18} />
-          </button>
-          {orderOpen && selectedRow && (
-            <>
-              <p className="kicker">
-                <Zap size={13} /> ORDER TICKET / {activeCategoryCode}
-              </p>
-              <h2>
-                Move above
-                <br />
-                <em>{selectedRow.name}</em>
-              </h2>
-              <p className="drawer-subcopy">
-                Your spend is your position. If the auction is live, the room
-                sees the move immediately.
-              </p>
-              <div className="ticket-target">
-                <div className={`avatar avatar-${selectedRow.color}`}>
-                  {selectedRow.initials}
-                </div>
-                <div>
-                  <span>YOU ARE CHASING</span>
-                  <strong>
-                    {selectedRow.name} / {formatMoney(selectedRow.price)}
-                  </strong>
-                </div>
-              </div>
-              <label className="bid-label" htmlFor="bid-input">
-                YOUR NEW POSITION
-              </label>
-              <div className="bid-input-wrap">
-                <span>₹</span>
-                <input
-                  id="bid-input"
-                  inputMode="numeric"
-                  value={bid}
-                  onChange={(event) =>
-                    setBid(event.target.value.replace(/[^0-9]/g, ''))
-                  }
-                />
-                <span className="bid-suffix">CREDITS</span>
-              </div>
-              <div className="ticket-detail">
-                <span>INCREMENT</span>
-                <strong>
-                  {formatMoney(Math.max(0, Number(bid || 0) - myPrice))}
-                </strong>
-              </div>
-              <div className="ticket-detail">
-                <span>AFTER THIS MOVE</span>
-                <strong>POSITION #01</strong>
-              </div>
-              <Button
-                className="primary-action drawer-action"
-                onClick={placeBid}
-              >
-                PLACE POSITION <ArrowUpRight size={15} />
-              </Button>
-              <p className="drawer-footnote">
-                <LockKeyhole size={12} /> Live auction only. Your balance is not
-                charged in this prototype.
-              </p>
-            </>
-          )}
-          {recordOpen && (
-            <>
-              <p className="kicker">
-                <Radio size={13} /> RECORDING ROOM
-              </p>
-              <h2>
-                Put a thought
-                <br />
-                <em>on the tape.</em>
-              </h2>
-              <p className="drawer-subcopy">
-                Make a 30-second take. The room will see it when the next drop
-                opens. Camera and moderation are ready for the production build.
-              </p>
-              <div className="recording-frame">
-                <div className="recording-grid" />
-                <span className="recording-corner top-left" />
-                <span className="recording-corner top-right" />
-                <span className="recording-corner bottom-left" />
-                <span className="recording-corner bottom-right" />
-                <div className="recording-placeholder">
-                  <Radio size={24} />
-                  <span>CAMERA READY</span>
-                </div>
-              </div>
-              <Button
-                className="primary-action drawer-action"
-                onClick={() =>
-                  setNotice(
-                    'Recording room reserved. Your take will enter the next drop.',
-                  )
-                }
-              >
-                ENTER RECORDING ROOM <ArrowUpRight size={15} />
-              </Button>
-              <p className="drawer-footnote">
-                <ShieldCheck size={12} /> Every take is attached to one market
-                position.
-              </p>
-            </>
-          )}
-        </dialog>
-      )}
-
-      {notice && (
-        <button
-          className="toast-notice"
-          onClick={() => setNotice('')}
-          aria-label="Dismiss notification"
-        >
-          {notice}
-          <X size={14} />
-        </button>
-      )}
     </main>
   );
 }
