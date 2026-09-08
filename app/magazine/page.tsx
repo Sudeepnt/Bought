@@ -39,7 +39,7 @@ export default function MagazinePage() {
           <span className="eyebrow">
             <BookOpen size={14} /> THE VIRTUAL MAGAZINE
           </span>
-          <h2>Read the room between drops.</h2>
+          <h2>Read the room between broadcasts.</h2>
           <p>
             Issue 01 follows the people who spend to be seen, the signals that
             move a category, and the consequences of holding the top spot.

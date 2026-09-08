@@ -21,23 +21,24 @@ import {
 } from '@/components/market-chrome';
 import { MarketTopbar } from '@/components/market-topbar';
 import { ProfileAvatar } from '@/components/profile-avatar';
+import { PublishedLadder } from '@/components/published-ladder';
 
 const leaderboard = [
-  ['Ananya R.', '@ananyabuilds', 'UNPOPULAR OPINION', '₹11,400', 'AR', 'coral'],
-  ['Arjun S.', '@arjunsays', 'BUILDING', '₹8,900', 'AS', 'green'],
-  ['Priya M.', '@priyamakes', 'MONEY', '₹6,200', 'PM', 'orange'],
-  ['Rahul K.', '@rahulbuilds', 'BEEF', '₹6,200', 'RK', 'blue'],
-  ['Karan V.', '@karanv', 'UNPOPULAR OPINION', '₹4,800', 'KV', 'purple'],
+  ['Ananya R.', '@ananyabuilds', 'UNPOPULAR OPINION', '$11,400', 'AR', 'coral'],
+  ['Arjun S.', '@arjunsays', 'BUILDING', '$8,900', 'AS', 'green'],
+  ['Priya M.', '@priyamakes', 'MONEY', '$6,200', 'PM', 'orange'],
+  ['Rahul K.', '@rahulbuilds', 'BEEF', '$6,200', 'RK', 'blue'],
+  ['Karan V.', '@karanv', 'UNPOPULAR OPINION', '$4,800', 'KV', 'purple'],
 ];
 
 const activity = [
-  ['Rahul K.', 'took #4 in', 'BEEF', '₹6,200', '12s ago', 'RK', 'blue'],
-  ['Priya M.', 'entered', 'MONEY', '₹4,100', '21s ago', 'PM', 'orange'],
+  ['Rahul K.', 'took #4 in', 'BEEF', '$6,200', '12s ago', 'RK', 'blue'],
+  ['Priya M.', 'entered', 'MONEY', '$4,100', '21s ago', 'PM', 'orange'],
   [
     'Arjun S.',
     'moved to #2 in',
     'BUILDING',
-    '₹8,900',
+    '$8,900',
     '31s ago',
     'AS',
     'green',
@@ -46,7 +47,7 @@ const activity = [
     'Karan V.',
     'outbid in',
     'UNPOPULAR OPINION',
-    '₹11,500',
+    '$11,500',
     '45s ago',
     'KV',
     'purple',
@@ -76,7 +77,6 @@ const categoryPulse = [
     name: 'Unpopular Opinion',
     key: 'UNPOPULAR OPINION',
     bids: '1,420',
-    change: '+12%',
     positive: true,
     tone: 'red',
     icon: Flame,
@@ -86,7 +86,6 @@ const categoryPulse = [
     name: 'Money',
     key: 'MONEY',
     bids: '980',
-    change: '+8%',
     positive: true,
     tone: 'green',
     icon: DollarSign,
@@ -96,7 +95,6 @@ const categoryPulse = [
     name: 'Building',
     key: 'BUILDING',
     bids: '760',
-    change: '+5%',
     positive: true,
     tone: 'blue',
     icon: Building2,
@@ -106,7 +104,6 @@ const categoryPulse = [
     name: 'The Ask',
     key: 'THE ASK',
     bids: '620',
-    change: '-6%',
     positive: false,
     tone: 'purple',
     icon: CircleHelp,
@@ -116,7 +113,6 @@ const categoryPulse = [
     name: 'Hiring',
     key: 'HIRING',
     bids: '540',
-    change: '+3%',
     positive: true,
     tone: 'orange',
     icon: UsersRound,
@@ -127,15 +123,15 @@ const categoryPulse = [
 const trending = [
   [
     'I switched from Notion to Anytype. Here’s why.',
-    '₹9,200',
+    '$9,200',
     'WHY I SWITCHED',
     '1:36',
     'RK',
     'blue',
   ],
   [
-    'We spent ₹50,000 on LinkedIn ads. Here are the results.',
-    '₹7,800',
+    'We spent $50,000 on LinkedIn ads. Here are the results.',
+    '$7,800',
     'SHOW THE RECEIPTS',
     '2:12',
     'PM',
@@ -143,7 +139,7 @@ const trending = [
   ],
   [
     'Is Claude still worth $30 when Kimi K3 does it for $3?',
-    '₹6,400',
+    '$6,400',
     'WORTH IT?',
     '1:48',
     'EC',
@@ -151,7 +147,7 @@ const trending = [
   ],
   [
     'Roast my landing page. Be brutal.',
-    '₹5,900',
+    '$5,900',
     'TEARDOWN',
     '2:05',
     'AS',
@@ -159,7 +155,7 @@ const trending = [
   ],
   [
     'You said AI can replace SDRs. Prove it.',
-    '₹5,900',
+    '$5,900',
     'PROVE IT?',
     '1:22',
     'KV',
@@ -167,7 +163,7 @@ const trending = [
   ],
   [
     "Reacting to Y Combinator's new AI fund.",
-    '₹4,600',
+    '$4,600',
     'REACT',
     '3:14',
     'AR',
@@ -300,11 +296,19 @@ export default function Home() {
   return (
     <main className="market-shell dashboard-shell">
       <div className="scanlines" aria-hidden="true" />
-      <MarketTopbar active="floor" />
+      <MarketTopbar
+        active="floor"
+        activityItems={activityFeed.map(
+          ([name, action, category, amount, time]) =>
+            `${name} ${action} ${category} ${amount} ${time}`,
+        )}
+      />
 
       <div className="dashboard-wrap">
         <MarketStatusStrip />
         <LiveMarketFeed />
+        <PublishedLadder compact />
+        <p className="market-example-label">MARKET PREVIEW · EXAMPLE CONTENT BELOW</p>
 
         <section
           className="homepage-category-selector dashboard-panel"
@@ -356,7 +360,7 @@ export default function Home() {
               <div className="leader-overlay">
                 <strong className="leader-rank">#1</strong>
                 <span className="leader-category">UNPOPULAR OPINION</span>
-                <Money value="₹11,400" />
+                <Money value="$11,400" />
                 <div className="leader-metrics">
                   <span>14,201 VIEWS</span>
                   <Delta value="6 OUTBID" />
@@ -379,18 +383,18 @@ export default function Home() {
                   type="button"
                   onClick={() => setVideoPlaying((value) => !value)}
                   aria-label={
-                    videoPlaying ? 'Pause video take' : 'Play video take'
+                    videoPlaying ? 'Pause broadcast' : 'Play broadcast'
                   }
                 >
                   {videoPlaying ? 'Ⅱ' : <Play size={22} fill="currentColor" />}
                 </button>
                 <Link
                   className="leader-cta"
-                  href="/categories"
-                  aria-label="Take this spot for ₹11,500"
+                  href="/drop?category=UNPOPULAR%20OPINION"
+                  aria-label="Take this spot for $11,500"
                 >
                   <span>TAKE THIS SPOT</span>
-                  <strong>₹11,500</strong>
+                  <strong>$11,500</strong>
                 </Link>
               </div>
             </div>
@@ -476,7 +480,7 @@ export default function Home() {
                 TOTAL REVENUE <small>(ALL TIME)</small>
               </span>
             </div>
-            <Money value="₹1,84,32,220" />
+            <Money value="$18,432,220" />
             <div className="revenue-chart" aria-label="Revenue chart">
               <span style={{ height: '22%' }} />
               <span style={{ height: '31%' }} />
@@ -512,7 +516,6 @@ export default function Home() {
                     name,
                     key,
                     bids,
-                    change,
                     positive,
                     tone,
                     icon: Icon,
@@ -529,31 +532,15 @@ export default function Home() {
                         <Icon size={15} strokeWidth={2.2} />
                       </span>
                       <strong>{name}</strong>
-                      <span className="category-pulse-bids">{bids}</span>
                       <PulseSparkline path={path} positive={positive} />
-                      <span
-                        className={`category-pulse-change ${positive ? 'is-up' : 'is-down'}`}
-                      >
-                        {positive ? '▲' : '▼'} {change}
+                      <span className="category-pulse-bids category-pulse-total">
+                        {bids} BIDS
                       </span>
                     </button>
                   ),
                 )}
               </div>
             </section>
-            <section className="club-dashboard dashboard-panel">
-              <span className="club-crown">♛</span>
-              <strong>THE BOUGHT CLUB</strong>
-              <p>
-                Founding members get monthly slots, priority access and a
-                permanent badge.
-              </p>
-              <span className="club-price">
-                ₹— <small>/ MONTH</small>
-              </span>
-              <Link href="/waitlist">JOIN THE CLUB</Link>
-            </section>
-
             <article className="review-dashboard dashboard-panel">
               <div className="review-dashboard-body">
                 <ProfileAvatar
@@ -641,7 +628,7 @@ export default function Home() {
 
         <section className="trending-dashboard dashboard-panel">
           <div className="dashboard-section-head">
-            <span>TRENDING DROPS</span>
+            <span>TRENDING BROADCASTS</span>
             <Link href="/categories">VIEW ALL</Link>
           </div>
           <div className="trending-row">

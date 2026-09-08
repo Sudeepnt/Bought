@@ -46,7 +46,7 @@ export function MarketPageShell({
             </div>
             <div className="route-intro-market">
               <span>GLOBAL MARKET</span>
-              <strong>₹1,84,32,220</strong>
+              <strong>$18,432,220</strong>
               <em>+23% TODAY</em>
             </div>
           </div>

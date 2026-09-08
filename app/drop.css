@@ -1,0 +1,1531 @@
+/* BOUGHT's paid recorder extends the existing exchange typography and palette. */
+.drop-page {
+  max-width: 1220px;
+  margin: 0 auto;
+  padding: 32px 28px 80px;
+}
+.drop-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 12px var(--mono);
+  color: var(--muted);
+  margin-bottom: 32px;
+}
+.drop-back:hover {
+  color: var(--paper);
+}
+.drop-page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  margin-bottom: 30px;
+}
+.drop-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--hot);
+  font: 12px var(--mono);
+  letter-spacing: 0.08em;
+}
+.drop-eyebrow i {
+  width: 6px;
+  height: 6px;
+  background: var(--hot);
+  border-radius: 50%;
+}
+.drop-page-heading h1 {
+  font:
+    700 clamp(42px, 5vw, 70px)/0.98 var(--font-barlow),
+    Impact,
+    sans-serif;
+  letter-spacing: -0.02em;
+  margin: 12px 0 14px;
+}
+.drop-page-heading h1 span {
+  color: var(--hot);
+}
+.drop-page-heading p,
+.drop-workspace p,
+.drop-next-card p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 8px 0 20px;
+}
+.drop-market-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  padding: 12px;
+  color: var(--up);
+  font: 12px var(--mono);
+}
+.drop-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  list-style: none;
+  border: 1px solid var(--line-strong);
+  margin: 0 0 28px;
+  padding: 0;
+}
+.drop-steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 14px 20px;
+  border-right: 1px solid var(--line);
+  font: 14px var(--mono);
+  color: var(--muted);
+}
+.drop-steps li:last-child {
+  border: 0;
+}
+.drop-steps li > span {
+  border: 1px solid var(--line-strong);
+  height: 28px;
+  width: 28px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.drop-steps li.current {
+  background: var(--hot-soft);
+  color: var(--hot);
+  box-shadow: inset 0 -2px var(--hot);
+}
+.drop-steps li.current > span {
+  background: var(--hot);
+  color: #080808;
+  border-color: var(--hot);
+}
+.drop-steps li.complete {
+  color: var(--up);
+}
+.drop-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 28px;
+  align-items: start;
+}
+.drop-workspace {
+  border: 1px solid var(--line);
+  background: var(--ink-panel);
+  padding: 28px;
+  min-width: 0;
+}
+.drop-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 14px var(--mono);
+  letter-spacing: 0.035em;
+  color: var(--paper);
+  margin: 0 0 22px;
+}
+.drop-section-label > span {
+  color: var(--hot);
+}
+.drop-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--paper);
+  font-size: 14px;
+  margin: 24px 0 12px;
+}
+.drop-field input,
+.drop-field textarea {
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  padding: 15px;
+  width: 100%;
+  min-height: 50px;
+  font:
+    16px var(--font-inter),
+    sans-serif;
+}
+.drop-field textarea {
+  resize: vertical;
+  min-height: 85px;
+}
+.drop-field small {
+  color: var(--muted);
+  font: 12px var(--mono);
+  text-align: right;
+}
+.drop-field input::placeholder,
+.drop-field textarea::placeholder {
+  color: var(--muted-dark);
+}
+.drop-page :is(button, a, input, textarea):focus-visible,
+.drop-workspace :is(button, a, input, textarea):focus-visible {
+  outline: 2px solid var(--hot);
+  outline-offset: 4px;
+}
+.drop-category-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 25px;
+}
+.drop-category-grid button,
+.ladder-filters button {
+  min-height: 40px;
+  display: inline-flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+  padding: 10px 12px;
+  font: 12px var(--mono);
+  text-align: left;
+}
+.drop-category-grid button.selected,
+.ladder-filters button.selected,
+.drop-bid-presets button.selected,
+.drop-payment-methods button.selected {
+  border-color: var(--hot);
+  background: var(--hot-soft);
+  color: var(--hot);
+}
+.drop-page button:disabled,
+.drop-page .disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.drop-category-grid button.selected:disabled {
+  opacity: 1;
+}
+.drop-bid-input {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  background: var(--ink);
+  padding: 0 18px;
+}
+.drop-bid-input input {
+  font:
+    600 40px var(--font-barlow),
+    sans-serif;
+  border: 0;
+  background: none;
+  padding: 10px;
+  min-width: 0;
+}
+.drop-bid-input > span:first-child {
+  color: var(--hot);
+  font-size: 30px;
+}
+.drop-bid-input > span:last-child {
+  color: var(--muted);
+  font: 12px var(--mono);
+}
+.drop-bid-presets {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0;
+}
+.drop-bid-presets button {
+  min-height: 36px;
+  padding: 8px 14px;
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font: 14px var(--mono);
+}
+.drop-page .drop-fineprint,
+.drop-fineprint {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.drop-workspace > .drop-fineprint + .drop-section-label {
+  margin-top: 32px;
+}
+.drop-payment-methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.drop-payment-methods button {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--line-strong);
+  color: var(--paper);
+  background: var(--ink);
+  padding: 16px;
+  text-align: left;
+}
+.drop-payment-methods strong {
+  font-size: 17px;
+}
+.drop-payment-methods span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.drop-auth {
+  border-top: 1px solid var(--line);
+  margin-top: 28px;
+  padding-top: 26px;
+  max-width: 620px;
+}
+.drop-auth p {
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 16px;
+}
+.drop-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 14px 18px;
+  border: 1px solid var(--line-strong);
+  color: var(--paper);
+  background: transparent;
+  font: 600 14px var(--mono);
+  cursor: pointer;
+  text-align: center;
+}
+.drop-button:hover:not(:disabled) {
+  background: var(--line);
+}
+.drop-button.primary {
+  background: var(--hot);
+  border-color: var(--hot);
+  color: #070707;
+}
+.drop-button.primary:hover:not(:disabled) {
+  background: #ff474d;
+}
+.drop-button.accepted {
+  border-color: var(--up);
+  color: var(--up);
+}
+.drop-button.recording {
+  border-color: #ff474d;
+  background: #ae221c;
+  color: #fff;
+}
+.drop-pay,
+.drop-submit {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  min-height: 58px;
+  margin-top: 26px;
+}
+.drop-auth .drop-button {
+  margin: 12px 0 0;
+  width: 100%;
+}
+.drop-text-button {
+  border: 0;
+  background: none;
+  padding: 8px 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+  display: inline-block;
+}
+.drop-signed-in {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--up);
+  font-size: 13px;
+  margin: 24px 0 0;
+  overflow-wrap: anywhere;
+}
+.drop-signed-in button {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline;
+}
+.drop-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.drop-receipt {
+  background: var(--ink-panel);
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--hot);
+  padding: 26px;
+}
+.drop-receipt-category {
+  display: inline-block;
+  border: 1px solid var(--line-strong);
+  padding: 7px 10px;
+  color: var(--muted);
+  font: 12px var(--mono);
+}
+.drop-receipt-amount {
+  display: block;
+  color: var(--paper);
+  font:
+    600 clamp(38px, 4vw, 54px) var(--font-barlow),
+    sans-serif;
+  margin: 16px 0 26px;
+  overflow-wrap: anywhere;
+}
+.drop-receipt dl {
+  margin: 0;
+  border-top: 1px dashed var(--line-strong);
+  padding-top: 12px;
+}
+.drop-receipt dl > div {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+.drop-receipt dt {
+  font-size: 13px;
+  color: var(--muted);
+}
+.drop-receipt dd {
+  margin: 0;
+  font: 12px var(--mono);
+  text-align: right;
+}
+.drop-receipt-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-top: 1px dashed var(--line-strong);
+  margin-top: 18px;
+  padding-top: 20px;
+  color: var(--up);
+}
+.drop-receipt-note svg {
+  flex-shrink: 0;
+}
+.drop-receipt-note p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0;
+}
+.drop-id {
+  display: block;
+  font: 12px/1.7 var(--mono);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  margin-top: 22px;
+}
+.drop-next-card {
+  padding: 5px 14px;
+  color: var(--hot);
+}
+.drop-next-card h3 {
+  font:
+    600 23px var(--font-barlow),
+    sans-serif;
+  color: var(--paper);
+  margin: 16px 0 10px;
+}
+.drop-next-card p {
+  font-size: 14px;
+}
+.drop-saved {
+  border: 1px solid var(--line);
+  padding: 20px;
+}
+.drop-saved > button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: var(--paper);
+  text-align: left;
+}
+.drop-saved > button.selected {
+  color: var(--hot);
+}
+.drop-saved strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+.drop-saved small {
+  font: 12px var(--mono);
+  color: var(--muted);
+}
+.drop-service-notice {
+  display: flex;
+  gap: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--line-strong);
+  background: var(--ink-soft);
+  margin-bottom: 28px;
+  color: var(--muted);
+}
+.drop-service-notice svg {
+  flex-shrink: 0;
+}
+.drop-service-notice strong {
+  color: var(--paper);
+  font: 13px var(--mono);
+}
+.drop-service-notice p {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.drop-page .drop-error,
+.drop-error {
+  border: 1px solid var(--down);
+  background: color-mix(in srgb, var(--down) 8%, transparent);
+  color: var(--down);
+  font-size: 14px;
+  padding: 14px;
+  line-height: 1.6;
+}
+.drop-page .drop-notice,
+.drop-notice {
+  padding: 14px;
+  background: var(--ink-soft);
+  border-left: 2px solid var(--up);
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.drop-loading {
+  min-height: 240px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 16px;
+}
+.drop-confirmed {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 26px;
+  color: var(--up);
+}
+.drop-confirmed h2 {
+  font:
+    600 27px var(--font-barlow),
+    sans-serif;
+  margin: 0;
+}
+.drop-confirmed p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.drop-confirmed > span {
+  font: 12px var(--mono);
+  margin-left: auto;
+}
+.drop-camera {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/10;
+  background: #030604;
+  border: 1px solid var(--line-strong);
+  overflow: hidden;
+}
+.drop-camera.is-recording {
+  border-color: var(--hot);
+}
+.drop-camera video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.drop-live-video {
+  transform: scaleX(-1);
+}
+.drop-camera-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  justify-content: center;
+  align-items: center;
+  color: #a8afa9;
+  text-align: center;
+  padding: 20px;
+}
+.drop-camera-placeholder strong {
+  font: 14px var(--mono);
+  color: #eee;
+}
+.drop-camera-placeholder span {
+  font-size: 14px;
+}
+.drop-camera-top {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  justify-content: space-between;
+  font: 12px var(--mono);
+  color: white;
+  gap: 8px;
+}
+.drop-camera-top span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #050805bb;
+  padding: 7px;
+}
+.drop-camera-top i {
+  width: 6px;
+  height: 6px;
+  background: #95aa9d;
+  border-radius: 50%;
+}
+.drop-camera-top i.is-recording {
+  background: #ef2b32;
+  animation: record-pulse 1s infinite;
+}
+.drop-face-guide {
+  position: absolute;
+  border: 1px dashed #ffffff44;
+  border-radius: 42%;
+  width: 32%;
+  height: 58%;
+  left: 34%;
+  top: 21%;
+  pointer-events: none;
+}
+.drop-camera-caption {
+  position: absolute;
+  bottom: 18px;
+  left: 12px;
+  right: 12px;
+  text-align: center;
+  font-size: 13px;
+  color: white;
+  text-shadow: 0 1px 4px black;
+}
+.drop-device-status {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 18px 0 22px;
+}
+.drop-device-status > span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.drop-device-status > span.ready {
+  color: var(--up);
+}
+.drop-mic-meter {
+  display: block;
+  height: 5px;
+  width: 40px;
+  background: var(--line);
+}
+.drop-mic-meter b {
+  display: block;
+  height: 100%;
+  background: var(--up);
+  transition: width 0.3s;
+}
+.drop-recorded {
+  aspect-ratio: 16/9;
+}
+.drop-preview-label {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  font: 12px var(--mono);
+  color: white;
+  padding: 6px 8px;
+  background: #0008;
+  pointer-events: none;
+}
+.drop-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 18px;
+}
+.drop-thumbnail-section {
+  border-top: 1px solid var(--line);
+  padding-top: 26px;
+  margin-top: 24px;
+}
+.drop-thumbnail-section .drop-section-label {
+  margin-bottom: 10px;
+}
+.drop-thumbnail-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 20px;
+}
+.drop-thumbnail-picker > img,
+.drop-thumbnail-empty {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+}
+.drop-thumbnail-picker > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.drop-thumbnail-picker .drop-button {
+  font-size: 12px;
+  padding: 10px;
+  min-height: 42px;
+}
+.drop-thumbnail-picker small {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.drop-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+.drop-button:has(.drop-file-input:focus-visible) {
+  outline: 2px solid var(--hot);
+  outline-offset: 4px;
+}
+.drop-upload-progress {
+  margin: 24px 0;
+}
+.drop-upload-progress > span {
+  display: flex;
+  justify-content: space-between;
+  color: var(--hot);
+  font: 12px var(--mono);
+}
+.drop-upload-progress progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--hot);
+  margin-top: 12px;
+}
+.drop-submitted {
+  text-align: center;
+  padding: 28px 0;
+}
+.drop-submitted h2 {
+  font:
+    700 42px/1.1 var(--font-barlow),
+    sans-serif;
+}
+.drop-success-icon {
+  color: var(--up);
+  border: 1px solid var(--up);
+  width: 82px;
+  height: 82px;
+  margin: 0 auto 30px;
+  display: grid;
+  place-items: center;
+}
+.drop-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+  margin: 32px auto;
+  max-width: 310px;
+  text-align: left;
+}
+.drop-progress-list span {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 14px;
+  color: var(--up);
+}
+.published-ladder {
+  margin: 24px 0;
+}
+.published-ladder .dashboard-section-head > span,
+.published-ladder .dashboard-section-head > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ladder-empty {
+  text-align: center;
+  padding: 48px 24px;
+}
+.ladder-empty > svg {
+  color: var(--hot);
+}
+.ladder-empty h2 {
+  font:
+    700 40px var(--font-barlow),
+    sans-serif;
+  margin: 16px 0 10px;
+}
+.ladder-empty p {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0 0 22px;
+}
+.ladder-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 30px 0;
+}
+.published-drop {
+  border-bottom: 1px solid var(--line);
+}
+.published-drop > button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 22px;
+  border: 0;
+  background: transparent;
+  color: var(--paper);
+  text-align: left;
+}
+.published-drop > button:hover {
+  background: var(--hot-soft);
+}
+.published-rank {
+  font:
+    600 32px var(--font-barlow),
+    sans-serif;
+  color: var(--hot);
+  min-width: 40px;
+}
+.published-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.published-copy small {
+  color: var(--muted);
+  font: 12px var(--mono);
+}
+.published-copy strong {
+  font-size: 16px;
+}
+.published-price {
+  margin-left: auto;
+  font: 600 16px var(--mono);
+  white-space: nowrap;
+}
+.published-player {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 0 24px 24px;
+}
+.drop-player-loading {
+  aspect-ratio: 16/9;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: var(--ink);
+}
+.review-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+.review-grid h2 {
+  font:
+    600 28px var(--font-barlow),
+    sans-serif;
+}
+.review-grid mux-player {
+  width: 100%;
+}
+.review-check {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+  color: var(--up);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.market-example-label {
+  color: var(--muted);
+  font: 12px var(--mono);
+  letter-spacing: 0.07em;
+  margin-top: 32px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line-strong);
+}
+@keyframes record-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (max-width: 960px) {
+  .drop-layout {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 18px;
+  }
+  .drop-page {
+    padding: 24px 18px 60px;
+  }
+  .drop-workspace {
+    padding: 22px;
+  }
+  .drop-page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .drop-thumbnail-picker {
+    grid-template-columns: 1fr;
+  }
+  .drop-thumbnail-picker > img {
+    max-height: 240px;
+  }
+  .review-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 700px) {
+  .drop-layout {
+    grid-template-columns: 1fr;
+  }
+  .drop-sidebar {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .drop-steps li {
+    font-size: 11px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 4px;
+  }
+  .drop-page {
+    padding: 22px 14px 50px;
+  }
+  .drop-workspace {
+    padding: 20px 16px;
+  }
+  .drop-back {
+    margin-bottom: 24px;
+  }
+  .drop-page-heading h1 {
+    font-size: 48px;
+  }
+  .drop-category-grid button {
+    font-size: 12px;
+  }
+  .drop-payment-methods {
+    gap: 8px;
+  }
+  .drop-payment-methods button {
+    padding: 12px;
+  }
+  .drop-device-status {
+    gap: 10px;
+  }
+  .drop-confirmed > span {
+    display: none;
+  }
+  .drop-confirmed h2 {
+    font-size: 25px;
+  }
+  .published-drop > button {
+    gap: 12px;
+    padding: 16px 12px;
+    flex-wrap: wrap;
+  }
+  .published-copy {
+    flex: 1;
+    min-width: 150px;
+  }
+  .published-price {
+    font-size: 14px;
+  }
+  .drop-market-badge {
+    font-size: 11px;
+  }
+  .drop-receipt-amount {
+    font-size: 52px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drop-camera-top i.is-recording {
+    animation: none;
+  }
+  .drop-mic-meter b {
+    transition: none;
+  }
+}
+fieldset.drop-category-grid,
+fieldset.ladder-filters {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.drop-category-grid legend {
+  font-size: 14px;
+  color: var(--paper);
+  margin: 24px 0 14px;
+}
+output.drop-notice,
+output.drop-upload-progress {
+  display: block;
+}
+
+/*
+ * Drop is part of the market, not a separate marketing surface. Keep the
+ * payment, camera, and upload states inside the same dense black terminal
+ * language as the floor dashboard.
+ */
+.drop-page {
+  max-width: 1560px;
+  padding: 10px 18px 24px;
+}
+
+.drop-back {
+  color: #9ba5a5;
+  font-size: 10px;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.drop-back:hover {
+  color: #f2f4f0;
+}
+
+.drop-page-heading {
+  align-items: center;
+  background: #080d0f;
+  border: 1px solid #202a2e;
+  gap: 18px;
+  margin-bottom: 10px;
+  padding: 14px 16px;
+}
+
+.drop-eyebrow {
+  color: #ef2b32;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.drop-eyebrow i {
+  background: #ef2b32;
+  height: 5px;
+  width: 5px;
+}
+
+.drop-page-heading h1 {
+  font-size: clamp(30px, 4vw, 48px);
+  letter-spacing: -0.045em;
+  margin: 6px 0 5px;
+}
+
+.drop-page-heading h1 span {
+  color: #ef2b32;
+}
+
+.drop-page-heading p,
+.drop-workspace p,
+.drop-next-card p {
+  color: #9ba5a5;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.drop-market-badge {
+  border-color: #334047;
+  color: #29df76;
+  font-size: 9px;
+  margin-left: auto;
+  padding: 9px 10px;
+  white-space: nowrap;
+}
+
+.drop-steps {
+  background: #080d0f;
+  border-color: #202a2e;
+  margin-bottom: 10px;
+}
+
+.drop-steps li {
+  color: #7f8b89;
+  font-size: 10px;
+  min-height: 46px;
+  padding: 9px 12px;
+}
+
+.drop-steps li > span {
+  height: 22px;
+  width: 22px;
+}
+
+.drop-steps li.current {
+  background: rgba(157, 21, 25, 0.14);
+  box-shadow: inset 0 -2px #ef2b32;
+  color: #ff7474;
+}
+
+.drop-steps li.current > span {
+  background: #ef2b32;
+  border-color: #ef2b32;
+}
+
+.drop-steps li.complete {
+  color: #29df76;
+}
+
+.drop-layout {
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 286px;
+}
+
+.drop-workspace,
+.drop-receipt,
+.drop-saved,
+.drop-service-notice {
+  background: #080d0f;
+  border-color: #202a2e;
+}
+
+.drop-workspace {
+  padding: 16px;
+}
+
+.drop-section-label {
+  color: #edf2ee;
+  font-size: 10px;
+  margin-bottom: 12px;
+}
+
+.drop-section-label > span {
+  color: #ef2b32;
+}
+
+.drop-category-grid {
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.drop-category-grid legend {
+  color: #9ba5a5;
+  font-size: 9px;
+  margin: 8px 0 8px;
+  text-transform: uppercase;
+}
+
+.drop-category-grid button,
+.drop-payment-methods button,
+.drop-bid-presets button {
+  border-color: #334047;
+  color: #aeb8b7;
+  font-size: 10px;
+  min-height: 35px;
+  padding: 8px 10px;
+}
+
+.drop-category-grid button.selected,
+.drop-payment-methods button.selected,
+.drop-bid-presets button.selected {
+  background: rgba(157, 21, 25, 0.14);
+  border-color: #c72b2a;
+  color: #ff7474;
+}
+
+.drop-field {
+  color: #cbd4d1;
+  font-size: 11px;
+  gap: 6px;
+  margin: 14px 0 8px;
+}
+
+.drop-field input,
+.drop-field textarea,
+.drop-bid-input {
+  background: #050708;
+  border-color: #334047;
+  color: #f2f4f0;
+  padding: 10px;
+}
+
+.drop-field input,
+.drop-field textarea {
+  min-height: 40px;
+}
+
+.drop-field input:focus,
+.drop-field textarea:focus,
+.drop-bid-input:focus-within {
+  border-color: #ef2b32;
+}
+
+.drop-field small,
+.drop-fineprint,
+.drop-payment-methods span {
+  color: #7f8b89;
+  font-size: 10px;
+}
+
+.drop-bid-input {
+  padding: 0 10px;
+}
+
+.drop-bid-input > span:first-child {
+  color: #f2f4f0;
+  font-size: 20px;
+}
+
+.drop-bid-input input {
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 26px;
+  padding: 7px 8px;
+}
+
+.drop-bid-input > span:last-child {
+  font-size: 9px;
+}
+
+.drop-bid-presets {
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.drop-payment-methods {
+  gap: 6px;
+}
+
+.drop-payment-methods button {
+  background: #050708;
+  padding: 10px;
+}
+
+.drop-payment-methods strong {
+  font-size: 12px;
+}
+
+.drop-payment-methods span {
+  font-size: 9px;
+}
+
+.drop-auth {
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.drop-auth p {
+  font-size: 12px;
+}
+
+.drop-button {
+  border-color: #334047;
+  font-size: 10px;
+  min-height: 40px;
+  padding: 10px 13px;
+}
+
+.drop-button.primary {
+  background: #ef2b32;
+  border-color: #ef2b32;
+  color: #fff;
+}
+
+.drop-button.primary:hover:not(:disabled) {
+  background: #ff474d;
+}
+
+.drop-button.recording {
+  background: #941e22;
+  border-color: #ef2b32;
+}
+
+.drop-pay,
+.drop-submit {
+  margin-top: 14px;
+  min-height: 44px;
+}
+
+.drop-sidebar {
+  gap: 10px;
+}
+
+.drop-receipt {
+  border-top: 2px solid #ef2b32;
+  padding: 16px;
+}
+
+.drop-receipt-category {
+  border-color: #334047;
+  font-size: 9px;
+  padding: 6px 8px;
+}
+
+.drop-receipt-amount {
+  font-family: var(--font-jetbrains), monospace;
+  font-size: clamp(30px, 3vw, 42px);
+  letter-spacing: -0.07em;
+  margin: 12px 0 16px;
+}
+
+.drop-receipt dl > div {
+  padding: 8px 0;
+}
+
+.drop-receipt dt,
+.drop-receipt dd,
+.drop-id {
+  font-size: 9px;
+}
+
+.drop-receipt-note {
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.drop-receipt-note p {
+  font-size: 10px;
+}
+
+.drop-next-card {
+  border: 1px solid #202a2e;
+  background: #080d0f;
+  padding: 16px;
+}
+
+.drop-next-card > svg {
+  color: #ef2b32;
+}
+
+.drop-next-card h3 {
+  font-size: 23px;
+  margin: 10px 0 6px;
+}
+
+.drop-next-card p {
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+
+.drop-saved {
+  padding: 14px;
+}
+
+.drop-saved > button {
+  padding: 10px 0;
+}
+
+.drop-saved > button.selected,
+.drop-saved strong {
+  color: #f2f4f0;
+}
+
+.drop-saved small {
+  font-size: 9px;
+}
+
+.drop-service-notice {
+  margin-bottom: 10px;
+  padding: 12px 14px;
+}
+
+.drop-service-notice strong {
+  font-size: 10px;
+}
+
+.drop-service-notice p,
+.drop-notice,
+.drop-error {
+  font-size: 11px;
+}
+
+.drop-camera {
+  background: #000;
+  border-color: #334047;
+}
+
+.drop-camera.is-recording {
+  border-color: #ef2b32;
+}
+
+.drop-camera-top span {
+  background: rgba(0, 0, 0, 0.78);
+  font-size: 10px;
+  padding: 6px;
+}
+
+.drop-camera-top i.is-recording {
+  background: #ef2b32;
+}
+
+.drop-upload-progress > span {
+  color: #29df76;
+}
+
+.drop-upload-progress progress {
+  accent-color: #29df76;
+}
+
+@media (max-width: 960px) {
+  .drop-page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .drop-market-badge {
+    margin-left: 0;
+  }
+
+  .drop-layout {
+    grid-template-columns: minmax(0, 1fr) 250px;
+  }
+}
+
+@media (max-width: 700px) {
+  .drop-page {
+    padding: 8px 10px 20px;
+  }
+
+  .drop-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .drop-page-heading {
+    padding: 12px;
+  }
+
+  .drop-page-heading h1 {
+    font-size: 40px;
+  }
+
+  .drop-steps li {
+    min-height: 42px;
+  }
+
+  .drop-workspace {
+    padding: 13px;
+  }
+}
+
+html[data-theme='light'] .drop-page-heading,
+html[data-theme='light'] .drop-steps,
+html[data-theme='light'] .drop-workspace,
+html[data-theme='light'] .drop-receipt,
+html[data-theme='light'] .drop-saved,
+html[data-theme='light'] .drop-service-notice,
+html[data-theme='light'] .drop-next-card {
+  background: #ffffff;
+  border-color: #c5ccca;
+  color: #17211e;
+}
+
+html[data-theme='light'] .drop-page-heading h1,
+html[data-theme='light'] .drop-section-label,
+html[data-theme='light'] .drop-field,
+html[data-theme='light'] .drop-payment-methods strong,
+html[data-theme='light'] .drop-receipt-amount,
+html[data-theme='light'] .drop-receipt dd,
+html[data-theme='light'] .drop-saved strong,
+html[data-theme='light'] .drop-next-card h3 {
+  color: #17211e;
+}
+
+html[data-theme='light'] .drop-page-heading p,
+html[data-theme='light'] .drop-workspace p,
+html[data-theme='light'] .drop-next-card p,
+html[data-theme='light'] .drop-field small,
+html[data-theme='light'] .drop-fineprint,
+html[data-theme='light'] .drop-payment-methods span,
+html[data-theme='light'] .drop-receipt dt,
+html[data-theme='light'] .drop-receipt-note p,
+html[data-theme='light'] .drop-saved small,
+html[data-theme='light'] .drop-service-notice p,
+html[data-theme='light'] .drop-back {
+  color: #5f6763;
+}
+
+html[data-theme='light'] .drop-steps li {
+  border-color: #d7ddda;
+  color: #68726d;
+}
+
+html[data-theme='light'] .drop-category-grid button,
+html[data-theme='light'] .drop-payment-methods button,
+html[data-theme='light'] .drop-bid-presets button,
+html[data-theme='light'] .drop-receipt-category {
+  background: #f7f9f7;
+  border-color: #c5ccca;
+  color: #45514b;
+}
+
+html[data-theme='light'] .drop-category-grid button.selected,
+html[data-theme='light'] .drop-payment-methods button.selected,
+html[data-theme='light'] .drop-bid-presets button.selected {
+  background: rgba(197, 31, 43, 0.08);
+  border-color: #c51f2b;
+  color: #a61924;
+}
+
+html[data-theme='light'] .drop-field input,
+html[data-theme='light'] .drop-field textarea,
+html[data-theme='light'] .drop-bid-input,
+html[data-theme='light'] .drop-payment-methods button,
+html[data-theme='light'] .drop-camera {
+  background: #f7f9f7;
+  border-color: #c5ccca;
+  color: #17211e;
+}
+
+html[data-theme='light'] .drop-bid-input > span:first-child,
+html[data-theme='light'] .drop-bid-input > span:last-child {
+  color: #45514b;
+}
+
+html[data-theme='light'] .drop-saved > button {
+  border-color: #d7ddda;
+  color: #17211e;
+}
+
+html[data-theme='light'] .drop-receipt-note {
+  border-color: #d7ddda;
+}

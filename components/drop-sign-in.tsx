@@ -1,0 +1,110 @@
+'use client';
+
+import { useState, type SyntheticEvent } from 'react';
+import { ArrowUpRight, Mail } from 'lucide-react';
+import { useBought } from './bought-provider';
+
+export function DropSignIn() {
+  const { client, authReady } = useBought();
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function submit(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!client || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const { error: authError } = sent
+        ? await client.auth.verifyOtp({
+            email: email.trim(),
+            token: code.trim(),
+            type: 'email',
+          })
+        : await client.auth.signInWithOtp({
+            email: email.trim(),
+            options: { shouldCreateUser: true },
+          });
+      if (authError) throw authError;
+      setSent(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Sign-in failed. Please try again.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="drop-auth" onSubmit={submit}>
+      <div className="drop-section-label">
+        <Mail size={16} /> YOUR ACCOUNT
+      </div>
+      <p>
+        Sign in to keep your payment and recordings together. You can resume
+        your broadcast on any device.
+      </p>
+      <label className="drop-field">
+        Email address
+        <input
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          disabled={sent || busy || !client}
+          placeholder="you@example.com"
+        />
+      </label>
+      {sent && (
+        <label className="drop-field">
+          Code from your email
+          <input
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            pattern="[0-9]{6,10}"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            required
+            placeholder="Enter your code"
+          />
+        </label>
+      )}
+      {error && (
+        <p className="drop-error" role="alert">
+          {error}
+        </p>
+      )}
+      <button
+        className="drop-button primary"
+        disabled={busy || !client}
+        type="submit"
+      >
+        {busy
+          ? 'PLEASE WAIT…'
+          : sent
+            ? 'VERIFY & CONTINUE'
+            : authReady && !client
+              ? 'SIGN-IN COMING SOON'
+              : 'EMAIL ME A CODE'}
+        <ArrowUpRight size={17} />
+      </button>
+      {sent && (
+        <button
+          type="button"
+          className="drop-text-button"
+          onClick={() => {
+            setSent(false);
+            setCode('');
+          }}
+        >
+          Use another email or request a new code
+        </button>
+      )}
+    </form>
+  );
+}

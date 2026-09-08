@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import {
   ArrowUpRight,
   BarChart3,
@@ -11,13 +10,8 @@ import {
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
-
-const feedItems = [
-  ['Rahul K.', 'took #4 in', 'BEEF', '₹6,200', '12s ago'],
-  ['Priya M.', 'entered', 'MONEY', '₹4,100', '21s ago'],
-  ['Arjun S.', 'moved to #2 in', 'BUILDING', '₹8,900', '31s ago'],
-  ['Karan V.', 'outbid in', 'UNPOPULAR OPINION', '₹11,500', '45s ago'],
-] as const;
+import { useBought } from './bought-provider';
+import { money } from '@/lib/drop-domain';
 
 export function MarketStatusStrip({
   eyebrow = 'THE OPEN POSITION',
@@ -28,20 +22,8 @@ export function MarketStatusStrip({
   title?: string;
   description?: string;
 }) {
-  const [now, setNow] = useState(() => new Date(0));
-
-  useEffect(() => {
-    const initialFrame = window.requestAnimationFrame(() => setNow(new Date()));
-    const timer = window.setInterval(() => setNow(new Date()), 1000);
-    return () => {
-      window.cancelAnimationFrame(initialFrame);
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  const secondsElapsed =
-    now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
-  const totalSeconds = 86400 - secondsElapsed;
+  const { market, serverTime, marketFresh, entries } = useBought();
+  const totalSeconds = market && serverTime ? Math.max(0, Math.floor((Date.parse(market.phase === 'bidding' ? market.closesAt : market.exposureEndsAt) - serverTime) / 1000)) : 0;
   const countdown = {
     totalSeconds,
     hours: Math.floor(totalSeconds / 3600)
@@ -52,6 +34,7 @@ export function MarketStatusStrip({
       .padStart(2, '0'),
     seconds: (totalSeconds % 60).toString().padStart(2, '0'),
   };
+  const exposureLocked = marketFresh && market?.phase === 'exposure';
 
   return (
     <section
@@ -61,13 +44,13 @@ export function MarketStatusStrip({
       <div className="total-panel dashboard-panel">
         <div>
           <span className="dashboard-eyebrow">TODAY&apos;S TOTAL</span>
-          <strong>₹4,71,220</strong>
+          <strong>{money(entries.reduce((sum, entry) => sum + entry.amount_minor, 0))}</strong>
         </div>
         <div>
           <span className="dashboard-delta">
-            <ArrowUpRight size={13} /> +23%
+            <ArrowUpRight size={13} /> {entries.length} BROADCASTS
           </span>
-          <span>vs yesterday</span>
+          <span>verified & published</span>
         </div>
       </div>
       <div className="next-position dashboard-panel">
@@ -78,7 +61,7 @@ export function MarketStatusStrip({
         </div>
         <div className="next-position-mark">
           <Bell size={17} />
-          <span>EXPOSURE OPEN</span>
+          <Link href="/drop">MAKE A BROADCAST</Link>
         </div>
       </div>
       <div
@@ -88,12 +71,12 @@ export function MarketStatusStrip({
           <Timer size={40} strokeWidth={1.8} />
         </div>
         <div className="countdown-label">
-          <strong>NEXT DROP</strong>
-          <span>BIDDING STARTS IN</span>
+          <strong>{exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
+          <span>{exposureLocked ? 'EXPOSURE LOCKED' : 'BIDDING CLOSES IN'}</span>
         </div>
         <div className="countdown-value">
           <strong>
-            {countdown.hours} : {countdown.minutes} : {countdown.seconds}
+            {marketFresh ? `${countdown.hours} : ${countdown.minutes} : ${countdown.seconds}` : '-- : -- : --'}
           </strong>
           <span>
             <b>HOURS</b>
@@ -107,6 +90,8 @@ export function MarketStatusStrip({
 }
 
 export function LiveMarketFeed() {
+  const { entries } = useBought();
+  const feedItems = entries.slice(0, 8).map(entry => [entry.title, 'entered', entry.category, money(entry.amount_minor), `#${entry.position}`]);
   return (
     <div className="live-feed dashboard-panel">
       <span className="live-feed-label">
@@ -117,6 +102,7 @@ export function LiveMarketFeed() {
         aria-label="Continuously updating live feed"
       >
         <div className="live-feed-track">
+          {feedItems.length === 0 && <span>Verified broadcasts will appear here as they are published. <Link href="/drop">MAKE YOUR BROADCAST ↗</Link></span>}
           {[...feedItems, ...feedItems].map(
             ([name, action, category, amount, time], index) => (
               <span key={`${name}-${time}-${index}`}>
@@ -127,7 +113,7 @@ export function LiveMarketFeed() {
           )}
         </div>
       </div>
-      <Link href="/watchlist" aria-label="Open live activity">
+      <Link href="/ladder" aria-label="Open live ladder">
         <ChevronRight size={15} />
       </Link>
     </div>
@@ -145,7 +131,7 @@ export function MarketFooter() {
         <span>
           <BarChart3 size={17} />
           <b>2,843</b>
-          <small>Total Drops</small>
+            <small>Total Broadcasts</small>
         </span>
         <span>
           <Eye size={17} />
@@ -163,8 +149,6 @@ export function MarketFooter() {
         <Link href="/how-it-works">How it works</Link>
         <Link href="/categories">Categories</Link>
         <Link href="/magazine">Magazine</Link>
-        <Link href="/field-notes">Notes</Link>
-        <Link href="/waitlist">Waitlist</Link>
       </div>
     </footer>
   );

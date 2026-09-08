@@ -5,35 +5,28 @@ import { Moon, Search, Sun, WalletCards } from 'lucide-react';
 import Link from 'next/link';
 
 import { ProfileAvatar } from '@/components/profile-avatar';
+import { useBought } from './bought-provider';
+import { money } from '@/lib/drop-domain';
 
 export type MarketPage =
   | 'floor'
   | 'index'
   | 'watchlist'
   | 'magazine'
-  | 'notes'
   | 'rules'
   | 'categories'
-  | 'waitlist';
+  | 'drop'
+  | 'ladder'
+  | 'review';
 
 const navigation: Array<{ key: MarketPage; label: string; href: string }> = [
   { key: 'floor', label: 'TODAY', href: '/' },
+  { key: 'ladder', label: 'GLOBAL LADDER', href: '/ladder' },
   { key: 'index', label: 'ALL-TIME', href: '/global-index' },
   { key: 'categories', label: 'CATEGORIES', href: '/categories' },
   { key: 'watchlist', label: 'WATCHLIST', href: '/watchlist' },
   { key: 'magazine', label: 'MAGAZINE', href: '/magazine' },
-  { key: 'notes', label: 'NOTES', href: '/field-notes' },
   { key: 'rules', label: 'HOW IT WORKS', href: '/how-it-works' },
-  { key: 'waitlist', label: 'WAITLIST', href: '/waitlist' },
-];
-
-const tickerItems = [
-  'GLOBAL LADDER +1.8%',
-  'UO / ANANYA RAO ₹11,400',
-  '24.8K WATCHING THE FLOOR',
-  'NEXT DROP 00:00 UTC',
-  'NEW POSITION: @MARCUSK',
-  'BIP / ETHAN COLE ₹9,100',
 ];
 
 function utcTime(date: Date) {
@@ -48,23 +41,27 @@ function utcTime(date: Date) {
 
 export function MarketTopbar({
   active,
-  balance = 18600,
+  activityItems = [],
 }: {
   active: MarketPage;
-  balance?: number;
+  activityItems?: string[];
 }) {
-  const [now, setNow] = useState(() => new Date(0));
+  const { market, serverTime, marketFresh, entries, session } = useBought();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const isLive = now.getUTCHours() < 12;
-
-  useEffect(() => {
-    const initialFrame = window.requestAnimationFrame(() => setNow(new Date()));
-    const timer = window.setInterval(() => setNow(new Date()), 1000);
-    return () => {
-      window.cancelAnimationFrame(initialFrame);
-      window.clearInterval(timer);
-    };
-  }, []);
+  const isLive = marketFresh && market?.phase === 'bidding';
+  const liveActivity = activityItems.length
+    ? activityItems.map((item) => `LIVE ACTIVITY / ${item}`)
+    : entries.slice(0, 8).map(
+        (entry) =>
+          `LIVE / ${entry.title} took #${entry.position} in ${entry.category} ${money(entry.amount_minor)}`,
+      );
+  const tickerItems = [
+    'BIDDING 00:00–12:00 UTC',
+    'EXPOSURE 12:00–00:00 UTC',
+    'ONE GLOBAL LADDER',
+    ...liveActivity,
+  ];
+  const tickerLoop = Array.from({ length: 6 }, () => tickerItems).flat();
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -104,50 +101,57 @@ export function MarketTopbar({
           ))}
         </nav>
 
-        <search className="topbar-search">
-          <Search size={15} />
-          <span>Search drops, people, companies...</span>
-        </search>
-        <div className="online-status">
-          <i /> 412 online
-        </div>
-        <ProfileAvatar
-          initials="SK"
-          className="header-avatar"
-          alt="Account profile"
-        />
+        <div className="topbar-right">
+          <search className="topbar-search">
+            <Search size={15} />
+            <span>Search broadcasts, people, companies...</span>
+          </search>
+          <div className="online-status">
+            <i /> {entries.length} published
+          </div>
 
-        <div className="topbar-actions">
-          <div className="topbar-status" aria-live="polite">
-            <span
-              className={`status-dot ${isLive ? 'is-live' : 'is-locked'}`}
-            />
-            {isLive ? 'LIVE' : 'LOCKED'}
+          <div className="topbar-actions">
+            <div className="topbar-status" aria-live="polite">
+              <span
+                className={`status-dot ${isLive ? 'is-live' : 'is-locked'}`}
+              />
+              {!marketFresh ? 'SYNCING' : isLive ? 'LIVE' : 'LOCKED'}
+            </div>
+            <div className="clock-readout">
+              <span className="eyebrow">UTC</span>
+              <time>
+                {serverTime && marketFresh
+                  ? utcTime(new Date(serverTime))
+                  : '--:--:--'}
+              </time>
+            </div>
+            <button
+              className="theme-toggle"
+              type="button"
+              onClick={() =>
+                setTheme((value) => (value === 'dark' ? 'light' : 'dark'))
+              }
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+            <button className="wallet-button" type="button">
+              <WalletCards size={14} />$18,600
+            </button>
           </div>
-          <div className="clock-readout">
-            <span className="eyebrow">UTC</span>
-            <time>{utcTime(now)}</time>
-          </div>
-          <button
-            className="theme-toggle"
-            type="button"
-            onClick={() =>
-              setTheme((value) => (value === 'dark' ? 'light' : 'dark'))
-            }
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          >
-            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
-          <button className="wallet-button" type="button">
-            <WalletCards size={14} />₹{balance.toLocaleString('en-IN')}
-          </button>
+
+          <ProfileAvatar
+            initials={session?.user.email?.slice(0, 2).toUpperCase() ?? 'BT'}
+            className="header-avatar"
+            alt="Account profile"
+          />
         </div>
       </header>
 
       <div className="ticker" aria-label="Live market tape">
         <div className="ticker-track">
-          {[...tickerItems, ...tickerItems].map((item, index) => (
+          {[...tickerLoop, ...tickerLoop].map((item, index) => (
             <span key={`${item}-${index}`} className="ticker-item">
               <span className="ticker-bullet">◆</span>
               {item}

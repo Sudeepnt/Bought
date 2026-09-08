@@ -24,16 +24,16 @@ const categories = [
 ] as const;
 
 const players = [
-  ['Ananya Rao', 'AN', 'BEEF', '₹18,200', 'SG'],
-  ['Rahul K.', 'RK', 'BEEF', '₹18,047', 'US'],
-  ['Karan V.', 'KV', 'CHAOS', '₹17,832', 'US'],
-  ['Maya Chen', 'MC', 'THE RANT', '₹17,741', 'IN'],
-  ['Ananya Rao', 'AN', 'CHAOS', '₹17,679', 'IN'],
-  ['Jon Bell', 'JB', 'UNPOPULAR OPINION', '₹17,588', 'US'],
-  ['Rahul K.', 'RK', 'CHAOS', '₹17,526', 'BR'],
-  ['Nia Patel', 'NP', 'UNPOPULAR OPINION', '₹17,351', 'IN'],
-  ['Arjun S.', 'AS', 'BUILDING', '₹16,920', 'IN'],
-  ['Priya M.', 'PM', 'THE ASK', '₹16,610', 'US'],
+  ['Ananya Rao', 'AN', 'BEEF', '$18,200', 'SG'],
+  ['Rahul K.', 'RK', 'BEEF', '$18,047', 'US'],
+  ['Karan V.', 'KV', 'CHAOS', '$17,832', 'US'],
+  ['Maya Chen', 'MC', 'THE RANT', '$17,741', 'IN'],
+  ['Ananya Rao', 'AN', 'CHAOS', '$17,679', 'IN'],
+  ['Jon Bell', 'JB', 'UNPOPULAR OPINION', '$17,588', 'US'],
+  ['Rahul K.', 'RK', 'CHAOS', '$17,526', 'BR'],
+  ['Nia Patel', 'NP', 'UNPOPULAR OPINION', '$17,351', 'IN'],
+  ['Arjun S.', 'AS', 'BUILDING', '$16,920', 'IN'],
+  ['Priya M.', 'PM', 'THE ASK', '$16,610', 'US'],
 ];
 
 export default function CategoriesPage() {
@@ -47,7 +47,7 @@ export default function CategoriesPage() {
           `${player[0].split(' ')[0]} ${index + 1}`,
           player[1],
           activeCategory,
-          `₹${(18200 - index * 377).toLocaleString('en-IN')}`,
+          `$${(18200 - index * 377).toLocaleString('en-US')}`,
           player[4],
         ]);
   }, [activeCategory]);
@@ -118,11 +118,11 @@ export default function CategoriesPage() {
         <aside className="category-video-card">
           <div className="category-video-preview">
             <span>00:30</span>
-            <button aria-label="Play the current leader's video" type="button">
+            <button aria-label="Play the current leader's broadcast" type="button">
               <Play size={17} />
             </button>
           </div>
-          <span className="eyebrow">CURRENT LEADER / VIDEO TAKE</span>
+          <span className="eyebrow">CURRENT LEADER / BROADCAST TAKE</span>
           <h2>
             {activeCategory === 'ALL' ? 'Ananya Rao' : filteredPlayers[0][0]}
           </h2>
@@ -130,7 +130,7 @@ export default function CategoriesPage() {
             “The position is moving. Watch before you decide to challenge it.”
           </p>
           <strong>
-            ₹18,200 <em>TOP POSITION</em>
+            $18,200 <em>TOP POSITION</em>
           </strong>
         </aside>
       </section>

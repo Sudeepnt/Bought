@@ -4,11 +4,11 @@ import { ArrowUpRight, Globe2, TrendingUp } from 'lucide-react';
 import { MarketPageShell } from '@/components/market-page-shell';
 
 const indexRows = [
-  ['UNPOPULAR OPINION', '₹18,200', '+6.5%', '162'],
-  ['BEEF', '₹18,047', '+6.0%', '184'],
-  ['CHAOS', '₹17,832', '+6.4%', '28'],
-  ['I WAS WRONG', '₹16,940', '+4.8%', '141'],
-  ['THE RANT', '₹15,870', '+3.9%', '118'],
+  ['UNPOPULAR OPINION', '$18,200', '+6.5%', '162'],
+  ['BEEF', '$18,047', '+6.0%', '184'],
+  ['CHAOS', '$17,832', '+6.4%', '28'],
+  ['I WAS WRONG', '$16,940', '+4.8%', '141'],
+  ['THE RANT', '$15,870', '+3.9%', '118'],
 ];
 
 export default function GlobalIndexPage() {
@@ -22,7 +22,7 @@ export default function GlobalIndexPage() {
       <section className="route-stat-grid" aria-label="Global index summary">
         <div className="route-stat-card hot-stat">
           <span>GLOBAL POSITION VALUE</span>
-          <strong>₹184.6K</strong>
+          <strong>$184.6K</strong>
           <em>
             <TrendingUp size={14} /> +4.2% / 24H
           </em>

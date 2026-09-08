@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Barlow_Condensed, Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
+import './drop.css';
+import { BoughtProvider } from '@/components/bought-provider';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -34,7 +36,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${barlowCondensed.variable} ${jetBrainsMono.variable}`}
       >
-        {children}
+        <BoughtProvider>{children}</BoughtProvider>
       </body>
     </html>
   );
