@@ -91,10 +91,16 @@ export default function ReviewPage() {
                     {drop.category} · {money(drop.amount_minor)}
                   </span>
                   <h2>{drop.title}</h2>
+                  <span className="review-capture-mode">
+                    {drop.capture_mode === 'screen'
+                      ? 'SCREEN EVIDENCE + MICROPHONE'
+                      : 'CAMERA + MICROPHONE'}
+                  </span>
                   <DropPlayer dropId={drop.id} />
                   <p>
-                    Confirm that a face remains visible, speech is audible, and
-                    the broadcast, title, and thumbnail meet BOUGHT’s content rules.
+                    {drop.capture_mode === 'screen'
+                      ? 'Confirm that the required screen evidence remains visible, speech is audible, and the broadcast, title, and thumbnail meet BOUGHT’s content rules.'
+                      : 'Confirm that a face remains visible, speech is audible, and the broadcast, title, and thumbnail meet BOUGHT’s content rules.'}
                   </p>
                   <label className="review-check">
                     <input

@@ -14,7 +14,7 @@ import {
   type Session,
   type SupabaseClient,
 } from '@supabase/supabase-js';
-import type { LadderEntry, Market } from '@/lib/drop-domain';
+import type { Market, PublishedEntry } from '@/lib/drop-domain';
 
 type Config = {
   supabaseUrl: string | null;
@@ -29,8 +29,7 @@ type BoughtContext = {
   market: Market | null;
   serverTime: number | null;
   marketFresh: boolean;
-  entries: LadderEntry[];
-  ladderConfigured: boolean;
+  entries: PublishedEntry[];
   api: <T>(path: string, body?: unknown) => Promise<T>;
 };
 const Context = createContext<BoughtContext | null>(null);
@@ -43,8 +42,7 @@ export function BoughtProvider({ children }: { children: ReactNode }) {
   const [market, setMarket] = useState<Market | null>(null);
   const [serverTime, setServerTime] = useState<number | null>(null);
   const [marketFresh, setMarketFresh] = useState(false);
-  const [entries, setEntries] = useState<LadderEntry[]>([]);
-  const [ladderConfigured, setLadderConfigured] = useState(false);
+  const [entries, setEntries] = useState<PublishedEntry[]>([]);
   const anchor = useRef({ server: 0, monotonic: 0 });
 
   useEffect(() => {
@@ -134,26 +132,22 @@ export function BoughtProvider({ children }: { children: ReactNode }) {
     let active = true;
     const sync = async () => {
       try {
-        const response = await fetch('/api/bought/ladder', {
+        const response = await fetch('/api/bought/published', {
           signal: AbortSignal.timeout(8000),
         });
-        if (!response.ok) throw new Error('Ladder unavailable');
+        if (!response.ok) throw new Error('Published broadcasts unavailable');
         const result = (await response.json()) as {
-          entries: LadderEntry[];
-          configured: boolean;
+          entries: PublishedEntry[];
         };
-        if (active) {
-          setEntries(result.entries);
-          setLadderConfigured(result.configured);
-        }
+        if (active) setEntries(result.entries);
       } catch {
-        if (active) setLadderConfigured(false);
+        if (active) setEntries([]);
       }
     };
     void sync();
     const poll = window.setInterval(sync, 15000);
     const channel = client
-      ?.channel('global-ladder')
+      ?.channel('published-broadcasts')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bought_ladder' },
@@ -201,7 +195,6 @@ export function BoughtProvider({ children }: { children: ReactNode }) {
         serverTime,
         marketFresh,
         entries,
-        ladderConfigured,
         api,
       }}
     >

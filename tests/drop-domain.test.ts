@@ -2,11 +2,35 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { hmac, verifyWebhook } from '../lib/webhook-signatures';
 import {
+  captureModeForCategory,
   parseBid,
   thumbnailMime,
   validMedia,
   validUuid,
 } from '../lib/drop-domain';
+
+void test('categories select the correct recording surface', () => {
+  for (const category of [
+    'BEEF',
+    'CHAOS',
+    'UNPOPULAR OPINION',
+    'I WAS WRONG',
+    'THE RANT',
+    'CONFESSIONS',
+  ])
+    assert.equal(captureModeForCategory(category), 'camera');
+
+  for (const category of [
+    'MONEY I SET ON FIRE',
+    'THE PITCH THAT GOT REJECTED',
+    'BUILDING',
+    'THE ASK',
+    'HIRING',
+    'AGENCY ROW',
+    'INDIAN D2C',
+  ])
+    assert.equal(captureModeForCategory(category), 'screen');
+});
 
 void test('bids use bounded integer minor units', () => {
   assert.equal(parseBid('11500'), 1150000);

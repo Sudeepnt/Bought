@@ -23,7 +23,7 @@ const jetBrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'BOUGHT — The Global Attention Exchange',
-  description: 'One global auction. One ladder. Spend to be seen.',
+  description: 'One global auction. One daily market. Spend to be seen.',
 };
 
 export default function RootLayout({

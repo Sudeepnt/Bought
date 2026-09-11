@@ -1,10 +1,6 @@
 import type { ReactNode } from 'react';
 
-import {
-  LiveMarketFeed,
-  MarketFooter,
-  MarketStatusStrip,
-} from '@/components/market-chrome';
+import { MarketFooter } from '@/components/market-chrome';
 import { MarketTopbar, type MarketPage } from '@/components/market-topbar';
 
 export function MarketPageShell({
@@ -25,13 +21,6 @@ export function MarketPageShell({
       <div className="scanlines" aria-hidden="true" />
       <MarketTopbar active={active} />
       <div className="route-page">
-        <MarketStatusStrip
-          eyebrow={eyebrow}
-          title={title}
-          description={description}
-        />
-        <LiveMarketFeed />
-
         <header className="route-intro dashboard-panel">
           <div className="dashboard-section-head">
             <span>

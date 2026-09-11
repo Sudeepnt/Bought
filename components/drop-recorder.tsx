@@ -31,6 +31,7 @@ import {
   videoFrame,
 } from '@/lib/local-recording';
 import { useBought } from './bought-provider';
+import { ScreenRecorder } from './screen-recorder';
 
 function CameraRecorder({
   dropId,
@@ -619,7 +620,11 @@ export function DropRecorder({
       )}
       {notice && <p className="drop-notice">{notice}</p>}
       {!blob ? (
-        <CameraRecorder dropId={drop.id} onRecorded={onRecorded} />
+        drop.capture_mode === 'screen' ? (
+          <ScreenRecorder dropId={drop.id} onRecorded={onRecorded} />
+        ) : (
+          <CameraRecorder dropId={drop.id} onRecorded={onRecorded} />
+        )
       ) : (
         <>
           <div className="drop-camera drop-recorded">
@@ -672,7 +677,7 @@ export function DropRecorder({
                 <span>03 /</span> THUMBNAIL
               </div>
               <p>
-                Give the ladder a first impression. Scrub your broadcast to choose a
+                Give the room a first impression. Scrub your broadcast to choose a
                 frame.
               </p>
               <div className="drop-thumbnail-picker">

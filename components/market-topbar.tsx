@@ -1,33 +1,71 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type SyntheticEvent,
+} from 'react';
 import { Moon, Search, Sun, WalletCards } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { ProfileAvatar } from '@/components/profile-avatar';
+import { BrandLogo } from '@/components/brand-logo';
 import { useBought } from './bought-provider';
+import {
+  fallbackFeedItems,
+  LiveMarketFeed,
+  MarketStatusStrip,
+  useMarqueeDuration,
+} from './market-chrome';
 import { money } from '@/lib/drop-domain';
+import { searchResults } from '@/lib/search';
 
 export type MarketPage =
   | 'floor'
-  | 'index'
   | 'watchlist'
   | 'magazine'
   | 'rules'
   | 'categories'
-  | 'drop'
-  | 'ladder'
-  | 'review';
+  | 'broadcast'
+  | 'review'
+  | 'profile'
+  | 'terms';
 
 const navigation: Array<{ key: MarketPage; label: string; href: string }> = [
   { key: 'floor', label: 'TODAY', href: '/' },
-  { key: 'ladder', label: 'GLOBAL LADDER', href: '/ladder' },
-  { key: 'index', label: 'ALL-TIME', href: '/global-index' },
   { key: 'categories', label: 'CATEGORIES', href: '/categories' },
-  { key: 'watchlist', label: 'WATCHLIST', href: '/watchlist' },
   { key: 'magazine', label: 'MAGAZINE', href: '/magazine' },
+  { key: 'watchlist', label: 'WATCHLIST', href: '/watchlist' },
   { key: 'rules', label: 'HOW IT WORKS', href: '/how-it-works' },
 ];
+
+type Theme = 'dark' | 'light';
+
+const themeChangeEvent = 'bought-theme-change';
+
+function subscribeToTheme(onStoreChange: () => void) {
+  window.addEventListener('storage', onStoreChange);
+  window.addEventListener(themeChangeEvent, onStoreChange);
+
+  return () => {
+    window.removeEventListener('storage', onStoreChange);
+    window.removeEventListener(themeChangeEvent, onStoreChange);
+  };
+}
+
+function getStoredTheme(): Theme {
+  return window.localStorage.getItem('bought-theme') === 'light'
+    ? 'light'
+    : 'dark';
+}
+
+function getServerTheme(): Theme {
+  return 'dark';
+}
 
 function utcTime(date: Date) {
   return new Intl.DateTimeFormat('en-GB', {
@@ -39,49 +77,82 @@ function utcTime(date: Date) {
   }).format(date);
 }
 
-export function MarketTopbar({
-  active,
-  activityItems = [],
-}: {
-  active: MarketPage;
-  activityItems?: string[];
-}) {
+export function MarketTopbar({ active }: { active: MarketPage }) {
   const { market, serverTime, marketFresh, entries, session } = useBought();
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const router = useRouter();
+  const searchWrapRef = useRef<HTMLElement>(null);
+  const tickerTrackRef = useRef<HTMLDivElement>(null);
+  const marqueeDuration = useMarqueeDuration(tickerTrackRef);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const matchingResults = useMemo(
+    () => searchResults(searchQuery).slice(0, 6),
+    [searchQuery],
+  );
+  // React uses the server snapshot during hydration, then applies the saved
+  // preference from localStorage once the client is mounted.
+  const theme = useSyncExternalStore(
+    subscribeToTheme,
+    getStoredTheme,
+    getServerTheme,
+  );
   const isLive = marketFresh && market?.phase === 'bidding';
-  const liveActivity = activityItems.length
-    ? activityItems.map((item) => `LIVE ACTIVITY / ${item}`)
-    : entries.slice(0, 8).map(
+  const liveActivity = entries.length
+    ? entries.slice(0, 8).map(
         (entry) =>
-          `LIVE / ${entry.title} took #${entry.position} in ${entry.category} ${money(entry.amount_minor)}`,
+          `LIVE ACTIVITY / ${entry.title} took #${entry.position} in ${entry.category} ${money(entry.amount_minor)}`,
+      )
+    : fallbackFeedItems.slice(0, 5).map(
+        ([name, action, category, amount, time]) =>
+          `LIVE ACTIVITY / ${name} ${action} ${category}${amount ? ` ${amount}` : ''} ${time}`,
       );
   const tickerItems = [
     'BIDDING 00:00–12:00 UTC',
     'EXPOSURE 12:00–00:00 UTC',
-    'ONE GLOBAL LADDER',
+    'ONE GLOBAL MARKET',
     ...liveActivity,
   ];
   const tickerLoop = Array.from({ length: 6 }, () => tickerItems).flat();
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const savedTheme = window.localStorage.getItem('bought-theme');
-      if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme);
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem('bought-theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    function closeSearch(event: MouseEvent) {
+      if (!searchWrapRef.current?.contains(event.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', closeSearch);
+    return () => document.removeEventListener('mousedown', closeSearch);
+  }, []);
+
+  function toggleTheme() {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = nextTheme;
+    window.localStorage.setItem('bought-theme', nextTheme);
+    window.dispatchEvent(new Event(themeChangeEvent));
+  }
+
+  function submitSearch(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) return;
+    const normalizedQuery = query.toLocaleLowerCase();
+    const exactResult = matchingResults.find(
+      (result) => result.title.toLocaleLowerCase() === normalizedQuery,
+    );
+    setSearchOpen(false);
+    router.push(exactResult?.href ?? `/search?q=${encodeURIComponent(query)}`);
+  }
+
   return (
-    <>
+    <div className="market-chrome">
       <header className="topbar">
         <Link className="brand-mark" href="/" aria-label="BOUGHT home">
           <span className="brand-dot" />
-          <span>BOUGHT</span>
+          <BrandLogo className="brand-logo-topbar" />
         </Link>
 
         <nav className="top-navigation" aria-label="Market pages">
@@ -102,14 +173,79 @@ export function MarketTopbar({
         </nav>
 
         <div className="topbar-right">
-          <search className="topbar-search">
-            <Search size={15} />
-            <span>Search broadcasts, people, companies...</span>
+          <search className="topbar-search-wrap" ref={searchWrapRef}>
+            <form
+              className="topbar-search"
+              onSubmit={submitSearch}
+            >
+              <Search size={15} aria-hidden="true" />
+              <input
+                type="search"
+                value={searchQuery}
+                placeholder="Search broadcasts…"
+                aria-label="Search broadcasts, people, and companies"
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setSearchOpen(true);
+                }}
+                onFocus={() => setSearchOpen(true)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setSearchOpen(false);
+                    event.currentTarget.blur();
+                  }
+                }}
+              />
+            </form>
+            {searchOpen && searchQuery.trim() && (
+              <div className="topbar-search-results">
+                {matchingResults.length ? (
+                  matchingResults.map((result) => (
+                    <Link
+                      className="topbar-search-result"
+                      href={result.href}
+                      key={result.id}
+                      onClick={() => setSearchOpen(false)}
+                    >
+                      <span className={`search-result-icon is-${result.type}`}>
+                        {result.type === 'broadcast'
+                          ? '▶'
+                          : result.type === 'person'
+                            ? '@'
+                            : result.type === 'company'
+                              ? '◈'
+                              : result.type === 'category'
+                                ? '#'
+                                : '↗'}
+                      </span>
+                      <span className="search-result-copy">
+                        <strong>{result.title}</strong>
+                        <small>
+                          {result.subtitle} · {result.meta}
+                        </small>
+                      </span>
+                    </Link>
+                  ))
+                ) : (
+                  <span className="topbar-search-empty">
+                    No matches yet. Press Enter to search the full market.
+                  </span>
+                )}
+                <button
+                  className="topbar-search-all"
+                  type="button"
+                  onClick={() => {
+                    setSearchOpen(false);
+                    router.push(
+                      `/search?q=${encodeURIComponent(searchQuery.trim())}`,
+                    );
+                  }}
+                >
+                  VIEW ALL RESULTS <span>↗</span>
+                </button>
+              </div>
+            )}
           </search>
-          <div className="online-status">
-            <i /> {entries.length} published
-          </div>
-
           <div className="topbar-actions">
             <div className="topbar-status" aria-live="polite">
               <span
@@ -128,9 +264,7 @@ export function MarketTopbar({
             <button
               className="theme-toggle"
               type="button"
-              onClick={() =>
-                setTheme((value) => (value === 'dark' ? 'light' : 'dark'))
-              }
+              onClick={toggleTheme}
               aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             >
@@ -141,16 +275,25 @@ export function MarketTopbar({
             </button>
           </div>
 
-          <ProfileAvatar
-            initials={session?.user.email?.slice(0, 2).toUpperCase() ?? 'BT'}
-            className="header-avatar"
-            alt="Account profile"
-          />
+          <Link
+            className="header-profile-link"
+            href="/profile"
+            aria-label={session ? 'Open your profile' : 'Sign in to your profile'}
+          >
+            <ProfileAvatar
+              initials={session?.user.email?.slice(0, 2).toUpperCase() ?? 'BT'}
+              className="header-avatar"
+            />
+          </Link>
         </div>
       </header>
 
       <div className="ticker" aria-label="Live market tape">
-        <div className="ticker-track">
+        <div
+          className="ticker-track"
+          ref={tickerTrackRef}
+          style={marqueeDuration ? { animationDuration: marqueeDuration } : undefined}
+        >
           {[...tickerLoop, ...tickerLoop].map((item, index) => (
             <span key={`${item}-${index}`} className="ticker-item">
               <span className="ticker-bullet">◆</span>
@@ -159,6 +302,12 @@ export function MarketTopbar({
           ))}
         </div>
       </div>
-    </>
+      <div className="dashboard-wrap market-status-wrap">
+        <MarketStatusStrip />
+      </div>
+      <div className="dashboard-wrap market-live-feed-wrap">
+        <LiveMarketFeed />
+      </div>
+    </div>
   );
 }

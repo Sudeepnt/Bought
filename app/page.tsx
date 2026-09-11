@@ -4,32 +4,65 @@ import { useEffect, useState, type SyntheticEvent } from 'react';
 import {
   ArrowDownRight,
   ArrowUpRight,
+  Briefcase,
   Building2,
   CircleHelp,
+  Crown,
   DollarSign,
+  FileText,
   Flame,
+  Megaphone,
+  MessageCircle,
   Play,
+  Radio,
+  Store,
+  Undo2,
   UsersRound,
+  Zap,
+  type LucideIcon,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
-import {
-  LiveMarketFeed,
-  MarketFooter,
-  MarketStatusStrip,
-} from '@/components/market-chrome';
+import { MarketFooter } from '@/components/market-chrome';
 import { MarketTopbar } from '@/components/market-topbar';
+import { DropPlayer } from '@/components/drop-player';
+import { useBought } from '@/components/bought-provider';
 import { ProfileAvatar } from '@/components/profile-avatar';
-import { PublishedLadder } from '@/components/published-ladder';
+import { latestIssue } from '@/lib/magazine';
 
-const leaderboard = [
+type LeaderboardRow = [
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+];
+
+const leaderboard: LeaderboardRow[] = [
   ['Ananya R.', '@ananyabuilds', 'UNPOPULAR OPINION', '$11,400', 'AR', 'coral'],
   ['Arjun S.', '@arjunsays', 'BUILDING', '$8,900', 'AS', 'green'],
   ['Priya M.', '@priyamakes', 'MONEY', '$6,200', 'PM', 'orange'],
   ['Rahul K.', '@rahulbuilds', 'BEEF', '$6,200', 'RK', 'blue'],
   ['Karan V.', '@karanv', 'UNPOPULAR OPINION', '$4,800', 'KV', 'purple'],
+  ['Maya K.', '@mayaknowsthis', 'THE RANT', '$4,200', 'MK', 'green'],
+  ['Dev P.', '@devpicks', 'THE ASK', '$3,900', 'DP', 'blue'],
+  ['Simran N.', '@simrannotes', 'MONEY I SET ON FIRE', '$3,600', 'SN', 'orange'],
+  ['Kabir J.', '@kabirj', 'BUILDING', '$3,200', 'KJ', 'coral'],
+  ['Aisha T.', '@aishatellsit', 'CONFESSIONS', '$2,900', 'AT', 'purple'],
 ];
+
+type LeaderboardSelection = {
+  rank: number;
+  name: string;
+  handle: string;
+  category: string;
+  price: string;
+  initials: string;
+  tone: string;
+  dropId: string | null;
+};
 
 const activity = [
   ['Rahul K.', 'took #4 in', 'BEEF', '$6,200', '12s ago', 'RK', 'blue'],
@@ -72,23 +105,93 @@ const homeCategories = [
   ['INDIAN D2C', '37'],
 ] as const;
 
+const homeCategoryIcons: Record<string, LucideIcon> = {
+  ALL: Flame,
+  BEEF: MessageCircle,
+  CHAOS: Zap,
+  'UNPOPULAR OPINION': Radio,
+  'I WAS WRONG': Undo2,
+  'THE RANT': Megaphone,
+  CONFESSIONS: MessageCircle,
+  'MONEY I SET ON FIRE': DollarSign,
+  'THE PITCH THAT GOT REJECTED': FileText,
+  BUILDING: Building2,
+  'THE ASK': CircleHelp,
+  HIRING: Briefcase,
+  'AGENCY ROW': UsersRound,
+  'INDIAN D2C': Store,
+};
+
+const categoryLeaderBidCaps: Record<string, number> = {
+  BEEF: 9_800,
+  CHAOS: 7_600,
+  'UNPOPULAR OPINION': 11_400,
+  'I WAS WRONG': 8_700,
+  'THE RANT': 8_100,
+  CONFESSIONS: 6_800,
+  'MONEY I SET ON FIRE': 9_200,
+  'THE PITCH THAT GOT REJECTED': 7_400,
+  BUILDING: 8_900,
+  'THE ASK': 6_500,
+  HIRING: 6_200,
+  'AGENCY ROW': 5_800,
+  'INDIAN D2C': 7_100,
+};
+
+const categoryLeaderOffsets: Record<string, number> = {
+  BEEF: 3,
+  CHAOS: 5,
+  'UNPOPULAR OPINION': 0,
+  'I WAS WRONG': 6,
+  'THE RANT': 1,
+  CONFESSIONS: 9,
+  'MONEY I SET ON FIRE': 2,
+  'THE PITCH THAT GOT REJECTED': 4,
+  BUILDING: 1,
+  'THE ASK': 6,
+  HIRING: 7,
+  'AGENCY ROW': 8,
+  'INDIAN D2C': 5,
+};
+
+const categoryLeaderboards: Record<string, LeaderboardRow[]> =
+  Object.fromEntries(
+    homeCategories.map(([category], categoryIndex) => {
+      if (category === 'ALL') return [category, leaderboard];
+
+      const cap = categoryLeaderBidCaps[category] ?? 6_000;
+      const step = Math.max(250, Math.round(cap / 18));
+      const offset = categoryLeaderOffsets[category] ?? categoryIndex;
+      const rows = Array.from({ length: 10 }, (_, rank) => {
+        const source = leaderboard[(offset + rank) % leaderboard.length];
+        const row: LeaderboardRow = [
+          source[0],
+          source[1],
+          category,
+          `$${Math.max(1_900, cap - rank * step).toLocaleString('en-US')}`,
+          source[4],
+          source[5],
+        ];
+        return row;
+      });
+
+      return [category, rows];
+    }),
+  );
+
 const categoryPulse = [
   {
     name: 'Unpopular Opinion',
     key: 'UNPOPULAR OPINION',
     bids: '1,420',
     positive: true,
-    tone: 'red',
-    icon: Flame,
     path: 'M2 15 C8 13 8 8 13 11 S19 9 24 5 S29 8 34 4',
   },
   {
     name: 'Money',
-    key: 'MONEY',
+    key: 'MONEY I SET ON FIRE',
     bids: '980',
     positive: true,
-    tone: 'green',
-    icon: DollarSign,
     path: 'M2 16 C8 16 7 13 12 13 S17 8 22 10 S27 5 34 5',
   },
   {
@@ -96,8 +199,6 @@ const categoryPulse = [
     key: 'BUILDING',
     bids: '760',
     positive: true,
-    tone: 'blue',
-    icon: Building2,
     path: 'M2 15 C8 12 7 14 12 11 S18 12 21 8 S27 9 34 6',
   },
   {
@@ -105,8 +206,6 @@ const categoryPulse = [
     key: 'THE ASK',
     bids: '620',
     positive: false,
-    tone: 'purple',
-    icon: CircleHelp,
     path: 'M2 7 C8 9 9 13 14 10 S19 12 22 16 S28 13 34 17',
   },
   {
@@ -114,8 +213,6 @@ const categoryPulse = [
     key: 'HIRING',
     bids: '540',
     positive: true,
-    tone: 'orange',
-    icon: UsersRound,
     path: 'M2 16 C8 12 9 15 13 12 S18 13 22 10 S28 11 34 8',
   },
 ] as const;
@@ -178,15 +275,45 @@ function Money({ value }: { value: string }) {
 function Avatar({
   initials,
   tone = 'coral',
+  showCrown = false,
 }: {
   initials: string;
   tone?: string;
+  showCrown?: boolean;
 }) {
+  const portraitPositions: Record<string, string> = {
+    AR: '25% 0%',
+    AS: '0% 0%',
+    PM: '75% 0%',
+    RK: '100% 0%',
+    KV: '50% 0%',
+    MK: '0% 100%',
+    DP: '25% 100%',
+    SN: '50% 100%',
+    KJ: '75% 100%',
+    AT: '100% 100%',
+    SJ: '25% 0%',
+    EC: '50% 0%',
+  };
+
   return (
-    <ProfileAvatar
-      initials={initials}
-      className={`dashboard-avatar avatar-${tone}`}
-    />
+    <span className={showCrown ? 'leaderboard-avatar-wrap has-crown' : undefined}>
+      <ProfileAvatar
+        initials={initials}
+        className={`dashboard-avatar avatar-${tone}`}
+        imageSrc="/leaderboard-portraits.png"
+        imagePosition={portraitPositions[initials] ?? '50% 50%'}
+      />
+      {showCrown && (
+        <Crown
+          className="leaderboard-crown"
+          size={22}
+          strokeWidth={2}
+          fill="currentColor"
+          aria-label="Current leader"
+        />
+      )}
+    </span>
   );
 }
 
@@ -225,7 +352,10 @@ function PulseSparkline({
 }
 
 export default function Home() {
+  const { entries } = useBought();
   const [videoPlaying, setVideoPlaying] = useState(false);
+  const [selectedLeaderboard, setSelectedLeaderboard] =
+    useState<LeaderboardSelection | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewText, setReviewText] = useState('');
   const [reviewSent, setReviewSent] = useState(false);
@@ -235,6 +365,13 @@ export default function Home() {
     amount: string;
   } | null>(null);
   const [activeCategory, setActiveCategory] = useState('ALL');
+  const displayedLeaderboard =
+    categoryLeaderboards[activeCategory] ?? categoryLeaderboards.ALL;
+
+  function selectCategory(category: string) {
+    setActiveCategory(category);
+    setSelectedLeaderboard(null);
+  }
 
   useEffect(() => {
     let cursor = 0;
@@ -286,6 +423,25 @@ export default function Home() {
     };
   }, [reviewOpen]);
 
+  function openLeaderboardBroadcast(row: string[], index: number) {
+    const [name, handle, category, price, initials, tone] = row;
+    const publishedEntry = entries.find(
+      (entry) =>
+        entry.position === index + 1 &&
+        (activeCategory === 'ALL' || entry.category === category),
+    );
+    setSelectedLeaderboard({
+      rank: index + 1,
+      name,
+      handle,
+      category,
+      price,
+      initials,
+      tone,
+      dropId: publishedEntry?.drop_id ?? null,
+    });
+  }
+
   function submitReview(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!reviewText.trim()) return;
@@ -296,125 +452,282 @@ export default function Home() {
   return (
     <main className="market-shell dashboard-shell">
       <div className="scanlines" aria-hidden="true" />
-      <MarketTopbar
-        active="floor"
-        activityItems={activityFeed.map(
-          ([name, action, category, amount, time]) =>
-            `${name} ${action} ${category} ${amount} ${time}`,
-        )}
-      />
+      <MarketTopbar active="floor" />
 
-      <div className="dashboard-wrap">
-        <MarketStatusStrip />
-        <LiveMarketFeed />
-        <PublishedLadder compact />
-        <p className="market-example-label">MARKET PREVIEW · EXAMPLE CONTENT BELOW</p>
-
-        <section
-          className="homepage-category-selector dashboard-panel"
-          aria-label="Choose a market category"
-        >
+      <div className="dashboard-wrap homepage-content-wrap">
+        <section className="activity-dashboard dashboard-panel">
           <div className="dashboard-section-head">
-            <span>CATEGORIES</span>
-            <Link href="/categories">VIEW ALL</Link>
+            <span>LIVE ACTIVITY</span>
           </div>
           <div
-            className="homepage-category-list"
-            role="tablist"
-            aria-label="Market categories"
+            className="activity-dashboard-list"
+            aria-live="polite"
+            aria-atomic="false"
           >
-            {homeCategories.map(([category, bids]) => (
-              <button
-                className={`homepage-category-option ${activeCategory === category ? 'is-active' : ''}`}
-                key={category}
-                type="button"
-                role="tab"
-                aria-selected={activeCategory === category}
-                onClick={() => setActiveCategory(category)}
-              >
-                <strong>{category}</strong>
-                <span>{bids} bids</span>
-              </button>
-            ))}
+            {activityFeed.map(
+              ([name, action, category, amount, time, initials, tone], index) => (
+                <button
+                  className={`activity-dashboard-row ${index === 0 && activityPulse ? 'is-new' : ''}`}
+                  type="button"
+                  key={`${name}-${category}-${time}-${index}`}
+                >
+                  <Avatar initials={initials} tone={tone} />
+                  <span>
+                    <strong>{name}</strong>
+                    <small>
+                      {action} <b>{category}</b>
+                    </small>
+                    {amount && <em>{amount}</em>}
+                  </span>
+                  <time>{time}</time>
+                  {index === 0 && activityPulse && amount && (
+                    <span
+                      className="activity-money-pulse"
+                      aria-label={`New money added ${amount}`}
+                    >
+                      +{amount}
+                    </span>
+                  )}
+                </button>
+              ),
+            )}
           </div>
         </section>
 
-        <section className="dashboard-top-grid">
-          <article className="leader-spot dashboard-panel">
-            <div className="dashboard-section-head">
-              <span>
-                TOP POSITION RIGHT NOW <i /> LIVE
-              </span>
-            </div>
-            <div className="leader-visual">
-              <div className="leader-portrait">
-                <Image
-                  src="/ananya-rao-hero.webp"
-                  alt="Ananya Rao, current leader"
-                  width="1672"
-                  height="941"
-                  fetchPriority="high"
-                  priority
-                />
+        <section className="dashboard-main-grid">
+          <div className="dashboard-primary-stack">
+            <article className="leader-spot dashboard-panel">
+              <div className="dashboard-section-head">
+                <span>
+                  {selectedLeaderboard
+                    ? 'SELECTED BROADCAST'
+                    : 'TOP POSITION RIGHT NOW'}{' '}
+                  <i /> {selectedLeaderboard ? 'FROM LEADERBOARD' : 'LIVE'}
+                </span>
+                {selectedLeaderboard && (
+                  <button
+                    className="leader-clear-selection"
+                    type="button"
+                    onClick={() => setSelectedLeaderboard(null)}
+                  >
+                    BACK TO TOP POSITION
+                  </button>
+                )}
               </div>
-              <div className="leader-overlay">
-                <strong className="leader-rank">#1</strong>
-                <span className="leader-category">UNPOPULAR OPINION</span>
-                <Money value="$11,400" />
-                <div className="leader-metrics">
-                  <span>14,201 VIEWS</span>
-                  <Delta value="6 OUTBID" />
+              <div
+                className={`leader-visual ${selectedLeaderboard ? 'has-selected-broadcast' : ''}`}
+              >
+                {selectedLeaderboard?.dropId ? (
+                  <div className="leader-portrait leader-video">
+                    <DropPlayer dropId={selectedLeaderboard.dropId} />
+                  </div>
+                ) : selectedLeaderboard ? (
+                  <div className="leader-portrait leader-video-placeholder">
+                    <Avatar
+                      initials={selectedLeaderboard.initials}
+                      tone={selectedLeaderboard.tone}
+                    />
+                    <span className="leader-inline-preview-badge">
+                      <Play size={15} fill="currentColor" /> BROADCAST PREVIEW
+                    </span>
+                  </div>
+                ) : (
+                  <div className="leader-portrait">
+                    <Image
+                      src="/ananya-rao-hero.webp"
+                      alt="Ananya Rao, current leader"
+                      width="1672"
+                      height="941"
+                      fetchPriority="high"
+                      priority
+                    />
+                  </div>
+                )}
+                <div className="leader-overlay">
+                  <strong className="leader-rank">
+                    #{selectedLeaderboard?.rank ?? 1}
+                  </strong>
+                  <span className="leader-category">
+                    {selectedLeaderboard?.category ?? 'UNPOPULAR OPINION'}
+                  </span>
+                  <Money value={selectedLeaderboard?.price ?? '$11,400'} />
+                  <div className="leader-metrics">
+                    <span>
+                      {selectedLeaderboard
+                        ? 'LEADERBOARD BROADCAST'
+                        : '14,201 VIEWS'}
+                    </span>
+                    {selectedLeaderboard ? (
+                      <span className="leader-selected-status">
+                        {selectedLeaderboard.dropId ? 'PLAYING NOW' : 'PREVIEW'}
+                      </span>
+                    ) : (
+                      <Delta value="6 OUTBID" />
+                    )}
+                  </div>
+                  <p>
+                    {selectedLeaderboard ? (
+                      <>
+                        POSITION #{selectedLeaderboard.rank}
+                        <br />
+                        FROM TODAY&apos;S
+                        <br />
+                        LEADERBOARD.
+                      </>
+                    ) : (
+                      <>
+                        “Your design
+                        <br />
+                        system is a<br />
+                        productivity
+                        <br />
+                        theatre.”
+                      </>
+                    )}
+                  </p>
+                  <div className="leader-person">
+                    <strong>
+                      {(selectedLeaderboard?.name ?? 'Ananya R.').toUpperCase()}
+                    </strong>
+                    <span>
+                      {selectedLeaderboard?.handle ?? '@ananyabuilds'}
+                    </span>
+                    <small>
+                      {selectedLeaderboard
+                        ? "Today's leaderboard"
+                        : 'Founder · DesignOps'}
+                    </small>
+                  </div>
+                  {!selectedLeaderboard && (
+                    <button
+                      className="hero-play"
+                      type="button"
+                      onClick={() => setVideoPlaying((value) => !value)}
+                      aria-label={
+                        videoPlaying ? 'Pause broadcast' : 'Play broadcast'
+                      }
+                    >
+                      {videoPlaying ? (
+                        'Ⅱ'
+                      ) : (
+                        <Play size={22} fill="currentColor" />
+                      )}
+                    </button>
+                  )}
+                  <Link
+                    className="leader-cta"
+                    href={`/broadcast?category=${encodeURIComponent(selectedLeaderboard?.category ?? 'UNPOPULAR OPINION')}`}
+                    aria-label={
+                      selectedLeaderboard
+                        ? `Make a broadcast in ${selectedLeaderboard.category}`
+                        : 'Take this spot for $11,500'
+                    }
+                  >
+                    <span>
+                      {selectedLeaderboard
+                        ? 'MAKE A BROADCAST'
+                        : 'TAKE THIS SPOT'}
+                    </span>
+                    <strong>
+                      {selectedLeaderboard ? 'OPEN' : '$11,500'}
+                    </strong>
+                  </Link>
                 </div>
-                <p>
-                  “Your design
-                  <br />
-                  system is a<br />
-                  productivity
-                  <br />
-                  theatre.”
-                </p>
-                <div className="leader-person">
-                  <strong>ANANYA R.</strong>
-                  <span>@ananyabuilds</span>
-                  <small>Founder · DesignOps</small>
-                </div>
-                <button
-                  className="hero-play"
-                  type="button"
-                  onClick={() => setVideoPlaying((value) => !value)}
-                  aria-label={
-                    videoPlaying ? 'Pause broadcast' : 'Play broadcast'
-                  }
-                >
-                  {videoPlaying ? 'Ⅱ' : <Play size={22} fill="currentColor" />}
-                </button>
-                <Link
-                  className="leader-cta"
-                  href="/drop?category=UNPOPULAR%20OPINION"
-                  aria-label="Take this spot for $11,500"
-                >
-                  <span>TAKE THIS SPOT</span>
-                  <strong>$11,500</strong>
-                </Link>
               </div>
+            </article>
+
+            <div className="dashboard-primary-lower-grid">
+              <section className="category-pulse-dashboard dashboard-panel">
+                <div className="dashboard-section-head">
+                  <span>CATEGORY PULSE</span>
+                  <Link href="/categories">
+                    VIEW ALL <ArrowUpRight size={11} />
+                  </Link>
+                </div>
+                <div className="category-pulse-list">
+                  {categoryPulse.map(({ name, key, bids, positive, path }) => {
+                    const Icon = homeCategoryIcons[key];
+                    return (
+                      <button
+                        className="category-pulse-row"
+                        key={key}
+                        type="button"
+                        aria-pressed={activeCategory === key}
+                        onClick={() => selectCategory(key)}
+                      >
+                        <span className="category-pulse-icon">
+                          <Icon size={15} strokeWidth={2.2} />
+                        </span>
+                        <strong>{name}</strong>
+                        <PulseSparkline path={path} positive={positive} />
+                        <span className="category-pulse-bids category-pulse-total">
+                          {bids} BIDS
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <Link
+                className="homepage-magazine-dashboard dashboard-panel"
+                href="/magazine"
+                aria-label={`Open Magazine: yesterday's number one, ${latestIssue.title}`}
+              >
+                <div className="dashboard-section-head">
+                  <span>MAGAZINE</span>
+                  <span>
+                    OPEN <ArrowUpRight size={11} />
+                  </span>
+                </div>
+                <div className="homepage-magazine-feature">
+                  <Image
+                    src={latestIssue.image}
+                    alt={`${latestIssue.person}, yesterday's number one`}
+                    fill
+                    sizes="(max-width: 700px) 100vw, (max-width: 1365px) 32vw, 22vw"
+                  />
+                  <span
+                    className="homepage-magazine-wash"
+                    aria-hidden="true"
+                  />
+                  <div className="homepage-magazine-copy">
+                    <span>
+                      YESTERDAY&apos;S #1 / ISSUE {latestIssue.number}
+                    </span>
+                    <strong>{latestIssue.title}</strong>
+                    <p>{latestIssue.person}</p>
+                  </div>
+                </div>
+              </Link>
             </div>
-          </article>
+          </div>
 
           <section className="leaderboard-panel dashboard-panel">
             <div className="dashboard-section-head">
-              <span>TODAY&apos;S LEADERBOARD</span>
-              <Link href="/global-index">VIEW ALL</Link>
+              <span>
+                {activeCategory === 'ALL'
+                  ? "TODAY'S LEADERBOARD"
+                  : `${activeCategory} LEADERBOARD`}
+              </span>
             </div>
             <div className="leaderboard-list">
-              {leaderboard.map(
-                ([name, handle, category, price, initials, tone], index) => (
+              {displayedLeaderboard.map((row, index) => {
+                const [name, handle, category, price, initials, tone] = row;
+                return (
                   <button
-                    className={`leaderboard-row ${index === 0 ? 'is-top' : ''}`}
+                    className="leaderboard-row"
                     type="button"
                     key={name}
+                    onClick={() => openLeaderboardBroadcast(row, index)}
+                    aria-label={`Watch ${name}'s ${category} broadcast at position ${index + 1}`}
                   >
                     <span className="leaderboard-rank">{index + 1}</span>
-                    <Avatar initials={initials} tone={tone} />
+                    <Avatar
+                      initials={initials}
+                      tone={tone}
+                      showCrown={index === 0}
+                    />
                     <span className="leaderboard-person">
                       <strong>{name}</strong>
                       <small>{handle}</small>
@@ -422,125 +735,29 @@ export default function Home() {
                     <span className="leaderboard-category">{category}</span>
                     <strong className="leaderboard-price">{price}</strong>
                   </button>
-                ),
-              )}
-            </div>
-            <Link className="panel-footer-link" href="/global-index">
-              VIEW FULL BOARD <ArrowUpRight size={13} />
-            </Link>
-          </section>
-
-          <section className="activity-dashboard dashboard-panel">
-            <div className="dashboard-section-head">
-              <span>LIVE ACTIVITY</span>
-            </div>
-            <div
-              className="activity-dashboard-list"
-              aria-live="polite"
-              aria-atomic="false"
-            >
-              {activityFeed.map(
-                (
-                  [name, action, category, amount, time, initials, tone],
-                  index,
-                ) => (
-                  <button
-                    className={`activity-dashboard-row ${index === 0 && activityPulse ? 'is-new' : ''}`}
-                    type="button"
-                    key={`${name}-${category}-${time}-${index}`}
-                  >
-                    <Avatar initials={initials} tone={tone} />
-                    <span>
-                      <strong>{name}</strong>
-                      <small>
-                        {action} <b>{category}</b>
-                      </small>
-                      {amount && <em>{amount}</em>}
-                    </span>
-                    <time>{time}</time>
-                    {index === 0 && activityPulse && amount && (
-                      <span
-                        className="activity-money-pulse"
-                        aria-label={`New money added ${amount}`}
-                      >
-                        +{amount}
-                      </span>
-                    )}
-                  </button>
-                ),
-              )}
+                );
+              })}
             </div>
           </section>
-        </section>
 
-        <section className="dashboard-mid-grid dashboard-mid-grid-compact">
-          <section className="revenue-dashboard dashboard-panel">
-            <div className="dashboard-section-head">
-              <span>
-                TOTAL REVENUE <small>(ALL TIME)</small>
+          <div className="dashboard-activity-stack">
+            <section className="club-dashboard dashboard-panel">
+              <span className="club-crown" aria-hidden="true">
+                ♛
               </span>
-            </div>
-            <Money value="$18,432,220" />
-            <div className="revenue-chart" aria-label="Revenue chart">
-              <span style={{ height: '22%' }} />
-              <span style={{ height: '31%' }} />
-              <span style={{ height: '38%' }} />
-              <span style={{ height: '49%' }} />
-              <span style={{ height: '62%' }} />
-              <span style={{ height: '82%' }} />
-            </div>
-            <div className="revenue-months">
-              <span>Jan</span>
-              <span>Feb</span>
-              <span>Mar</span>
-              <span>Apr</span>
-              <span>May</span>
-              <span>Jun</span>
-            </div>
-            <small className="chart-note">
-              365 DAYS · 12 CATEGORIES · 1 MARKET
-            </small>
-          </section>
-
-          <div className="dashboard-side-stack">
-            <section className="category-pulse-dashboard dashboard-panel">
-              <div className="dashboard-section-head">
-                <span>CATEGORY PULSE</span>
-                <Link href="/categories">
-                  VIEW ALL <ArrowUpRight size={11} />
-                </Link>
-              </div>
-              <div className="category-pulse-list">
-                {categoryPulse.map(
-                  ({
-                    name,
-                    key,
-                    bids,
-                    positive,
-                    tone,
-                    icon: Icon,
-                    path,
-                  }) => (
-                    <button
-                      className="category-pulse-row"
-                      key={key}
-                      type="button"
-                      aria-pressed={activeCategory === key}
-                      onClick={() => setActiveCategory(key)}
-                    >
-                      <span className={`category-pulse-icon pulse-${tone}`}>
-                        <Icon size={15} strokeWidth={2.2} />
-                      </span>
-                      <strong>{name}</strong>
-                      <PulseSparkline path={path} positive={positive} />
-                      <span className="category-pulse-bids category-pulse-total">
-                        {bids} BIDS
-                      </span>
-                    </button>
-                  ),
-                )}
-              </div>
+              <strong>THE BOUGHT CLUB</strong>
+              <p>
+                Founding members get monthly slots, priority access and a
+                permanent badge.
+              </p>
+              <span className="club-price">
+                ₹— <small>/ MONTH</small>
+              </span>
+              <Link href="/profile" aria-label="Open your profile to join The Bought Club">
+                JOIN THE CLUB
+              </Link>
             </section>
+
             <article className="review-dashboard dashboard-panel">
               <div className="review-dashboard-body">
                 <ProfileAvatar
@@ -596,7 +813,7 @@ export default function Home() {
                 <h2 id="review-title">Share your BOUGHT review</h2>
                 <p id="review-description">
                   Tell the room what feels different about having a real
-                  position on the ladder.
+                  position on the board.
                 </p>
               </header>
               {reviewSent ? (

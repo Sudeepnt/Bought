@@ -2,7 +2,7 @@
 
 BOUGHT stays on **React + Vinext + Cloudflare Workers/Sites**. There is no Vercel deployment path. Existing Inter, Barlow Condensed, JetBrains Mono, and custom CSS are retained.
 
-The implementation is configured with **empty service placeholders**. It does not simulate successful payments or unlock a camera in preview mode. `/drop` is the broadcast recording journey, `/ladder` is the real global ladder, and `/review` is the moderator queue. The homepage's older example market content remains explicitly labelled as a preview; those examples are not paid entries.
+The implementation is configured with **empty service placeholders**. It does not simulate successful payments or unlock a camera in preview mode. `/broadcast` is the broadcast recording journey, and `/review` is the moderator queue. The homepage's older example market content remains explicitly labelled as a preview; those examples are not paid entries.
 
 ## Run locally
 
@@ -12,7 +12,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Without credentials, `/drop` still shows categories, the bid, payment methods, and a reservation summary. Sign-in, payment, and recording are unavailable. Only public Supabase settings are returned by `/api/bought/config`; all other values stay server-side. Do not prefix secret values with `NEXT_PUBLIC_` or `VITE_`.
+Without credentials, `/broadcast` still shows categories, the bid, payment methods, and a reservation summary. Sign-in, payment, and recording are unavailable. Only public Supabase settings are returned by `/api/bought/config`; all other values stay server-side. Do not prefix secret values with `NEXT_PUBLIC_` or `VITE_`.
 
 ## Connect the services
 
@@ -37,7 +37,7 @@ Configure **automatic capture** in Razorpay. Authorized-only payments do not unl
 ## State and recovery
 
 - A `dropId` owns the broadcast's category, integer USD bid, payment, current Mux upload/asset, thumbnail, moderation result, auction, and exposure period.
-- Authenticated clients have read-only access to their own broadcasts. Only the server service role can mutate a payment, submit media, rank entries, or approve publication. The public ladder contains no user IDs or payment references.
+- Authenticated clients have read-only access to their own broadcasts. Only the server service role can mutate a payment, submit media, rank entries, or approve publication. Public listings contain no user IDs or payment references.
 - Camera/microphone permissions are requested only after a fresh authenticated server read confirms `payment_state = paid`. MediaPipe detects one face locally; it is a recording aid, not trusted proof of identity or a server moderation result.
 - The recorder produces up to two minutes of broadcast media with microphone audio, supports retakes and playback, and captures a JPEG frame. Users can replace the frame with a custom JPEG/PNG/WebP. Browser decoding/re-encoding and server file-signature checks protect the thumbnail flow.
 - Broadcast media bytes travel from the browser straight to Mux using its resumable upload URL and UpChunk. They never pass through a Worker. Thumbnails go directly to private Supabase Storage through a signed upload token, with an immutable, broadcast-specific path and a 5 MB limit.

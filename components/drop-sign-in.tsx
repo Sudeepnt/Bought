@@ -1,10 +1,16 @@
 'use client';
 
-import { useState, type SyntheticEvent } from 'react';
+import { useState, type ReactNode, type SyntheticEvent } from 'react';
 import { ArrowUpRight, Mail } from 'lucide-react';
 import { useBought } from './bought-provider';
 
-export function DropSignIn() {
+export function DropSignIn({
+  title = 'YOUR ACCOUNT',
+  description = 'Sign in to keep your payment and recordings together. You can resume your broadcast on any device.',
+}: {
+  title?: string;
+  description?: ReactNode;
+}) {
   const { client, authReady } = useBought();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -42,12 +48,9 @@ export function DropSignIn() {
   return (
     <form className="drop-auth" onSubmit={submit}>
       <div className="drop-section-label">
-        <Mail size={16} /> YOUR ACCOUNT
+        <Mail size={16} /> {title}
       </div>
-      <p>
-        Sign in to keep your payment and recordings together. You can resume
-        your broadcast on any device.
-      </p>
+      <p>{description}</p>
       <label className="drop-field">
         Email address
         <input
@@ -89,7 +92,7 @@ export function DropSignIn() {
           : sent
             ? 'VERIFY & CONTINUE'
             : authReady && !client
-              ? 'SIGN-IN COMING SOON'
+              ? 'EMAIL SIGN-IN NOT CONNECTED'
               : 'EMAIL ME A CODE'}
         <ArrowUpRight size={17} />
       </button>

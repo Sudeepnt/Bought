@@ -28,6 +28,14 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
       .replaceAll('clock_timestamp()', 'public.test_now()')
       .replace(/\bnow\(\)/g, 'public.test_now()'),
   );
+  const captureSql = await readFile(
+    new URL(
+      '../supabase/migrations/20260909043754_add_capture_mode.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  await db.exec(captureSql);
   const owner = '10000000-0000-4000-8000-000000000001';
   const stranger = '10000000-0000-4000-8000-000000000002';
   const moderator = '10000000-0000-4000-8000-000000000003';
@@ -88,6 +96,18 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
   };
   try {
     await create(one);
+    await t.test(
+      'database rejects a recorder mode that does not match the category',
+      async () => {
+        await assert.rejects(
+          db.query(
+            `insert into public.bought_drops(id,user_id,category,capture_mode,title,amount_minor,provider) values($1,$2,'BEEF','screen','Wrong recorder',50000,'stripe')`,
+            ['20000000-0000-4000-8000-000000000099', owner],
+          ),
+          /bought_drops_capture_matches_category/,
+        );
+      },
+    );
     await t.test(
       'an ambiguous checkout cannot create a second payable order',
       async () => {

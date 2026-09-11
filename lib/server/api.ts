@@ -1,5 +1,6 @@
 import {
   CATEGORIES,
+  captureModeForCategory,
   MAX_BID_MINOR,
   MAX_THUMBNAIL_BYTES,
   MIN_BID_MINOR,
@@ -28,7 +29,7 @@ import {
 import { webhook } from './webhooks';
 
 const publicDropFields =
-  'id,category,title,amount_minor,currency,provider,payment_state,checkout_state,payment_reference,checkout_url,paid_at,state,mux_upload_id,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,created_at';
+  'id,category,capture_mode,title,amount_minor,currency,provider,payment_state,checkout_state,payment_reference,checkout_url,paid_at,state,mux_upload_id,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,created_at';
 
 function json(data: unknown, status = 200) {
   return Response.json(data, {
@@ -113,9 +114,9 @@ export async function handleApi(request: Request) {
       dbError(error);
       return json(data);
     }
-    if (path[0] === 'ladder' && method === 'GET') {
+    if (path[0] === 'published' && method === 'GET') {
       if (!setting('SUPABASE_SERVICE_ROLE_KEY') || !setting('SUPABASE_URL'))
-        return json({ entries: [], configured: false });
+        return json({ entries: [] });
       const db = database();
       const { data: market, error: marketError } =
         await db.rpc('bought_advance');
@@ -129,7 +130,7 @@ export async function handleApi(request: Request) {
         .order('position')
         .limit(100);
       dbError(error);
-      return json({ entries: data, configured: true });
+      return json({ entries: data });
     }
     if (path[0] === 'media' && method === 'GET') {
       if (!validUuid(path[1])) throw new HttpError(400, 'Invalid broadcast ID.');
@@ -253,6 +254,7 @@ export async function handleApi(request: Request) {
         id: body.id,
         user_id: user.id,
         category: body.category,
+        capture_mode: captureModeForCategory(body.category),
         title: body.title.trim(),
         amount_minor: body.amountMinor,
         provider: body.provider,
@@ -262,6 +264,7 @@ export async function handleApi(request: Request) {
       const saved = await ownedDrop(body.id, user.id);
       if (
         saved.category !== body.category ||
+        saved.capture_mode !== captureModeForCategory(body.category) ||
         saved.amount_minor !== body.amountMinor ||
         saved.provider !== body.provider ||
         saved.title !== body.title.trim()

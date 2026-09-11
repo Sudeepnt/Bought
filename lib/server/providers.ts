@@ -29,8 +29,8 @@ export async function createCheckout(drop: Drop) {
       'line_items[0][price_data][unit_amount]': String(drop.amount_minor),
       'line_items[0][price_data][product_data][name]': `BOUGHT · ${drop.category}`,
       'line_items[0][quantity]': '1',
-      success_url: `${origin()}/drop?dropId=${drop.id}&payment=return`,
-      cancel_url: `${origin()}/drop?dropId=${drop.id}`,
+      success_url: `${origin()}/broadcast?dropId=${drop.id}&payment=return`,
+      cancel_url: `${origin()}/broadcast?dropId=${drop.id}`,
     });
     const session = await providerRequest<{ id: string; url: string }>(
       'https://api.stripe.com/v1/checkout/sessions',

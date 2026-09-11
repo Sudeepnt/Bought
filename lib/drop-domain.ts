@@ -14,6 +14,23 @@ export const CATEGORIES = [
   'INDIAN D2C',
 ] as const;
 
+export type CaptureMode = 'camera' | 'screen';
+
+export const TALK_ONLY_CATEGORIES = [
+  'BEEF',
+  'CHAOS',
+  'UNPOPULAR OPINION',
+  'I WAS WRONG',
+  'THE RANT',
+  'CONFESSIONS',
+] as const satisfies readonly (typeof CATEGORIES)[number][];
+
+export function captureModeForCategory(category: string): CaptureMode {
+  return (TALK_ONLY_CATEGORIES as readonly string[]).includes(category)
+    ? 'camera'
+    : 'screen';
+}
+
 export const MIN_BID_MINOR = 10_000;
 export const MAX_BID_MINOR = 100_000_000;
 export const MAX_VIDEO_SECONDS = 120;
@@ -24,6 +41,7 @@ export type PaymentProvider = 'stripe' | 'razorpay';
 export type Drop = {
   id: string;
   category: string;
+  capture_mode: CaptureMode;
   title: string;
   amount_minor: number;
   currency: 'USD';
@@ -56,7 +74,7 @@ export type Market = {
   phase: 'bidding' | 'exposure';
   configured: boolean;
 };
-export type LadderEntry = {
+export type PublishedEntry = {
   drop_id: string;
   position: number;
   category: string;
@@ -75,7 +93,7 @@ export function money(amountMinor: number) {
 }
 
 export function parseBid(value: string): number {
-  // Decimal arithmetic is deliberately avoided: the ladder uses whole dollars.
+  // Decimal arithmetic is deliberately avoided: bids use whole dollars.
   if (!/^\d{1,7}$/.test(value)) throw new Error('Enter a whole dollar amount.');
   const amount = Number(value) * 100;
   if (amount < MIN_BID_MINOR || amount > MAX_BID_MINOR)
