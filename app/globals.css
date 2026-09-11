@@ -12568,11 +12568,11 @@ html[data-theme='light'] {
   }
 
   .dashboard-shell .total-panel strong {
-    font-size: 25px;
+    font-size: 23px;
   }
 
   .dashboard-shell .total-panel .dashboard-delta {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .dashboard-shell .total-panel > div {
@@ -12592,20 +12592,20 @@ html[data-theme='light'] {
   }
 
   .dashboard-shell .next-position strong {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .dashboard-shell .next-position p {
-    font-size: 9px;
+    font-size: 8px;
     letter-spacing: 0.03em;
     white-space: nowrap;
   }
 
   .dashboard-shell .next-position-mark {
     flex: 0 0 auto;
-    font-size: 9px;
-    gap: 6px;
-    padding: 9px;
+    font-size: 8px;
+    gap: 5px;
+    padding: 8px;
   }
 
   .dashboard-shell .countdown-label {
@@ -12614,12 +12614,12 @@ html[data-theme='light'] {
   }
 
   .dashboard-shell .countdown-label strong {
-    font-size: 13px;
+    font-size: 12px;
     white-space: nowrap;
   }
 
   .dashboard-shell .countdown-label span {
-    font-size: 8px;
+    font-size: 7px;
     white-space: nowrap;
   }
 
@@ -12630,7 +12630,7 @@ html[data-theme='light'] {
 
   .dashboard-shell .countdown-segments,
   .dashboard-shell .countdown-value strong {
-    font-size: 30px;
+    font-size: 28px;
   }
 
   .dashboard-shell .countdown-segments {
@@ -12642,7 +12642,7 @@ html[data-theme='light'] {
   }
 
   .dashboard-shell .countdown-segment small {
-    font-size: 7px;
+    font-size: 6px;
   }
 }
 
