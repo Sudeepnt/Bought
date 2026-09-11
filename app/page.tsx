@@ -707,7 +707,7 @@ export default function Home() {
             <div className="dashboard-section-head">
               <span>
                 {activeCategory === 'ALL'
-                  ? "TODAY'S LEADERBOARD"
+                  ? 'GLOBAL LEADERBOARD'
                   : `${activeCategory} LEADERBOARD`}
               </span>
             </div>
