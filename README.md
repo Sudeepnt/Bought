@@ -1,6 +1,6 @@
 # BOUGHT paid broadcasts
 
-BOUGHT stays on **React + Vinext + Cloudflare Workers/Sites**. There is no Vercel deployment path. Existing Inter, Barlow Condensed, JetBrains Mono, and custom CSS are retained.
+BOUGHT runs on **React + Vinext**. Cloudflare Workers/Sites remains the native Worker deployment, and Vercel deployments use Vinext's Nitro adapter. Mux handles direct video uploads; Cloudflare is the runtime/hosting layer. Existing Inter, Barlow Condensed, JetBrains Mono, and custom CSS are retained.
 
 The implementation is configured with **empty service placeholders**. It does not simulate successful payments or unlock a camera in preview mode. `/broadcast` is the broadcast recording journey, and `/review` is the moderator queue. The homepage's older example market content remains explicitly labelled as a preview; those examples are not paid entries.
 
@@ -21,7 +21,7 @@ Without credentials, `/broadcast` still shows categories, the bid, payment metho
 3. Set the Stripe and/or Razorpay keys and webhook secrets. Providers are individually enabled only when their credentials and the shared services exist. Start with test-mode accounts. All positions and payment checkouts use **USD**; provider accounts must support USD presentment for the intended customers.
 4. Set Mux API credentials, a webhook secret, and an RSA signing key. `MUX_SIGNING_PRIVATE_KEY` accepts Mux's base64-encoded PEM or PKCS8 PEM with escaped newlines. Mux uploads use signed playback policies; unpublished media never gets a public playback ID.
 5. Set Upstash Redis REST URL/token. Write rate limits are atomic and fail closed if the limiter is unavailable.
-6. Set `APP_ORIGIN` to the exact HTTPS origin and `CRON_SECRET` to a strong random secret. Store production values in the existing Cloudflare/Sites runtime environment. The checked-in `.env.example` contains no credentials.
+6. Set `APP_ORIGIN` to the exact HTTPS origin and `CRON_SECRET` to a strong random secret. Store production values in the selected deployment platform's runtime environment. The checked-in `.env.example` contains no credentials.
 7. Grant a trusted moderator the **server-managed** Auth app metadata flag `bought_moderator: true` through an administrative account. Never use user metadata for this role. Sign in at `/review`, watch the full broadcast, check the thumbnail, and approve or request a retake. There is no automatic content-approval fallback.
 
 ### Webhooks
@@ -52,7 +52,7 @@ Bidding runs **00:00–12:00 UTC**. Published bids can move during that window. 
 
 A broadcast whose upload or review finishes after the cutoff is assigned to the next auction without a second payment. It remains accessible in the owner's saved broadcasts until that auction becomes public. SQL advisory locks serialize auction/ranking mutations. The database clock decides all transitions; browser clocks only display a periodically synchronized countdown.
 
-`worker.ts` exports both `fetch` and `scheduled`. The Cloudflare build includes an every-minute Cron Trigger. Confirm the trigger is attached by the selected Cloudflare/Sites deployment platform. The scheduled handler invokes the authenticated auction endpoint, and ordinary market reads also perform the same idempotent transition, so a delayed cron cannot reopen a closed auction or change frozen ranks. No Vercel configuration or scheduler is used.
+`worker.ts` exports both `fetch` and `scheduled`. The Cloudflare build includes an every-minute Cron Trigger. Confirm the trigger is attached by the selected Cloudflare/Sites deployment platform. The scheduled handler invokes the authenticated auction endpoint, and ordinary market reads also perform the same idempotent transition, so a delayed cron cannot reopen a closed auction or change frozen ranks. Vercel builds use Nitro's Vercel preset and do not use the Cloudflare scheduled handler.
 
 ### Checkout reconciliation
 

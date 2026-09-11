@@ -12525,8 +12525,8 @@ html[data-theme='light'] {
 }
 
 /* Chrome's regular Laptop device can resolve below the 1120px content
-   breakpoint. Keep the market strip in one row there by reducing its type
-   and internal spacing instead of dropping the countdown underneath. */
+   breakpoint. Keep all three status cards on one row, but compact each card's
+   internal type so the values never run into their neighboring labels. */
 @media (min-width: 901px) and (max-width: 1120px) {
   .dashboard-shell .dashboard-status-row {
     grid-template-columns:
@@ -12538,6 +12538,7 @@ html[data-theme='light'] {
   .dashboard-shell .status-countdown {
     grid-column: auto;
     grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 4px;
     padding: 8px 10px;
   }
 
@@ -12601,6 +12602,7 @@ html[data-theme='light'] {
   }
 
   .dashboard-shell .next-position-mark {
+    flex: 0 0 auto;
     font-size: 9px;
     gap: 6px;
     padding: 9px;
@@ -12624,21 +12626,6 @@ html[data-theme='light'] {
   .dashboard-shell .countdown-icon svg {
     height: 34px;
     width: 34px;
-  }
-
-  .dashboard-shell .countdown-label {
-    gap: 3px;
-    min-width: 0;
-  }
-
-  .dashboard-shell .countdown-label strong {
-    font-size: 13px;
-    white-space: nowrap;
-  }
-
-  .dashboard-shell .countdown-label span {
-    font-size: 8px;
-    white-space: nowrap;
   }
 
   .dashboard-shell .countdown-segments,
