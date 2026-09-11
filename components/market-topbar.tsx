@@ -9,8 +9,7 @@ import {
   type SyntheticEvent,
 } from 'react';
 import { Moon, Search, Sun, WalletCards } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from '@/components/site-link';
 
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { BrandLogo } from '@/components/brand-logo';
@@ -79,7 +78,6 @@ function utcTime(date: Date) {
 
 export function MarketTopbar({ active }: { active: MarketPage }) {
   const { market, serverTime, marketFresh, entries, session } = useBought();
-  const router = useRouter();
   const searchWrapRef = useRef<HTMLElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const tickerTrackRef = useRef<HTMLDivElement>(null);
@@ -148,7 +146,9 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
     );
     setSearchOpen(false);
     setSearchCompactOpen(false);
-    router.push(exactResult?.href ?? `/search?q=${encodeURIComponent(query)}`);
+    window.location.assign(
+      exactResult?.href ?? `/search?q=${encodeURIComponent(query)}`,
+    );
   }
 
   function openCompactSearch() {
@@ -264,7 +264,7 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
                   onClick={() => {
                     setSearchOpen(false);
                     setSearchCompactOpen(false);
-                    router.push(
+                    window.location.assign(
                       `/search?q=${encodeURIComponent(searchQuery.trim())}`,
                     );
                   }}

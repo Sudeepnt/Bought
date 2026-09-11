@@ -9,7 +9,7 @@ import {
   Timer,
   Users,
 } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/site-link';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { BrandLogo } from './brand-logo';
 import { useBought } from './bought-provider';

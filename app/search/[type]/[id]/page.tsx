@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { ArrowLeft, ArrowUpRight, Building2, Radio, UserRound } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/site-link';
 import { useParams } from 'next/navigation';
 
 import { MarketPageShell } from '@/components/market-page-shell';

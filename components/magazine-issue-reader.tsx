@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
+import Link from '@/components/site-link';
 import { ChevronLeft, ChevronRight, Download, FileText } from 'lucide-react';
 import { useState } from 'react';
 

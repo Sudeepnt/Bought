@@ -1,7 +1,7 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- CSS grid preserves the editorial table layout. */
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import Link from 'next/link';
+import Link from '@/components/site-link';
 import { ArrowUpRight, Eye, LockKeyhole } from 'lucide-react';
 
 import { MarketFooter } from '@/components/market-chrome';
