@@ -81,10 +81,12 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
   const { market, serverTime, marketFresh, entries, session } = useBought();
   const router = useRouter();
   const searchWrapRef = useRef<HTMLElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const tickerTrackRef = useRef<HTMLDivElement>(null);
   const marqueeDuration = useMarqueeDuration(tickerTrackRef);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchCompactOpen, setSearchCompactOpen] = useState(false);
   const matchingResults = useMemo(
     () => searchResults(searchQuery).slice(0, 6),
     [searchQuery],
@@ -122,6 +124,7 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
     function closeSearch(event: MouseEvent) {
       if (!searchWrapRef.current?.contains(event.target as Node)) {
         setSearchOpen(false);
+        setSearchCompactOpen(false);
       }
     }
     document.addEventListener('mousedown', closeSearch);
@@ -144,7 +147,14 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
       (result) => result.title.toLocaleLowerCase() === normalizedQuery,
     );
     setSearchOpen(false);
+    setSearchCompactOpen(false);
     router.push(exactResult?.href ?? `/search?q=${encodeURIComponent(query)}`);
+  }
+
+  function openCompactSearch() {
+    setSearchCompactOpen(true);
+    setSearchOpen(true);
+    window.requestAnimationFrame(() => searchInputRef.current?.focus());
   }
 
   return (
@@ -173,13 +183,26 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
         </nav>
 
         <div className="topbar-right">
-          <search className="topbar-search-wrap" ref={searchWrapRef}>
+          <search
+            className={`topbar-search-wrap${searchCompactOpen ? ' is-expanded' : ''}`}
+            ref={searchWrapRef}
+          >
+            <button
+              className="topbar-search-trigger"
+              type="button"
+              aria-label="Open search"
+              aria-expanded={searchCompactOpen}
+              onClick={openCompactSearch}
+            >
+              <Search size={16} aria-hidden="true" />
+            </button>
             <form
               className="topbar-search"
               onSubmit={submitSearch}
             >
               <Search size={15} aria-hidden="true" />
               <input
+                ref={searchInputRef}
                 type="search"
                 value={searchQuery}
                 placeholder="Search broadcasts…"
@@ -192,6 +215,7 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') {
                     setSearchOpen(false);
+                    setSearchCompactOpen(false);
                     event.currentTarget.blur();
                   }
                 }}
@@ -205,7 +229,10 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
                       className="topbar-search-result"
                       href={result.href}
                       key={result.id}
-                      onClick={() => setSearchOpen(false)}
+                      onClick={() => {
+                        setSearchOpen(false);
+                        setSearchCompactOpen(false);
+                      }}
                     >
                       <span className={`search-result-icon is-${result.type}`}>
                         {result.type === 'broadcast'
@@ -236,6 +263,7 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
                   type="button"
                   onClick={() => {
                     setSearchOpen(false);
+                    setSearchCompactOpen(false);
                     router.push(
                       `/search?q=${encodeURIComponent(searchQuery.trim())}`,
                     );
