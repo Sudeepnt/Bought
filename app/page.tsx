@@ -751,7 +751,7 @@ export default function Home() {
                 permanent badge.
               </p>
               <span className="club-price">
-                ₹— <small>/ MONTH</small>
+                $— <small>/ MONTH</small>
               </span>
               <Link href="/profile" aria-label="Open your profile to join The Bought Club">
                 JOIN THE CLUB
