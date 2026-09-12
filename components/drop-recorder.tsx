@@ -26,7 +26,9 @@ import {
 import {
   deleteTake,
   loadTake,
+  markTakeUploaded,
   normalizeThumbnail,
+  recordingUploadRequired,
   saveTake,
   videoFrame,
 } from '@/lib/local-recording';
@@ -221,7 +223,9 @@ function CameraRecorder({
         };
         recordingDevice.onerror = () => {
           if (active)
-            setError('Recording was interrupted. Please retake your broadcast.');
+            setError(
+              'Recording was interrupted. Please retake your broadcast.',
+            );
           stop();
         };
         recordingDevice.onstop = async () => {
@@ -412,6 +416,7 @@ export function DropRecorder({
   const preview = useRef<HTMLVideoElement>(null);
   const uploader = useRef<UpChunk | null>(null);
   const savedUploadId = useRef<string | undefined>(undefined);
+  const uploadCompleted = useRef(false);
   const initialUploadId = useRef(drop.mux_upload_id);
   const mounted = useRef(true);
 
@@ -423,6 +428,7 @@ export function DropRecorder({
           setBlob(saved.video);
           setThumbnail(saved.thumbnail ?? null);
           savedUploadId.current = saved.uploadId;
+          uploadCompleted.current = saved.uploaded === true;
           setReplace(
             !saved.uploadId || saved.uploadId !== initialUploadId.current,
           );
@@ -477,6 +483,7 @@ export function DropRecorder({
   const onRecorded = useCallback(
     (take: Blob, frame?: Blob) => {
       savedUploadId.current = undefined;
+      uploadCompleted.current = false;
       setBlob(take);
       setThumbnail(frame ?? null);
       setAccepted(false);
@@ -494,7 +501,13 @@ export function DropRecorder({
     setThumbnail(next);
     if (blob)
       try {
-        await saveTake(drop.id, blob, next, savedUploadId.current);
+        await saveTake(
+          drop.id,
+          blob,
+          next,
+          savedUploadId.current,
+          uploadCompleted.current,
+        );
       } catch {
         setNotice('Download your recording before leaving this device.');
       }
@@ -527,13 +540,22 @@ export function DropRecorder({
         await refresh();
         return;
       }
-      if (replace || !['ready', 'processing'].includes(current.media_state)) {
+      if (
+        recordingUploadRequired({
+          replace,
+          mediaState: current.media_state,
+          localUploadId: savedUploadId.current,
+          serverUploadId: current.mux_upload_id,
+          localUploadCompleted: uploadCompleted.current,
+        })
+      ) {
         setStage('UPLOADING BROADCAST');
         const target = await api<{ url: string; uploadId: string }>(
           `drops/${drop.id}/upload`,
           { replace },
         );
         savedUploadId.current = target.uploadId;
+        uploadCompleted.current = false;
         try {
           await saveTake(drop.id, blob, thumbnail, target.uploadId);
         } catch {
@@ -541,30 +563,36 @@ export function DropRecorder({
         }
         setReplace(false);
         const { createUpload } = await import('@mux/upchunk');
-        await new Promise<void>((resolve, reject) => {
-          const task = createUpload({
-            endpoint: target.url,
-            file: new File(
-              [blob],
-              `broadcast-${drop.id}.${blob.type.includes('mp4') ? 'mp4' : 'webm'}`,
-              { type: blob.type },
-            ),
-            chunkSize: 5120,
-            attempts: 5,
-          });
-          uploader.current = task;
-          task.on('progress', (event) => {
-            if (mounted.current) setProgress(event.detail);
-          });
-          task.on('success', () => resolve());
-          task.on('error', () =>
-            reject(
-              new Error(
-                'Broadcast upload was interrupted. Your payment and recording are saved. Try Submit Broadcast again.',
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const task = createUpload({
+              endpoint: target.url,
+              file: new File(
+                [blob],
+                `broadcast-${drop.id}.${blob.type.includes('mp4') ? 'mp4' : 'webm'}`,
+                { type: blob.type },
               ),
-            ),
-          );
-        });
+              chunkSize: 5120,
+              attempts: 5,
+            });
+            uploader.current = task;
+            task.on('progress', (event) => {
+              if (mounted.current) setProgress(event.detail);
+            });
+            task.on('success', () => resolve());
+            task.on('error', () =>
+              reject(
+                new Error(
+                  'Broadcast upload was interrupted. Your payment and recording are saved. Try Submit Broadcast again.',
+                ),
+              ),
+            );
+          });
+          uploadCompleted.current = true;
+          await markTakeUploaded(drop.id, target.uploadId).catch(() => false);
+        } finally {
+          uploader.current = null;
+        }
       }
       setStage('UPLOADING THUMBNAIL');
       const target = await api<{ path: string; token: string }>(
@@ -649,6 +677,8 @@ export function DropRecorder({
                 setThumbnail(null);
                 setAccepted(false);
                 setReplace(true);
+                savedUploadId.current = undefined;
+                uploadCompleted.current = false;
                 setError('');
                 void deleteTake(drop.id).catch(() => {});
               }}
@@ -677,8 +707,8 @@ export function DropRecorder({
                 <span>03 /</span> THUMBNAIL
               </div>
               <p>
-                Give the room a first impression. Scrub your broadcast to choose a
-                frame.
+                Give the room a first impression. Scrub your broadcast to choose
+                a frame.
               </p>
               <div className="drop-thumbnail-picker">
                 {thumbnailUrl ? (
@@ -758,8 +788,8 @@ export function DropRecorder({
                 <Upload size={18} />
               </button>
               <p className="drop-fineprint">
-                Your broadcast is processed and reviewed before it goes live. Your
-                rank follows your paid bid; it can change until the auction
+                Your broadcast is processed and reviewed before it goes live.
+                Your rank follows your paid bid; it can change until the auction
                 closes.
               </p>
             </>

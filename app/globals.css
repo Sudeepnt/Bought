@@ -2877,6 +2877,23 @@ html[data-theme='light'] .category-video-card {
   justify-content: space-between;
   padding-bottom: 14px;
 }
+.profile-setup-topline-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 12px;
+}
+.profile-preview-exit {
+  background: transparent;
+  border: 0;
+  color: #ef2b32;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  padding: 0;
+}
+.profile-preview-exit:hover {
+  color: #fff;
+}
 .profile-setup-topline .eyebrow {
   align-items: center;
   color: #dbe2df;
@@ -2893,7 +2910,7 @@ html[data-theme='light'] .category-video-card {
 .profile-setup-steps {
   display: grid;
   gap: 0;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   margin: 19px 0 28px;
 }
 .profile-setup-step {
@@ -2964,6 +2981,90 @@ html[data-theme='light'] .category-video-card {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.profile-category-picker {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.profile-category-picker legend {
+  color: #bfc9c5;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  margin-bottom: 11px;
+  padding: 0;
+}
+.profile-category-picker legend span {
+  color: #72807c;
+  font-size: 9px;
+  margin-left: 5px;
+}
+.profile-category-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.profile-category-option {
+  background: #060a0b;
+  border: 1px solid #334047;
+  color: #dbe2df;
+  display: grid;
+  gap: 4px 9px;
+  grid-template-columns: 27px minmax(0, 1fr);
+  padding: 11px;
+  text-align: left;
+}
+.profile-category-option:hover,
+.profile-category-option.is-selected {
+  background: rgba(239, 43, 50, 0.09);
+  border-color: #ef2b32;
+}
+.profile-category-option strong {
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.2;
+}
+.profile-category-option small {
+  color: #72807c;
+  font-family: var(--mono);
+  font-size: 8px;
+  grid-column: 2;
+  letter-spacing: 0.04em;
+}
+.profile-category-check {
+  align-items: center;
+  border: 1px solid #53615e;
+  color: #7f8b89;
+  display: inline-flex;
+  font-family: var(--mono);
+  font-size: 9px;
+  grid-row: 1 / span 2;
+  height: 25px;
+  justify-content: center;
+  width: 25px;
+}
+.profile-category-option.is-selected .profile-category-check {
+  background: #ef2b32;
+  border-color: #ef2b32;
+  color: #fff;
+}
+.profile-photo-field {
+  align-items: center;
+  display: grid;
+  gap: 15px;
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+.profile-photo-field .profile-field > span {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+.profile-photo-field .profile-field > span svg {
+  color: #ef2b32;
+}
+.profile-preference-note {
+  margin-top: 12px;
 }
 .profile-field {
   color: #bfc9c5;
@@ -3225,6 +3326,28 @@ html[data-theme='light'] .category-video-card {
 .profile-preview-includes .is-muted svg {
   color: #76837f;
 }
+.profile-interest-list {
+  border-top: 1px solid #263238;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+  padding-top: 14px;
+}
+.profile-interest-label {
+  color: #7f8b89;
+  flex-basis: 100%;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+.profile-interest-chip {
+  border: 1px solid #334047;
+  color: #cbd4d1;
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 7px 8px;
+}
 .profile-preview-footer {
   align-items: center;
   border-top: 1px solid #263238;
@@ -3322,6 +3445,44 @@ html[data-theme='light'] .profile-input-prefix {
   border-color: #b9c5bf;
   color: #17211e;
 }
+html[data-theme='light'] .profile-category-picker legend,
+html[data-theme='light'] .profile-category-option {
+  color: #34423b;
+}
+html[data-theme='light'] .profile-category-picker legend span,
+html[data-theme='light'] .profile-category-option small,
+html[data-theme='light'] .profile-interest-label {
+  color: #63716b;
+}
+html[data-theme='light'] .profile-category-option {
+  background: #f7f9f7;
+  border-color: #b9c5bf;
+}
+html[data-theme='light'] .profile-category-option:hover,
+html[data-theme='light'] .profile-category-option.is-selected {
+  background: rgba(239, 43, 50, 0.06);
+  border-color: #ef2b32;
+}
+html[data-theme='light'] .profile-interest-list,
+html[data-theme='light'] .profile-interest-chip {
+  border-color: #d1dad5;
+}
+html[data-theme='light'] .profile-interest-chip {
+  color: #34423b;
+}
+html[data-theme='light'] .profile-auth-layout .profile-google-button {
+  background: #17211e;
+  border-color: #17211e;
+  color: #fff;
+}
+html[data-theme='light'] .profile-auth-layout .profile-google-button:hover {
+  background: #293833;
+  border-color: #293833;
+}
+html[data-theme='light'] .drop-auth-divider::before,
+html[data-theme='light'] .drop-auth-divider::after {
+  background: #d1dad5;
+}
 html[data-theme='light'] .profile-wallet-option,
 html[data-theme='light'] .profile-back-button,
 html[data-theme='light'] .profile-secondary-action,
@@ -3354,7 +3515,11 @@ html[data-theme='light'] .profile-preview-includes span {
   .profile-form-grid {
     grid-template-columns: 1fr;
   }
+  .profile-category-grid {
+    grid-template-columns: 1fr;
+  }
   .profile-setup-steps {
+    grid-template-columns: repeat(2, 1fr);
     margin-bottom: 22px;
   }
   .profile-setup-step {
@@ -4650,15 +4815,106 @@ html[data-theme='light'] .dashboard-shell .activity-dashboard-row.is-new {
 .profile-preview-grid svg {
   color: #ef2b32;
 }
-.profile-auth-layout > .drop-auth {
+.profile-auth-entry {
+  align-content: start;
+  display: grid;
+  gap: 10px;
+}
+.profile-auth-layout > .drop-auth,
+.profile-auth-entry > .drop-auth {
   background: var(--ink-panel);
   border: 1px solid #202a2e;
   margin: 0;
   max-width: none;
   padding: 21px;
 }
-.profile-auth-layout > .drop-auth .drop-section-label {
+.profile-auth-layout .drop-auth .drop-section-label {
   margin-bottom: 12px;
+}
+.profile-auth-layout .drop-auth .profile-google-button {
+  align-items: center;
+  background: #fff;
+  border-color: #fff;
+  color: #080808;
+  display: flex;
+  gap: 9px;
+  justify-content: flex-start;
+  margin-top: 18px;
+}
+.profile-auth-layout .drop-auth .profile-google-button:hover {
+  background: #e9e9e9;
+  border-color: #e9e9e9;
+  color: #000;
+}
+.profile-auth-layout .drop-auth .profile-google-button svg {
+  margin-left: auto;
+}
+.profile-auth-preview-button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid #334047;
+  color: #cbd4d1;
+  display: flex;
+  gap: 10px;
+  min-height: 63px;
+  padding: 12px 14px;
+  text-align: left;
+  width: 100%;
+}
+.profile-auth-preview-button:hover {
+  border-color: #ef2b32;
+  color: #fff;
+}
+.profile-auth-preview-button > svg:first-child {
+  color: #ef2b32;
+  flex: 0 0 auto;
+}
+.profile-auth-preview-button > svg:last-child {
+  margin-left: auto;
+}
+.profile-auth-preview-button span {
+  display: grid;
+  gap: 5px;
+}
+.profile-auth-preview-button strong {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+.profile-auth-preview-button small {
+  color: #7f8b89;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.google-letter {
+  align-items: center;
+  border: 1px solid #ccd3d0;
+  border-radius: 50%;
+  color: #4285f4;
+  display: inline-flex;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  height: 23px;
+  justify-content: center;
+  width: 23px;
+}
+.drop-auth-divider {
+  align-items: center;
+  color: #72807c;
+  display: flex;
+  font-family: var(--mono);
+  font-size: 9px;
+  gap: 10px;
+  letter-spacing: 0.06em;
+  margin: 17px 0 13px;
+}
+.drop-auth-divider::before,
+.drop-auth-divider::after {
+  background: #263238;
+  content: '';
+  flex: 1;
+  height: 1px;
 }
 
 .profile-hero-grid {
@@ -5022,10 +5278,19 @@ html[data-theme='light'] .header-profile-link:hover .header-avatar {
 }
 html[data-theme='light'] .route-market-shell .profile-auth-poster,
 html[data-theme='light'] .route-market-shell .profile-auth-layout > .drop-auth,
+html[data-theme='light'] .route-market-shell .profile-auth-entry > .drop-auth,
 html[data-theme='light'] .route-market-shell .profile-stat-card,
 html[data-theme='light'] .route-market-shell .profile-wallet-card {
   background: #fff;
   border-color: #c4cfca;
+  color: #17211e;
+}
+html[data-theme='light'] .profile-auth-preview-button {
+  border-color: #b9c5bf;
+  color: #34423b;
+}
+html[data-theme='light'] .profile-auth-preview-button:hover {
+  border-color: #ef2b32;
   color: #17211e;
 }
 html[data-theme='light'] .profile-auth-poster h2,

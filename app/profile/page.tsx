@@ -7,10 +7,11 @@ import {
   BadgeCheck,
   Check,
   CalendarDays,
+  Compass,
   Eye,
   EyeOff,
   Globe2,
-  Link2,
+  ImagePlus,
   LockKeyhole,
   LogOut,
   MapPin,
@@ -20,12 +21,13 @@ import {
   UserRound,
   WalletCards,
 } from 'lucide-react';
-import { useState, type SyntheticEvent } from 'react';
+import { useState, type ChangeEvent, type SyntheticEvent } from 'react';
 
 import { DropSignIn } from '@/components/drop-sign-in';
 import { MarketPageShell } from '@/components/market-page-shell';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { useBought } from '@/components/bought-provider';
+import { CATEGORIES } from '@/lib/drop-domain';
 
 const featuredBroadcasts = [
   {
@@ -69,12 +71,56 @@ function externalUrl(value: string) {
   return /^https?:\/\//i.test(value) ? value : `https://${value}`;
 }
 
+function compactAvatar(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('That image could not be read.'));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error('That image could not be opened.'));
+      image.onload = () => {
+        const side = 320;
+        const canvas = document.createElement('canvas');
+        canvas.width = side;
+        canvas.height = side;
+        const context = canvas.getContext('2d');
+        if (!context) return reject(new Error('Your browser could not prepare that image.'));
+        const crop = Math.min(image.naturalWidth, image.naturalHeight);
+        const offsetX = (image.naturalWidth - crop) / 2;
+        const offsetY = (image.naturalHeight - crop) / 2;
+        context.drawImage(image, offsetX, offsetY, crop, crop, 0, 0, side, side);
+        resolve(canvas.toDataURL('image/webp', 0.82));
+      };
+      if (typeof reader.result !== 'string') {
+        reject(new Error('That image could not be read.'));
+        return;
+      }
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function metadataBoolean(metadata: Record<string, unknown>, key: string) {
   const value = metadata[key];
   return value === true || value === 'true' || value === 1;
 }
 
+function metadataCategories(metadata: Record<string, unknown>) {
+  const raw = metadata.preferred_categories ?? metadata.interests;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (item): item is string =>
+      typeof item === 'string' && (CATEGORIES as readonly string[]).includes(item),
+  );
+}
+
 type ProfileDraft = {
+  avatarUrl: string;
+  age: string;
+  country: string;
+  city: string;
+  categories: string[];
   fullName: string;
   username: string;
   bio: string;
@@ -92,11 +138,20 @@ function profileDraft(
 ): ProfileDraft {
   const emailName = email.split('@')[0] || '';
   const rawHandle = metadataValue(metadata, 'username', 'handle') || emailName;
+  const location = metadataValue(metadata, 'location');
+  const city = metadataValue(metadata, 'city') || location.split(',')[0].trim();
+  const country =
+    metadataValue(metadata, 'country') || location.split(',').slice(1).join(',').trim();
   return {
+    avatarUrl: metadataValue(metadata, 'avatar_url', 'picture'),
+    age: metadataValue(metadata, 'age'),
+    country,
+    city,
+    categories: metadataCategories(metadata),
     fullName: metadataValue(metadata, 'full_name', 'name'),
     username: rawHandle.replace(/^@/, ''),
     bio: metadataValue(metadata, 'bio', 'description'),
-    location: metadataValue(metadata, 'location', 'city'),
+    location: location || [city, country].filter(Boolean).join(', '),
     website: metadataValue(metadata, 'website', 'url'),
     x: metadataValue(metadata, 'x', 'twitter', 'twitter_username'),
     linkedin: metadataValue(metadata, 'linkedin', 'linkedin_url'),
@@ -105,18 +160,41 @@ function profileDraft(
   };
 }
 
+const previewProfile: ProfileDraft = {
+  avatarUrl: '',
+  age: '29',
+  country: 'India',
+  city: 'Bengaluru',
+  categories: ['BUILDING', 'THE ASK'],
+  fullName: 'Ananya Rao',
+  username: 'ananyabuilds',
+  bio: 'Building in public. Backing ideas worth hearing.',
+  location: 'Bengaluru, India',
+  website: 'https://ananyabuilds.com',
+  x: '@ananyabuilds',
+  linkedin: '',
+  walletAddress: '',
+  walletPublic: false,
+};
+
 const setupSteps = [
+  {
+    key: 'preferences',
+    label: 'YOUR ROOMS',
+    title: 'Choose the signals you want first.',
+    description: 'Pick the rooms you actually care about. We’ll use this to tune what rises into view.',
+  },
   {
     key: 'identity',
     label: 'IDENTITY',
-    title: 'Tell the room who you are.',
-    description: 'This is the name and context people see beside your signal.',
+    title: 'Make the signal yours.',
+    description: 'Name, photo, age, and place help people recognize the person behind the position.',
   },
   {
     key: 'reach',
-    label: 'DISCOVERY',
-    title: 'Make it easy to find you.',
-    description: 'Add the places where your ideas already have a pulse.',
+    label: 'LINKS',
+    title: 'Let people follow the signal.',
+    description: 'Social links are optional. Add them now or anytime from your profile.',
   },
   {
     key: 'wallet',
@@ -131,12 +209,14 @@ type SetupStep = (typeof setupSteps)[number]['key'];
 function ProfileSetup({
   initial,
   onComplete,
+  previewOnly = false,
 }: {
   initial: ProfileDraft;
   onComplete: () => void;
+  previewOnly?: boolean;
 }) {
   const { client } = useBought();
-  const [step, setStep] = useState<SetupStep>('identity');
+  const [step, setStep] = useState<SetupStep>('preferences');
   const [draft, setDraft] = useState<ProfileDraft>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -147,17 +227,49 @@ function ProfileSetup({
     setDraft((valueBefore) => ({ ...valueBefore, [key]: value }));
   }
 
+  async function chooseAvatar(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Choose an image file for your profile photo.');
+      return;
+    }
+    try {
+      setError('');
+      update('avatarUrl', await compactAvatar(file));
+    } catch (avatarError) {
+      setError(
+        avatarError instanceof Error
+          ? avatarError.message
+          : 'That image could not be prepared. Please try another one.',
+      );
+    }
+  }
+
   function continueSetup(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    if (step === 'preferences' && draft.categories.length === 0) {
+      return setError('Choose at least one room so we know what to surface first.');
+    }
     if (step === 'identity') {
       if (draft.fullName.trim().length < 2)
         return setError('Add the name you want the world to see.');
       if (!/^[a-zA-Z0-9_.-]{2,32}$/.test(draft.username.trim()))
         return setError('Use a handle with 2–32 letters, numbers, dots, dashes, or underscores.');
+      const age = Number(draft.age);
+      if (!Number.isInteger(age) || age < 13 || age > 120)
+        return setError('Add an age between 13 and 120.');
+      if (!draft.country.trim()) return setError('Add the country you call home.');
+      if (!draft.city.trim()) return setError('Add the city you call home.');
     }
     if (stepIndex < setupSteps.length - 1) {
       setStep(setupSteps[stepIndex + 1].key);
+      return;
+    }
+    if (previewOnly) {
+      onComplete();
       return;
     }
     void saveProfile();
@@ -169,10 +281,15 @@ function ProfileSetup({
     try {
       const { error: updateError } = await client.auth.updateUser({
         data: {
+          avatar_url: draft.avatarUrl.trim(),
+          age: draft.age.trim(),
+          country: draft.country.trim(),
+          city: draft.city.trim(),
+          preferred_categories: draft.categories,
           full_name: draft.fullName.trim(),
           username: draft.username.trim(),
           bio: draft.bio.trim(),
-          location: draft.location.trim(),
+          location: [draft.city.trim(), draft.country.trim()].filter(Boolean).join(', '),
           website: draft.website.trim(),
           x: draft.x.trim(),
           linkedin: draft.linkedin.trim(),
@@ -202,7 +319,18 @@ function ProfileSetup({
           <span className="eyebrow">
             <i /> PROFILE SETUP
           </span>
-          <span>STEP {stepIndex + 1} / {setupSteps.length}</span>
+          <span className="profile-setup-topline-actions">
+            {previewOnly && (
+              <button
+                type="button"
+                className="profile-preview-exit"
+                onClick={onComplete}
+              >
+                EXIT PREVIEW
+              </button>
+            )}
+            STEP {stepIndex + 1} / {setupSteps.length}
+          </span>
         </div>
         <div className="profile-setup-steps" aria-label="Profile setup progress">
           {setupSteps.map((item, index) => (
@@ -223,8 +351,73 @@ function ProfileSetup({
         </header>
 
         <form className="profile-setup-form" onSubmit={continueSetup}>
+          {step === 'preferences' && (
+            <div className="profile-form-fields">
+              <fieldset className="profile-category-picker">
+                <legend>
+                  ROOMS I WANT TO SEE <span>SELECT AT LEAST ONE</span>
+                </legend>
+                <div className="profile-category-grid">
+                  {CATEGORIES.map((category, index) => {
+                    const selected = draft.categories.includes(category);
+                    return (
+                      <button
+                        key={category}
+                        type="button"
+                        className={`profile-category-option ${selected ? 'is-selected' : ''}`}
+                        aria-pressed={selected}
+                        onClick={() =>
+                          update(
+                            'categories',
+                            selected
+                              ? draft.categories.filter((item) => item !== category)
+                              : [...draft.categories, category],
+                          )
+                        }
+                      >
+                        <span className="profile-category-check">
+                          {selected ? <Check size={14} /> : String(index + 1).padStart(2, '0')}
+                        </span>
+                        <strong>{category}</strong>
+                        <small>{selected ? 'ON YOUR FLOOR' : 'ADD TO YOUR FLOOR'}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="profile-setup-note profile-preference-note">
+                  <Compass size={16} />
+                  <span>Your choices tune what we surface first. You can change them later.</span>
+                </div>
+              </fieldset>
+            </div>
+          )}
+
           {step === 'identity' && (
             <div className="profile-form-fields">
+              <div className="profile-photo-field">
+                <ProfileAvatar
+                  initials={draft.fullName.slice(0, 2).toUpperCase() || 'BT'}
+                  imageSrc={draft.avatarUrl || undefined}
+                  imageMode="cover"
+                  className="profile-avatar-medium"
+                  alt="Profile photo preview"
+                />
+                <label className="profile-field">
+                  <span><ImagePlus size={14} /> PROFILE PHOTO <span className="profile-field-optional">OPTIONAL</span></span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={chooseAvatar}
+                  />
+                  <input
+                    type="url"
+                    value={draft.avatarUrl}
+                    onChange={(event) => update('avatarUrl', event.target.value)}
+                    placeholder="Or paste a photo URL"
+                  />
+                  <small>We crop uploads square. Leave blank and BOUGHT will use your initials.</small>
+                </label>
+              </div>
               <div className="profile-form-grid">
                 <label className="profile-field">
                   DISPLAY NAME
@@ -249,6 +442,42 @@ function ProfileSetup({
                   /></span>
                 </label>
               </div>
+              <div className="profile-form-grid">
+                <label className="profile-field">
+                  AGE
+                  <input
+                    type="number"
+                    min={13}
+                    max={120}
+                    value={draft.age}
+                    onChange={(event) => update('age', event.target.value)}
+                    placeholder="29"
+                    required
+                  />
+                </label>
+                <label className="profile-field">
+                  COUNTRY
+                  <input
+                    autoComplete="country-name"
+                    value={draft.country}
+                    onChange={(event) => update('country', event.target.value)}
+                    placeholder="India"
+                    maxLength={60}
+                    required
+                  />
+                </label>
+              </div>
+              <label className="profile-field">
+                CITY
+                <input
+                  autoComplete="address-level2"
+                  value={draft.city}
+                  onChange={(event) => update('city', event.target.value)}
+                  placeholder="Bengaluru"
+                  maxLength={60}
+                  required
+                />
+              </label>
               <label className="profile-field">
                 BIO
                 <textarea
@@ -259,16 +488,6 @@ function ProfileSetup({
                   rows={3}
                 />
                 <small>{draft.bio.length} / 160</small>
-              </label>
-              <label className="profile-field">
-                LOCATION <span className="profile-field-optional">OPTIONAL</span>
-                <input
-                  autoComplete="address-level2"
-                  value={draft.location}
-                  onChange={(event) => update('location', event.target.value)}
-                  placeholder="City, country"
-                  maxLength={60}
-                />
               </label>
             </div>
           )}
@@ -302,7 +521,7 @@ function ProfileSetup({
               </label>
               <div className="profile-setup-note">
                 <Globe2 size={16} />
-                <span>These links appear beside your broadcasts so interested people can follow the signal.</span>
+                <span>These links are optional. Add them now or edit them anytime from your profile.</span>
               </div>
             </div>
           )}
@@ -354,8 +573,14 @@ function ProfileSetup({
                 <ArrowLeft size={15} /> BACK
               </button>
             )}
-            <button className="profile-continue-button" type="submit" disabled={busy || !client}>
-              {busy ? 'SAVING…' : stepIndex === setupSteps.length - 1 ? 'SAVE & OPEN PROFILE' : 'CONTINUE'}
+            <button className="profile-continue-button" type="submit" disabled={busy || (!client && !previewOnly)}>
+              {busy
+                ? 'SAVING…'
+                : previewOnly && stepIndex === setupSteps.length - 1
+                  ? 'EXIT PREVIEW'
+                  : stepIndex === setupSteps.length - 1
+                    ? 'SAVE & OPEN PROFILE'
+                    : 'CONTINUE'}
               <ArrowUpRight size={16} />
             </button>
           </div>
@@ -365,7 +590,12 @@ function ProfileSetup({
       <aside className="profile-setup-preview route-panel">
         <div className="profile-card-label"><UserRound size={15} /> YOUR PUBLIC PREVIEW</div>
         <div className="profile-preview-identity">
-          <ProfileAvatar initials={draft.fullName.slice(0, 2).toUpperCase() || 'BT'} className="profile-avatar-medium" />
+          <ProfileAvatar
+            initials={draft.fullName.slice(0, 2).toUpperCase() || 'BT'}
+            imageSrc={draft.avatarUrl || undefined}
+            imageMode="cover"
+            className="profile-avatar-medium"
+          />
           <div>
             <strong>{draft.fullName || 'Your name'}</strong>
             <span>@{draft.username || 'yourhandle'}</span>
@@ -373,7 +603,9 @@ function ProfileSetup({
         </div>
         <p className="profile-preview-bio">{draft.bio || 'Your bio will sit beside every broadcast you publish.'}</p>
         <div className="profile-preview-includes">
+          <span><Check size={14} /> {draft.categories.length || 'YOUR'} ROOMS</span>
           <span><Check size={14} /> NAME &amp; BIO</span>
+          <span><Check size={14} /> AGE &amp; LOCATION</span>
           <span><Check size={14} /> SOCIAL LINKS</span>
           <span><Check size={14} /> BROADCASTS</span>
           <span className={draft.walletPublic ? '' : 'is-muted'}>{draft.walletPublic ? <Eye size={14} /> : <EyeOff size={14} />} WALLET SIGNAL</span>
@@ -390,9 +622,11 @@ function ProfileSetup({
 export default function ProfilePage() {
   const { client, session } = useBought();
   const [editing, setEditing] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const metadata = (session?.user.user_metadata ?? {}) as Record<string, unknown>;
   const email = session?.user.email ?? '';
   const emailName = email.split('@')[0] || 'bought member';
+  const memberProfile = profileDraft(metadata, email);
   const profileComplete = metadataBoolean(metadata, 'profile_completed');
   const setupRequired = Boolean(session && (!profileComplete || editing));
   const displayName = metadataValue(metadata, 'full_name', 'name') || emailName;
@@ -408,7 +642,10 @@ export default function ProfilePage() {
   const bio =
     metadataValue(metadata, 'bio', 'description') ||
     'Building in public. Backing ideas worth hearing.';
-  const location = metadataValue(metadata, 'location', 'city') || 'Add your city';
+  const avatarUrl = memberProfile.avatarUrl;
+  const age = memberProfile.age;
+  const location = [memberProfile.city, memberProfile.country].filter(Boolean).join(', ') || memberProfile.location || 'Add your city';
+  const preferredCategories = memberProfile.categories;
   const website = metadataValue(metadata, 'website', 'url');
   const xHandle = metadataValue(metadata, 'x', 'twitter', 'twitter_username');
   const linkedin = metadataValue(metadata, 'linkedin', 'linkedin_url');
@@ -420,68 +657,96 @@ export default function ProfilePage() {
       active="profile"
       eyebrow={
         !session
-          ? 'YOUR PROFILE / SIGN IN'
+          ? previewing
+            ? 'PROFILE SETUP / UI PREVIEW'
+            : 'YOUR PROFILE / SIGN IN'
           : setupRequired
             ? 'PROFILE SETUP / YOUR DETAILS'
             : 'PUBLIC PROFILE / YOU'
       }
       title={
         !session
-          ? 'Make your signal public.'
+          ? previewing
+            ? 'Preview your public profile.'
+            : 'Find the winners. Tune your room.'
           : setupRequired
             ? 'Build your public profile.'
             : 'Your public signal.'
       }
       description={
         !session
-          ? 'Sign in first. Then add your details, links, and wallet signal before your profile goes public.'
+          ? previewing
+            ? 'This is a no-login preview. Try every step and nothing will be saved.'
+            : 'Your profile keeps the rooms you care about close, helps you find today’s winners, and gives your own signal a home.'
           : setupRequired
-            ? 'Three quick choices decide what the world sees when they find you on BOUGHT.'
+            ? 'A few quick choices tune what rises into view and decide what the world sees when they find you on BOUGHT.'
             : 'One place for the identity, links, broadcasts, positions, and wallet signal you choose to put on the floor.'
       }
     >
-      {!session ? (
+      {previewing ? (
+        <ProfileSetup
+          initial={previewProfile}
+          previewOnly
+          onComplete={() => setPreviewing(false)}
+        />
+      ) : !session ? (
         <section className="profile-auth-layout">
           <article className="profile-auth-poster">
             <div className="profile-auth-header">
-              <span className="profile-kicker">PUBLIC PROFILE / LOCKED</span>
+              <span className="profile-kicker">YOUR FIRST SIGNAL / LOCKED</span>
               <LockKeyhole size={19} />
             </div>
             <div className="profile-auth-identity">
               <ProfileAvatar initials="BT" className="profile-avatar-large" />
               <div>
-                <span>YOUR IDENTITY</span>
-                <strong>Ready to be seen.</strong>
+                <span>YOUR FIRST VIEW</span>
+                <strong>Ready to be tuned.</strong>
               </div>
             </div>
-            <h2>PUT YOUR NAME ON THE BOARD.</h2>
+            <h2>FIND TODAY&apos;S WINNERS. FOLLOW THE SIGNAL.</h2>
             <p>
-              Sign in once to keep your bids, broadcasts, social links, and
-              public wallet signal together across every device.
+              Create a profile so BOUGHT can remember the rooms you care about,
+              surface the people earning attention there, and keep your own
+              signal attached to every broadcast. You can change your choices anytime.
             </p>
             <div className="profile-preview-grid">
               <span>
-                <BadgeCheck size={16} /> YOUR NAME &amp; BIO
+                <BadgeCheck size={16} /> FIND TODAY&apos;S WINNERS
               </span>
               <span>
-                <Link2 size={16} /> SOCIAL LINKS
+                <Compass size={16} /> TUNE YOUR ROOMS
               </span>
               <span>
-                <Radio size={16} /> BROADCASTS &amp; POSITIONS
+                <Radio size={16} /> SAVE YOUR SIGNAL
               </span>
               <span>
-                <WalletCards size={16} /> PUBLIC WALLET SIGNAL
+                <Pencil size={16} /> EDIT ANYTIME
               </span>
             </div>
           </article>
-          <DropSignIn
-            title="SIGN IN OR LOG IN"
-            description="Use your email to sign in or create your BOUGHT account. We’ll send a one-time code—no password to remember."
-          />
+          <div className="profile-auth-entry">
+            <DropSignIn
+              title="TWO WAYS IN"
+              description="Choose Google for one-tap access, or use your email for a password-free code. We’ll use your account to save preferences and build your public profile."
+              showGoogle
+            />
+            <button
+              type="button"
+              className="profile-auth-preview-button"
+              onClick={() => setPreviewing(true)}
+            >
+              <Eye size={16} />
+              <span>
+                <strong>CHECK ONBOARDING UI</strong>
+                <small>Step through it with sample data. Nothing is saved.</small>
+              </span>
+              <ArrowUpRight size={16} />
+            </button>
+          </div>
         </section>
       ) : setupRequired ? (
         <ProfileSetup
-          initial={profileDraft(metadata, email)}
+          initial={memberProfile}
           onComplete={() => setEditing(false)}
         />
       ) : (
@@ -489,7 +754,13 @@ export default function ProfilePage() {
           <section className="profile-hero-grid">
             <article className="profile-identity-card route-panel">
               <div className="profile-identity-header">
-                <ProfileAvatar initials={initials || 'BT'} className="profile-avatar-large" />
+                <ProfileAvatar
+                  initials={initials || 'BT'}
+                  imageSrc={avatarUrl || undefined}
+                  imageMode="cover"
+                  className="profile-avatar-large"
+                  alt={`${displayName} profile photo`}
+                />
                 <div className="profile-identity-name">
                   <span className="profile-kicker">
                     <i /> PUBLIC PROFILE
@@ -527,7 +798,7 @@ export default function ProfilePage() {
                   <MapPin size={14} /> {location}
                 </span>
                 <span>
-                  <CalendarDays size={14} /> MEMBER SINCE 2026
+                  <CalendarDays size={14} /> {age ? `${age} YEARS OLD` : 'ADD AGE'}
                 </span>
               </div>
               <div className="profile-social-links" aria-label="Public social links">
@@ -556,6 +827,14 @@ export default function ProfilePage() {
                   <span className="is-empty"><span className="profile-social-letter">in</span> ADD LINKEDIN</span>
                 )}
               </div>
+              {preferredCategories.length > 0 && (
+                <div className="profile-interest-list" aria-label="Preferred categories">
+                  <span className="profile-interest-label">ROOMS I FOLLOW</span>
+                  {preferredCategories.map((category) => (
+                    <span className="profile-interest-chip" key={category}>{category}</span>
+                  ))}
+                </div>
+              )}
             </article>
 
             <aside className="profile-wallet-card route-panel">

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import MuxPlayer from '@mux/mux-player-react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useBought } from './bought-provider';
+
+const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
 
 export function DropPlayer({ dropId }: { dropId: string }) {
   const { api } = useBought();
@@ -43,15 +44,20 @@ export function DropPlayer({ dropId }: { dropId: string }) {
         {error}
       </p>
     );
-  if (!media) return <div className="drop-player-loading">Loading broadcast…</div>;
+  if (!media)
+    return <div className="drop-player-loading">Loading broadcast…</div>;
   return (
-    <MuxPlayer
-      playbackId={media.playbackId}
-      tokens={{ playback: media.token }}
-      poster={media.thumbnail}
-      accentColor="#ef2b32"
-      streamType="on-demand"
-      metadata={{ video_id: dropId, video_title: 'BOUGHT broadcast' }}
-    />
+    <Suspense
+      fallback={<div className="drop-player-loading">Opening player…</div>}
+    >
+      <MuxPlayer
+        playbackId={media.playbackId}
+        tokens={{ playback: media.token }}
+        poster={media.thumbnail}
+        accentColor="#ef2b32"
+        streamType="on-demand"
+        metadata={{ video_id: dropId, video_title: 'BOUGHT broadcast' }}
+      />
+    </Suspense>
   );
 }

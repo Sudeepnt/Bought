@@ -1,5 +1,3 @@
-import { env } from 'cloudflare:workers';
-
 export class HttpError extends Error {
   constructor(
     public status: number,
@@ -10,7 +8,7 @@ export class HttpError extends Error {
 }
 
 export function setting(name: string): string | undefined {
-  const value = (env as Record<string, unknown>)[name] ?? process.env[name];
+  const value = process.env[name];
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
@@ -19,7 +17,7 @@ export function required(name: string): string {
   if (!value)
     throw new HttpError(
       503,
-      'Broadcast checkout is not available yet. Please try again later.',
+      'This service is temporarily unavailable. Please try again later.',
     );
   return value;
 }

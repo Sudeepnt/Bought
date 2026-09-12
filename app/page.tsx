@@ -64,30 +64,6 @@ type LeaderboardSelection = {
   dropId: string | null;
 };
 
-const activity = [
-  ['Rahul K.', 'took #4 in', 'BEEF', '$6,200', '12s ago', 'RK', 'blue'],
-  ['Priya M.', 'entered', 'MONEY', '$4,100', '21s ago', 'PM', 'orange'],
-  [
-    'Arjun S.',
-    'moved to #2 in',
-    'BUILDING',
-    '$8,900',
-    '31s ago',
-    'AS',
-    'green',
-  ],
-  [
-    'Karan V.',
-    'outbid in',
-    'UNPOPULAR OPINION',
-    '$11,500',
-    '45s ago',
-    'KV',
-    'purple',
-  ],
-  ['Someone just joined', 'from', 'Bengaluru', '', '1m ago', 'SJ', 'coral'],
-];
-
 const homeCategories = [
   ['ALL', '1,155'],
   ['BEEF', '184'],
@@ -359,11 +335,6 @@ export default function Home() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewText, setReviewText] = useState('');
   const [reviewSent, setReviewSent] = useState(false);
-  const [activityFeed, setActivityFeed] = useState(activity);
-  const [activityPulse, setActivityPulse] = useState<{
-    id: number;
-    amount: string;
-  } | null>(null);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const displayedLeaderboard =
     categoryLeaderboards[activeCategory] ?? categoryLeaderboards.ALL;
@@ -372,42 +343,6 @@ export default function Home() {
     setActiveCategory(category);
     setSelectedLeaderboard(null);
   }
-
-  useEffect(() => {
-    let cursor = 0;
-    let pulseTimeout: number | undefined;
-
-    const publishNextActivity = () => {
-      const source = activity[cursor % activity.length];
-      const freshEvent = [...source];
-      freshEvent[4] = 'just now';
-      const eventId = cursor + 1;
-      cursor += 1;
-
-      setActivityFeed((current) => [
-        freshEvent,
-        ...current.slice(0, -1).map((row, index) => {
-          const agedEvent = [...row];
-          agedEvent[4] = `${(index + 1) * 5}s ago`;
-          return agedEvent;
-        }),
-      ]);
-
-      if (freshEvent[3]) {
-        setActivityPulse({ id: eventId, amount: freshEvent[3] });
-        window.clearTimeout(pulseTimeout);
-        pulseTimeout = window.setTimeout(() => setActivityPulse(null), 1400);
-      } else {
-        setActivityPulse(null);
-      }
-    };
-
-    const timer = window.setInterval(publishNextActivity, 5000);
-    return () => {
-      window.clearInterval(timer);
-      window.clearTimeout(pulseTimeout);
-    };
-  }, []);
 
   useEffect(() => {
     if (!reviewOpen) return;
@@ -455,45 +390,6 @@ export default function Home() {
       <MarketTopbar active="floor" />
 
       <div className="dashboard-wrap homepage-content-wrap">
-        <section className="activity-dashboard dashboard-panel">
-          <div className="dashboard-section-head">
-            <span>LIVE ACTIVITY</span>
-          </div>
-          <div
-            className="activity-dashboard-list"
-            aria-live="polite"
-            aria-atomic="false"
-          >
-            {activityFeed.map(
-              ([name, action, category, amount, time, initials, tone], index) => (
-                <button
-                  className={`activity-dashboard-row ${index === 0 && activityPulse ? 'is-new' : ''}`}
-                  type="button"
-                  key={`${name}-${category}-${time}-${index}`}
-                >
-                  <Avatar initials={initials} tone={tone} />
-                  <span>
-                    <strong>{name}</strong>
-                    <small>
-                      {action} <b>{category}</b>
-                    </small>
-                    {amount && <em>{amount}</em>}
-                  </span>
-                  <time>{time}</time>
-                  {index === 0 && activityPulse && amount && (
-                    <span
-                      className="activity-money-pulse"
-                      aria-label={`New money added ${amount}`}
-                    >
-                      +{amount}
-                    </span>
-                  )}
-                </button>
-              ),
-            )}
-          </div>
-        </section>
-
         <section className="dashboard-main-grid">
           <div className="dashboard-primary-stack">
             <article className="leader-spot dashboard-panel">

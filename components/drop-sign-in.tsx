@@ -7,9 +7,11 @@ import { useBought } from './bought-provider';
 export function DropSignIn({
   title = 'YOUR ACCOUNT',
   description = 'Sign in to keep your payment and recordings together. You can resume your broadcast on any device.',
+  showGoogle = false,
 }: {
   title?: string;
   description?: ReactNode;
+  showGoogle?: boolean;
 }) {
   const { client, authReady } = useBought();
   const [email, setEmail] = useState('');
@@ -45,12 +47,54 @@ export function DropSignIn({
       setBusy(false);
     }
   }
+
+  async function signInWithGoogle() {
+    if (!client || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const { error: authError } = await client.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/profile` },
+      });
+      if (authError) throw authError;
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Google sign-in failed. Please try again.',
+      );
+      setBusy(false);
+    }
+  }
+
   return (
     <form className="drop-auth" onSubmit={submit}>
       <div className="drop-section-label">
         <Mail size={16} /> {title}
       </div>
       <p>{description}</p>
+      {showGoogle && (
+        <>
+          <button
+            className="drop-button profile-google-button"
+            disabled={busy || !client}
+            type="button"
+            onClick={() => void signInWithGoogle()}
+          >
+            <span className="google-letter">G</span>
+            {busy
+              ? 'PLEASE WAIT…'
+              : !client
+                ? authReady
+                  ? 'GOOGLE SIGN-IN NOT CONNECTED'
+                  : 'CONNECTING…'
+                : 'CONTINUE WITH GOOGLE'}
+            <ArrowUpRight size={17} />
+          </button>
+          <div className="drop-auth-divider"><span>OR USE EMAIL</span></div>
+        </>
+      )}
       <label className="drop-field">
         Email address
         <input
@@ -91,8 +135,10 @@ export function DropSignIn({
           ? 'PLEASE WAIT…'
           : sent
             ? 'VERIFY & CONTINUE'
-            : authReady && !client
-              ? 'EMAIL SIGN-IN NOT CONNECTED'
+            : !client
+              ? authReady
+                ? 'EMAIL SIGN-IN NOT CONNECTED'
+                : 'CONNECTING…'
               : 'EMAIL ME A CODE'}
         <ArrowUpRight size={17} />
       </button>

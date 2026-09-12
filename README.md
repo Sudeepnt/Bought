@@ -1,6 +1,6 @@
 # BOUGHT paid broadcasts
 
-BOUGHT runs on **React + Vinext**. Cloudflare Workers/Sites remains the native Worker deployment, and Vercel deployments use Vinext's Nitro adapter. Mux handles direct video uploads; Cloudflare is the runtime/hosting layer. Existing Inter, Barlow Condensed, JetBrains Mono, and custom CSS are retained.
+BOUGHT runs on **React 19 + Vinext + Vite** and deploys to Vercel through Vinext's Nitro adapter. It does not install or run Next.js; Vinext supplies the compatible App Router APIs used by the application. Supabase provides authentication, PostgreSQL, Realtime, and private thumbnail storage. Mux handles direct video uploads and playback. Stripe and Razorpay handle checkout, and Upstash Redis provides distributed write rate limits.
 
 The implementation is configured with **empty service placeholders**. It does not simulate successful payments or unlock a camera in preview mode. `/broadcast` is the broadcast recording journey, and `/review` is the moderator queue. The homepage's older example market content remains explicitly labelled as a preview; those examples are not paid entries.
 
@@ -52,7 +52,7 @@ Bidding runs **00:00–12:00 UTC**. Published bids can move during that window. 
 
 A broadcast whose upload or review finishes after the cutoff is assigned to the next auction without a second payment. It remains accessible in the owner's saved broadcasts until that auction becomes public. SQL advisory locks serialize auction/ranking mutations. The database clock decides all transitions; browser clocks only display a periodically synchronized countdown.
 
-`worker.ts` exports both `fetch` and `scheduled`. The Cloudflare build includes an every-minute Cron Trigger. Confirm the trigger is attached by the selected Cloudflare/Sites deployment platform. The scheduled handler invokes the authenticated auction endpoint, and ordinary market reads also perform the same idempotent transition, so a delayed cron cannot reopen a closed auction or change frozen ranks. Vercel builds use Nitro's Vercel preset and do not use the Cloudflare scheduled handler.
+`vercel.json` registers a daily maintenance request to `/api/bought/cron`. Set `CRON_SECRET` in Vercel; Vercel automatically sends it as `Authorization: Bearer <CRON_SECRET>`. The endpoint also accepts authenticated POST requests for controlled operational recovery. Ordinary market reads perform the same idempotent database transition, so the auction does not rely on cron timing: a delayed invocation cannot reopen a closed auction or change frozen ranks. This daily schedule is compatible with Vercel Hobby; higher-frequency schedules can be used on plans that support them without changing correctness.
 
 ### Checkout reconciliation
 
@@ -71,7 +71,9 @@ The automated suite covers raw webhook signatures, tampering/replay, amount/curr
 
 Before enabling live payments, exercise the full provider test-mode journey over HTTPS with real camera/microphone permissions, failed/retried uploads, webhook retries, and a moderator. Live provider calls and browser camera recording have not been tested using the configuration placeholders.
 
-The repository's saved Sites project was not accessible during this implementation. No replacement site, paid service, database, or public deployment was created. Restore access to that project before publishing. The generated Cloudflare build includes the fetch and scheduled handlers.
+Run `npm run preflight:production` with the intended Vercel production environment before releasing. It reports missing or structurally unsafe configuration by variable name without printing secret values.
+
+Vercel is the only configured hosting target. The repository includes its security headers, cache policy, serverless build preset, and cron declaration. Production credentials, provider webhooks, Supabase migrations, and a complete test-mode checkout/record/upload/moderation exercise are still required before accepting live payments.
 
 ## Reference contracts
 
@@ -80,4 +82,4 @@ The repository's saved Sites project was not accessible during this implementati
 - [Razorpay payment events](https://razorpay.com/docs/webhooks/payments/)
 - [Mux direct uploads](https://www.mux.com/docs/guides/upload-files-directly) and [signature verification](https://www.mux.com/docs/core/verify-webhook-signatures)
 - [MediaPipe face detection](https://developers.google.com/edge/mediapipe/solutions/vision/face_detector/web_js)
-- [Cloudflare Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
+- [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs)

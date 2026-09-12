@@ -4,8 +4,30 @@ type LocalTake = {
   video: Blob;
   thumbnail?: Blob;
   uploadId?: string;
+  uploaded?: boolean;
   savedAt: number;
 };
+
+export function recordingUploadRequired({
+  replace,
+  mediaState,
+  localUploadId,
+  serverUploadId,
+  localUploadCompleted,
+}: {
+  replace: boolean;
+  mediaState: string;
+  localUploadId?: string;
+  serverUploadId?: string | null;
+  localUploadCompleted: boolean;
+}) {
+  const completedUploadMatches =
+    localUploadCompleted && !!localUploadId && localUploadId === serverUploadId;
+  return (
+    !completedUploadMatches &&
+    (replace || !['ready', 'processing'].includes(mediaState))
+  );
+}
 
 async function openDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
@@ -40,6 +62,7 @@ export function saveTake(
   video: Blob,
   thumbnail?: Blob,
   uploadId?: string,
+  uploaded = false,
 ) {
   return transaction('readwrite', (store) =>
     store.put({
@@ -47,9 +70,17 @@ export function saveTake(
       video,
       thumbnail,
       uploadId,
+      uploaded,
       savedAt: Date.now(),
     } satisfies LocalTake),
   );
+}
+
+export async function markTakeUploaded(id: string, uploadId: string) {
+  const saved = await loadTake(id);
+  if (!saved || saved.uploadId !== uploadId) return false;
+  await saveTake(saved.id, saved.video, saved.thumbnail, saved.uploadId, true);
+  return true;
 }
 export function loadTake(id: string) {
   return transaction('readonly', (store) => store.get(id)) as Promise<

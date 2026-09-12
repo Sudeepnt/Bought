@@ -1,14 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { HttpError, origin, required } from './config';
 
+let cachedDatabase: SupabaseClient | null = null;
+let cachedDatabaseCredentials = '';
+
 export function database() {
-  return createClient(
-    required('SUPABASE_URL'),
-    required('SUPABASE_SERVICE_ROLE_KEY'),
-    {
+  const url = required('SUPABASE_URL');
+  const key = required('SUPABASE_SERVICE_ROLE_KEY');
+  const credentials = `${url}\0${key}`;
+  if (!cachedDatabase || cachedDatabaseCredentials !== credentials) {
+    cachedDatabase = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
-    },
-  );
+    });
+    cachedDatabaseCredentials = credentials;
+  }
+  return cachedDatabase;
 }
 
 export async function identity(request: Request) {

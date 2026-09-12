@@ -2,6 +2,9 @@ import { createPrivateKey, sign } from 'node:crypto';
 import type { Drop } from '../drop-domain';
 import { HttpError, origin, required } from './config';
 
+let cachedMuxPrivateKey: ReturnType<typeof createPrivateKey> | null = null;
+let cachedMuxPrivateKeySource = '';
+
 export async function providerRequest<T>(
   url: string,
   init: RequestInit,
@@ -15,7 +18,45 @@ export async function providerRequest<T>(
       502,
       'The provider could not complete this request. Your broadcast is saved.',
     );
-  return response.json() as Promise<T>;
+  const maxBytes = 2 * 1024 * 1024;
+  const declaredLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes)
+    throw new HttpError(502, 'The provider returned an invalid response.');
+  const reader = response.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  if (reader) {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > maxBytes) {
+        await reader.cancel();
+        throw new HttpError(502, 'The provider returned an invalid response.');
+      }
+      chunks.push(value);
+    }
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  const raw = new TextDecoder().decode(bytes);
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new HttpError(502, 'The provider returned an invalid response.');
+  }
+}
+
+function secureUrl(value: string) {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 export async function createCheckout(drop: Drop) {
@@ -44,6 +85,11 @@ export async function createCheckout(drop: Drop) {
         body: params,
       },
     );
+    if (!session.id || !secureUrl(session.url))
+      throw new HttpError(
+        502,
+        'The payment provider returned an invalid checkout.',
+      );
     return { reference: session.id, url: session.url };
   }
   const order = await providerRequest<{ id: string }>(
@@ -63,6 +109,11 @@ export async function createCheckout(drop: Drop) {
       }),
     },
   );
+  if (!order.id)
+    throw new HttpError(
+      502,
+      'The payment provider returned an invalid checkout.',
+    );
   return { reference: order.id, url: null };
 }
 
@@ -108,10 +159,14 @@ export function muxPlaybackToken(
   const pem = configured.includes('BEGIN')
     ? configured
     : Buffer.from(configured, 'base64').toString('utf8');
+  if (!cachedMuxPrivateKey || cachedMuxPrivateKeySource !== pem) {
+    cachedMuxPrivateKey = createPrivateKey(pem);
+    cachedMuxPrivateKeySource = pem;
+  }
   const signature = sign(
     'RSA-SHA256',
     Buffer.from(message),
-    createPrivateKey(pem),
+    cachedMuxPrivateKey,
   ).toString('base64url');
   return `${message}.${signature}`;
 }

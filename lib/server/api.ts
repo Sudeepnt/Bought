@@ -28,18 +28,55 @@ import {
 } from './security';
 import { webhook } from './webhooks';
 
-const publicDropFields =
+const ownerDropFields =
   'id,category,capture_mode,title,amount_minor,currency,provider,payment_state,checkout_state,payment_reference,checkout_url,paid_at,state,mux_upload_id,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,created_at';
+const reviewDropFields =
+  'id,category,capture_mode,title,amount_minor,currency,payment_state,paid_at,state,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,created_at';
 
-function json(data: unknown, status = 200) {
+function json(data: unknown, status = 200, extraHeaders?: HeadersInit) {
+  const headers = new Headers({
+    'Cache-Control': 'no-store',
+    'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+  });
+  if (extraHeaders)
+    new Headers(extraHeaders).forEach((value, key) => headers.set(key, value));
   return Response.json(data, {
     status,
-    headers: {
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
-      'Referrer-Policy': 'no-referrer',
-    },
+    headers,
   });
+}
+
+function exactPath(path: string[], ...parts: string[]) {
+  return (
+    path.length === parts.length && path.every((part, i) => part === parts[i])
+  );
+}
+
+function requireJson(request: Request) {
+  if (
+    request.headers
+      .get('content-type')
+      ?.split(';', 1)[0]
+      .trim()
+      .toLowerCase() !== 'application/json'
+  )
+    throw new HttpError(415, 'Send this request as JSON.');
+}
+
+function validMuxUpload(id: unknown, value: unknown) {
+  if (typeof id !== 'string' || !id || typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      (url.hostname === 'storage.googleapis.com' ||
+        url.hostname.endsWith('.mux.com'))
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function ownedDrop(id: string, userId: string) {
@@ -71,13 +108,20 @@ function editable(drop: Drop) {
 export async function handleApi(request: Request) {
   try {
     const url = new URL(request.url);
-    const path = url.pathname.replace(/^\/api\/bought\/?/, '').split('/');
+    const path = url.pathname
+      .replace(/^\/api\/bought\/?/, '')
+      .split('/')
+      .filter(Boolean);
     const method = request.method;
-    if (path[0] === 'webhooks' && method === 'POST') {
+    if (!['GET', 'POST'].includes(method))
+      return json({ error: 'Method not allowed.' }, 405, {
+        Allow: 'GET, POST',
+      });
+    if (path[0] === 'webhooks' && method === 'POST' && path.length === 2) {
       await webhook(request, path[1]);
       return json({ received: true });
     }
-    if (path[0] === 'cron' && method === 'POST') {
+    if (exactPath(path, 'cron') && (method === 'GET' || method === 'POST')) {
       if (
         !constantEqual(
           request.headers.get('authorization') ?? '',
@@ -89,32 +133,49 @@ export async function handleApi(request: Request) {
       dbError(error);
       return json(data);
     }
-    if (path[0] === 'config' && method === 'GET')
-      return json({
-        supabaseUrl: setting('SUPABASE_URL') ?? null,
-        supabaseKey: setting('SUPABASE_PUBLISHABLE_KEY') ?? null,
-        providers: configuredProviders(),
-      });
-    if (path[0] === 'market' && method === 'GET') {
+    if (exactPath(path, 'config') && method === 'GET')
+      return json(
+        {
+          supabaseUrl: setting('SUPABASE_URL') ?? null,
+          supabaseKey: setting('SUPABASE_PUBLISHABLE_KEY') ?? null,
+          providers: configuredProviders(),
+        },
+        200,
+        {
+          'Cache-Control':
+            'public, max-age=0, s-maxage=300, stale-while-revalidate=3600',
+        },
+      );
+    if (exactPath(path, 'market') && method === 'GET') {
       if (!setting('SUPABASE_SERVICE_ROLE_KEY') || !setting('SUPABASE_URL')) {
         const now = new Date();
         const start = new Date(now);
         start.setUTCHours(0, 0, 0, 0);
-        return json({
-          auctionId: start.toISOString().slice(0, 10),
-          serverNow: now.toISOString(),
-          opensAt: start.toISOString(),
-          closesAt: new Date(+start + 43200000).toISOString(),
-          exposureEndsAt: new Date(+start + 86400000).toISOString(),
-          phase: now.getUTCHours() < 12 ? 'bidding' : 'exposure',
-          configured: false,
-        });
+        return json(
+          {
+            auctionId: start.toISOString().slice(0, 10),
+            serverNow: now.toISOString(),
+            opensAt: start.toISOString(),
+            closesAt: new Date(+start + 43200000).toISOString(),
+            exposureEndsAt: new Date(+start + 86400000).toISOString(),
+            phase: now.getUTCHours() < 12 ? 'bidding' : 'exposure',
+            configured: false,
+          },
+          200,
+          {
+            'Cache-Control':
+              'public, max-age=0, s-maxage=5, stale-while-revalidate=10',
+          },
+        );
       }
       const { data, error } = await database().rpc('bought_advance');
       dbError(error);
-      return json(data);
+      return json(data, 200, {
+        'Cache-Control':
+          'public, max-age=0, s-maxage=5, stale-while-revalidate=10',
+      });
     }
-    if (path[0] === 'published' && method === 'GET') {
+    if (exactPath(path, 'published') && method === 'GET') {
       if (!setting('SUPABASE_SERVICE_ROLE_KEY') || !setting('SUPABASE_URL'))
         return json({ entries: [] });
       const db = database();
@@ -130,10 +191,14 @@ export async function handleApi(request: Request) {
         .order('position')
         .limit(100);
       dbError(error);
-      return json({ entries: data });
+      return json({ entries: data }, 200, {
+        'Cache-Control':
+          'public, max-age=0, s-maxage=10, stale-while-revalidate=30',
+      });
     }
-    if (path[0] === 'media' && method === 'GET') {
-      if (!validUuid(path[1])) throw new HttpError(400, 'Invalid broadcast ID.');
+    if (path[0] === 'media' && method === 'GET' && path.length === 2) {
+      if (!validUuid(path[1]))
+        throw new HttpError(400, 'Invalid broadcast ID.');
       const db = database();
       const { data: drop, error } = await db
         .from('bought_drops')
@@ -179,6 +244,7 @@ export async function handleApi(request: Request) {
     const db = database();
     if (method === 'POST') {
       sameOrigin(request);
+      requireJson(request);
       await rateLimit(
         `${user.id}:${path[0]}:${path[2] ?? 'create'}`,
         path[2] === 'checkout' ? 5 : 30,
@@ -198,10 +264,10 @@ export async function handleApi(request: Request) {
     if (path[0] === 'review') {
       if (user.app_metadata.bought_moderator !== true)
         throw new HttpError(403, 'Moderator access is required.');
-      if (method === 'GET') {
+      if (method === 'GET' && path.length === 1) {
         const { data, error } = await db
           .from('bought_drops')
-          .select(publicDropFields)
+          .select(reviewDropFields)
           .eq('state', 'review')
           .order('submitted_at')
           .limit(50);
@@ -209,6 +275,8 @@ export async function handleApi(request: Request) {
         return json({ drops: data });
       }
       if (
+        method !== 'POST' ||
+        path.length !== 2 ||
         !validUuid(path[1]) ||
         typeof body.assetId !== 'string' ||
         typeof body.approve !== 'boolean'
@@ -228,7 +296,7 @@ export async function handleApi(request: Request) {
     if (path.length === 1 && method === 'GET') {
       const { data, error } = await db
         .from('bought_drops')
-        .select(publicDropFields)
+        .select(ownerDropFields)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(30);
@@ -275,11 +343,18 @@ export async function handleApi(request: Request) {
         );
       return json({ dropId: saved.id }, 201);
     }
+    if (path.length < 2 || path.length > 3)
+      throw new HttpError(404, 'Not found.');
+    if (
+      path.length === 3 &&
+      !['checkout', 'upload', 'thumbnail', 'submit'].includes(path[2])
+    )
+      throw new HttpError(404, 'Not found.');
     const drop = await ownedDrop(path[1], user.id);
     if (method === 'GET' && path.length === 2) {
       const { data, error } = await db
         .from('bought_drops')
-        .select(publicDropFields)
+        .select(ownerDropFields)
         .eq('id', drop.id)
         .single();
       dbError(error);
@@ -344,6 +419,11 @@ export async function handleApi(request: Request) {
               },
             },
           );
+          if (!validMuxUpload(upload.id, upload.url))
+            throw new HttpError(
+              502,
+              'The video provider returned an invalid upload target.',
+            );
           const { error } = await db
             .from('bought_drops')
             .update({
@@ -390,6 +470,11 @@ export async function handleApi(request: Request) {
         .from(THUMBNAIL_BUCKET)
         .createSignedUploadUrl(storagePath);
       dbError(error);
+      if (!data?.token)
+        throw new HttpError(
+          503,
+          'Thumbnail upload is temporarily unavailable.',
+        );
       const { data: changed, error: updateError } = await db
         .from('bought_drops')
         .update({ thumbnail_path: storagePath, thumbnail_verified: false })
@@ -400,7 +485,7 @@ export async function handleApi(request: Request) {
       dbError(updateError);
       if (!changed?.length)
         throw new HttpError(409, 'This broadcast has already been submitted.');
-      return json({ path: storagePath, token: data?.token });
+      return json({ path: storagePath, token: data.token });
     }
     if (path[2] === 'submit') {
       if (drop.payment_state !== 'paid')

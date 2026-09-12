@@ -4,18 +4,20 @@ export function ProfileAvatar({
   alt = '',
   imageSrc,
   imagePosition = 'center',
+  imageMode = 'sprite',
 }: {
   initials: string;
   className?: string;
   alt?: string;
   imageSrc?: string;
   imagePosition?: string;
+  imageMode?: 'sprite' | 'cover';
 }) {
   const imageStyle = imageSrc
     ? {
         backgroundImage: `url(${imageSrc})`,
         backgroundPosition: imagePosition,
-        backgroundSize: '500% 200%',
+        backgroundSize: imageMode === 'cover' ? 'cover' : '500% 200%',
       }
     : undefined;
 

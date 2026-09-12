@@ -9,11 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import {
-  createClient,
-  type Session,
-  type SupabaseClient,
-} from '@supabase/supabase-js';
+import { type Session, type SupabaseClient } from '@supabase/supabase-js';
 import type { Market, PublishedEntry } from '@/lib/drop-domain';
 
 type Config = {
@@ -34,6 +30,24 @@ type BoughtContext = {
 };
 const Context = createContext<BoughtContext | null>(null);
 
+async function fetchJsonWithRetry<T>(url: string, attempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      return (await response.json()) as T;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1)
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, 300 * 2 ** attempt),
+        );
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Request failed');
+}
+
 export function BoughtProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<Config | null>(null);
   const [client, setClient] = useState<SupabaseClient | null>(null);
@@ -48,13 +62,13 @@ export function BoughtProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     let unsubscribe: (() => void) | undefined;
-    void fetch('/api/bought/config')
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Configuration unavailable');
-        const next: Config = await response.json();
+    void fetchJsonWithRetry<Config>('/api/bought/config')
+      .then(async (next) => {
         if (!active) return;
         setConfig(next);
         if (next.supabaseUrl && next.supabaseKey) {
+          const { createClient } = await import('@supabase/supabase-js');
+          if (!active) return;
           const supabase = createClient(next.supabaseUrl, next.supabaseKey);
           setClient(supabase);
           const subscription = supabase.auth.onAuthStateChange(
@@ -177,8 +191,14 @@ export function BoughtProvider({ children }: { children: ReactNode }) {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         signal: AbortSignal.timeout(30000),
       });
-      const result = (await response.json()) as T & { error?: string };
-      if (!response.ok) throw new Error(result.error ?? 'Please try again.');
+      const result = (await response.json().catch(() => null)) as
+        | (T & { error?: string })
+        | null;
+      if (!response.ok)
+        throw new Error(
+          result?.error ?? 'The server could not complete this request.',
+        );
+      if (!result) throw new Error('The server returned an invalid response.');
       return result as T;
     },
     [client],

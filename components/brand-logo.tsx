@@ -1,3 +1,4 @@
+/* oxlint-disable next/no-img-element -- Vinext's image optimizer is not used on Vercel; these immutable local assets are pre-sized. */
 type BrandLogoProps = {
   className?: string;
 };
