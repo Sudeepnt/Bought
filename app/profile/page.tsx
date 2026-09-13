@@ -4,22 +4,37 @@ import Link from '@/components/site-link';
 import {
   ArrowLeft,
   ArrowUpRight,
+  BarChart3,
   BadgeCheck,
+  BriefcaseBusiness,
+  Building2,
   Check,
   CalendarDays,
   Compass,
   Eye,
   EyeOff,
+  Gamepad2,
   Globe2,
+  GraduationCap,
+  Handshake,
   ImagePlus,
+  Lightbulb,
   LockKeyhole,
   LogOut,
   MapPin,
+  MessageCircle,
   Pencil,
   Radio,
   ShieldCheck,
+  Sparkles,
+  Sprout,
+  Target,
+  TrendingUp,
+  UserRoundPlus,
+  UsersRound,
   UserRound,
   WalletCards,
+  type LucideIcon,
 } from 'lucide-react';
 import { useState, type ChangeEvent, type SyntheticEvent } from 'react';
 
@@ -115,11 +130,21 @@ function metadataCategories(metadata: Record<string, unknown>) {
   );
 }
 
+function metadataGoals(metadata: Record<string, unknown>) {
+  const raw = metadata.profile_goals ?? metadata.goals;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (item): item is string =>
+      typeof item === 'string' && GOALS.some((goal) => goal.label === item),
+  );
+}
+
 type ProfileDraft = {
   avatarUrl: string;
   age: string;
   country: string;
   city: string;
+  goals: string[];
   categories: string[];
   fullName: string;
   username: string;
@@ -147,6 +172,7 @@ function profileDraft(
     age: metadataValue(metadata, 'age'),
     country,
     city,
+    goals: metadataGoals(metadata),
     categories: metadataCategories(metadata),
     fullName: metadataValue(metadata, 'full_name', 'name'),
     username: rawHandle.replace(/^@/, ''),
@@ -165,7 +191,13 @@ const previewProfile: ProfileDraft = {
   age: '29',
   country: 'India',
   city: 'Bengaluru',
-  categories: ['BUILDING', 'THE ASK'],
+  goals: [
+    'Discover interesting people',
+    'Learn from real results',
+    'Follow debates and opinions',
+    'Just browse and be entertained',
+  ],
+  categories: ['BEEF', 'CONFESSIONS', 'BUILDING'],
   fullName: 'Ananya Rao',
   username: 'ananyabuilds',
   bio: 'Building in public. Backing ideas worth hearing.',
@@ -177,30 +209,93 @@ const previewProfile: ProfileDraft = {
   walletPublic: false,
 };
 
+const GOALS: { label: string; description: string; icon: LucideIcon }[] = [
+  {
+    label: 'Discover interesting people',
+    description: 'Follow builders, investors, creators and more.',
+    icon: UsersRound,
+  },
+  {
+    label: 'Find products and companies',
+    description: 'Explore what people are building and buying.',
+    icon: Building2,
+  },
+  {
+    label: 'Follow business and startups',
+    description: 'Stay updated on markets, trends and new ideas.',
+    icon: TrendingUp,
+  },
+  {
+    label: 'Learn from real results',
+    description: "See what works. What doesn't. Real experiences.",
+    icon: BarChart3,
+  },
+  {
+    label: 'Find jobs and hiring opportunities',
+    description: 'Discover roles and opportunities.',
+    icon: BriefcaseBusiness,
+  },
+  {
+    label: 'Find customers',
+    description: 'Connect with people who need what you build.',
+    icon: UserRoundPlus,
+  },
+  {
+    label: 'Find founders, partners, or collaborators',
+    description: "Meet people to build what's next.",
+    icon: Handshake,
+  },
+  {
+    label: 'Follow debates and opinions',
+    description: 'See different perspectives on what matters.',
+    icon: MessageCircle,
+  },
+  {
+    label: 'Discover new opportunities',
+    description: 'Get early access to ideas, drops and more.',
+    icon: Sparkles,
+  },
+  {
+    label: 'Find investors or fundraising opportunities',
+    description: 'Connect with capital and backers.',
+    icon: Sprout,
+  },
+  {
+    label: 'Discover creators and experts',
+    description: 'Learn from industry experts and thought leaders.',
+    icon: GraduationCap,
+  },
+  {
+    label: 'Just browse and be entertained',
+    description: 'Explore, watch and enjoy the community.',
+    icon: Gamepad2,
+  },
+];
+
 const setupSteps = [
   {
-    key: 'preferences',
-    label: 'YOUR ROOMS',
-    title: 'Choose the signals you want first.',
-    description: 'Pick the rooms you actually care about. We’ll use this to tune what rises into view.',
+    key: 'goals',
+    label: 'WHAT BRINGS YOU',
+    title: 'What brings you to BOUGHT?',
+    description: 'Help us personalize what you see first.',
+  },
+  {
+    key: 'categories',
+    label: 'CATEGORIES',
+    title: 'Choose your categories.',
+    description: 'Pick at least 3. This helps us personalize your feed.',
   },
   {
     key: 'identity',
-    label: 'IDENTITY',
-    title: 'Make the signal yours.',
-    description: 'Name, photo, age, and place help people recognize the person behind the position.',
-  },
-  {
-    key: 'reach',
-    label: 'LINKS',
-    title: 'Let people follow the signal.',
-    description: 'Social links are optional. Add them now or anytime from your profile.',
+    label: 'CREATE PROFILE',
+    title: 'Create your profile.',
+    description: 'Add the details people will see when they find your signal.',
   },
   {
     key: 'wallet',
-    label: 'WALLET SIGNAL',
-    title: 'Choose what your wallet says.',
-    description: 'Your balance stays in BOUGHT. You decide whether the public signal is visible.',
+    label: 'WALLET',
+    title: 'Choose your wallet signal.',
+    description: 'Keep your wallet private or show the proof. Your call.',
   },
 ] as const;
 
@@ -216,7 +311,7 @@ function ProfileSetup({
   previewOnly?: boolean;
 }) {
   const { client } = useBought();
-  const [step, setStep] = useState<SetupStep>('preferences');
+  const [step, setStep] = useState<SetupStep>('goals');
   const [draft, setDraft] = useState<ProfileDraft>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -250,8 +345,11 @@ function ProfileSetup({
   function continueSetup(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
-    if (step === 'preferences' && draft.categories.length === 0) {
-      return setError('Choose at least one room so we know what to surface first.');
+    if (step === 'goals' && draft.goals.length === 0) {
+      return setError('Choose at least one reason so we know what to surface first.');
+    }
+    if (step === 'categories' && draft.categories.length < 3) {
+      return setError('Pick at least 3 categories so we can tune your feed.');
     }
     if (step === 'identity') {
       if (draft.fullName.trim().length < 2)
@@ -285,6 +383,7 @@ function ProfileSetup({
           age: draft.age.trim(),
           country: draft.country.trim(),
           city: draft.city.trim(),
+          profile_goals: draft.goals,
           preferred_categories: draft.categories,
           full_name: draft.fullName.trim(),
           username: draft.username.trim(),
@@ -329,7 +428,7 @@ function ProfileSetup({
                 EXIT PREVIEW
               </button>
             )}
-            STEP {stepIndex + 1} / {setupSteps.length}
+            STEP {stepIndex + 2} / 5
           </span>
         </div>
         <div className="profile-setup-steps" aria-label="Profile setup progress">
@@ -351,11 +450,56 @@ function ProfileSetup({
         </header>
 
         <form className="profile-setup-form" onSubmit={continueSetup}>
-          {step === 'preferences' && (
+          {step === 'goals' && (
+            <div className="profile-form-fields">
+              <fieldset className="profile-category-picker profile-goal-picker">
+                <legend>
+                  WHAT I WANT TO SEE <span>SELECT AT LEAST ONE</span>
+                </legend>
+                <div className="profile-goal-grid">
+                  {GOALS.map((goal) => {
+                    const selected = draft.goals.includes(goal.label);
+                    const GoalIcon = goal.icon;
+                    return (
+                      <button
+                        key={goal.label}
+                        type="button"
+                        className={`profile-goal-option ${selected ? 'is-selected' : ''}`}
+                        aria-pressed={selected}
+                        onClick={() =>
+                          update(
+                            'goals',
+                            selected
+                              ? draft.goals.filter((item) => item !== goal.label)
+                              : [...draft.goals, goal.label],
+                          )
+                        }
+                      >
+                        <span className="profile-goal-icon"><GoalIcon size={22} /></span>
+                        <span className="profile-goal-copy">
+                          <strong>{goal.label}</strong>
+                          <small>{goal.description}</small>
+                        </span>
+                        <span className="profile-goal-toggle">
+                          {selected ? <Check size={14} /> : '+'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="profile-setup-note profile-preference-note">
+                  <Compass size={16} />
+                  <span>Your choices tune what we surface first. You can change them later.</span>
+                </div>
+              </fieldset>
+            </div>
+          )}
+
+          {step === 'categories' && (
             <div className="profile-form-fields">
               <fieldset className="profile-category-picker">
                 <legend>
-                  ROOMS I WANT TO SEE <span>SELECT AT LEAST ONE</span>
+                  CATEGORIES I WANT TO SEE <span>PICK AT LEAST 3</span>
                 </legend>
                 <div className="profile-category-grid">
                   {CATEGORIES.map((category, index) => {
@@ -379,7 +523,7 @@ function ProfileSetup({
                           {selected ? <Check size={14} /> : String(index + 1).padStart(2, '0')}
                         </span>
                         <strong>{category}</strong>
-                        <small>{selected ? 'ON YOUR FLOOR' : 'ADD TO YOUR FLOOR'}</small>
+                        <small>{selected ? 'ON YOUR FLOOR' : 'ADD TO YOUR FEED'}</small>
                       </button>
                     );
                   })}
@@ -489,39 +633,38 @@ function ProfileSetup({
                 />
                 <small>{draft.bio.length} / 160</small>
               </label>
-            </div>
-          )}
-
-          {step === 'reach' && (
-            <div className="profile-form-fields">
-              <label className="profile-field">
-                WEBSITE <span className="profile-field-optional">OPTIONAL</span>
-                <input
-                  type="url"
-                  value={draft.website}
-                  onChange={(event) => update('website', event.target.value)}
-                  placeholder="https://your-site.com"
-                />
-              </label>
-              <label className="profile-field">
-                X PROFILE <span className="profile-field-optional">OPTIONAL</span>
-                <input
-                  value={draft.x}
-                  onChange={(event) => update('x', event.target.value)}
-                  placeholder="@yourhandle or x.com/yourhandle"
-                />
-              </label>
-              <label className="profile-field">
-                LINKEDIN <span className="profile-field-optional">OPTIONAL</span>
-                <input
-                  value={draft.linkedin}
-                  onChange={(event) => update('linkedin', event.target.value)}
-                  placeholder="linkedin.com/in/yourname"
-                />
-              </label>
-              <div className="profile-setup-note">
-                <Globe2 size={16} />
-                <span>These links are optional. Add them now or edit them anytime from your profile.</span>
+              <div className="profile-create-links">
+                <label className="profile-field">
+                  WEBSITE <span className="profile-field-optional">OPTIONAL</span>
+                  <input
+                    type="url"
+                    value={draft.website}
+                    onChange={(event) => update('website', event.target.value)}
+                    placeholder="https://your-site.com"
+                  />
+                </label>
+                <div className="profile-form-grid">
+                  <label className="profile-field">
+                    X PROFILE <span className="profile-field-optional">OPTIONAL</span>
+                    <input
+                      value={draft.x}
+                      onChange={(event) => update('x', event.target.value)}
+                      placeholder="@yourhandle"
+                    />
+                  </label>
+                  <label className="profile-field">
+                    LINKEDIN <span className="profile-field-optional">OPTIONAL</span>
+                    <input
+                      value={draft.linkedin}
+                      onChange={(event) => update('linkedin', event.target.value)}
+                      placeholder="linkedin.com/in/yourname"
+                    />
+                  </label>
+                </div>
+                <div className="profile-setup-note">
+                  <Globe2 size={16} />
+                  <span>These links are optional. Add them now or edit them anytime from your profile.</span>
+                </div>
               </div>
             </div>
           )}
@@ -587,34 +730,91 @@ function ProfileSetup({
         </form>
       </section>
 
-      <aside className="profile-setup-preview route-panel">
-        <div className="profile-card-label"><UserRound size={15} /> YOUR PUBLIC PREVIEW</div>
-        <div className="profile-preview-identity">
-          <ProfileAvatar
-            initials={draft.fullName.slice(0, 2).toUpperCase() || 'BT'}
-            imageSrc={draft.avatarUrl || undefined}
-            imageMode="cover"
-            className="profile-avatar-medium"
-          />
-          <div>
-            <strong>{draft.fullName || 'Your name'}</strong>
-            <span>@{draft.username || 'yourhandle'}</span>
+      {step === 'goals' ? (
+        <aside className="profile-setup-preview profile-setup-summary route-panel">
+          <div className="profile-card-label">
+            <span><UsersRound size={15} /> YOUR BOUGHT WILL FOCUS ON</span>
+            <span className="profile-summary-count">{draft.goals.length} / {GOALS.length}</span>
           </div>
-        </div>
-        <p className="profile-preview-bio">{draft.bio || 'Your bio will sit beside every broadcast you publish.'}</p>
-        <div className="profile-preview-includes">
-          <span><Check size={14} /> {draft.categories.length || 'YOUR'} ROOMS</span>
-          <span><Check size={14} /> NAME &amp; BIO</span>
-          <span><Check size={14} /> AGE &amp; LOCATION</span>
-          <span><Check size={14} /> SOCIAL LINKS</span>
-          <span><Check size={14} /> BROADCASTS</span>
-          <span className={draft.walletPublic ? '' : 'is-muted'}>{draft.walletPublic ? <Eye size={14} /> : <EyeOff size={14} />} WALLET SIGNAL</span>
-        </div>
-        <div className="profile-preview-footer">
-          <span>PUBLIC PROFILE</span>
-          <Globe2 size={14} />
-        </div>
-      </aside>
+          <div className="profile-selection-list">
+            {draft.goals.map((goal) => {
+              const GoalIcon = GOALS.find((item) => item.label === goal)?.icon ?? Sparkles;
+              return (
+                <div key={goal}>
+                  <span className="profile-selection-icon"><GoalIcon size={16} /></span>
+                  <span>{goal}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${goal}`}
+                    onClick={() => update('goals', draft.goals.filter((item) => item !== goal))}
+                  >×</button>
+                </div>
+              );
+            })}
+            {!draft.goals.length && <p className="profile-summary-empty">Choose what you want to see first.</p>}
+          </div>
+          <div className="profile-summary-benefits">
+            <div><Sparkles size={19} /><span><strong>More relevant broadcasts</strong><small>See content from people and topics you care about.</small></span></div>
+            <div><Target size={19} /><span><strong>Smarter recommendations</strong><small>We’ll surface the most relevant people, ideas and opportunities.</small></span></div>
+            <div><Lightbulb size={19} /><span><strong>You can change this later</strong><small>Your choices stay editable from your profile.</small></span></div>
+          </div>
+        </aside>
+      ) : step === 'categories' ? (
+        <aside className="profile-setup-preview profile-setup-summary route-panel">
+          <div className="profile-card-label">
+            <span><Compass size={15} /> YOUR SELECTION</span>
+            <span className="profile-summary-count">{draft.categories.length} / {CATEGORIES.length}</span>
+          </div>
+          <div className="profile-selection-list">
+            {draft.categories.map((category) => (
+              <div key={category}>
+                <span className="profile-selection-icon"><Compass size={16} /></span>
+                <span>{category}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${category}`}
+                  onClick={() => update('categories', draft.categories.filter((item) => item !== category))}
+                >×</button>
+              </div>
+            ))}
+            {!draft.categories.length && <p className="profile-summary-empty">Pick at least 3 categories for your feed.</p>}
+          </div>
+          <div className="profile-summary-benefits">
+            <div><Sparkles size={19} /><span><strong>A more relevant feed</strong><small>See the people, categories and topics you care about.</small></span></div>
+            <div><Target size={19} /><span><strong>Discover new opportunities</strong><small>Find broadcasts, people and ideas faster.</small></span></div>
+            <div><Lightbulb size={19} /><span><strong>Fully customizable</strong><small>You can always edit your categories later.</small></span></div>
+          </div>
+        </aside>
+      ) : (
+        <aside className="profile-setup-preview route-panel">
+          <div className="profile-card-label"><UserRound size={15} /> YOUR PUBLIC PREVIEW</div>
+          <div className="profile-preview-identity">
+            <ProfileAvatar
+              initials={draft.fullName.slice(0, 2).toUpperCase() || 'BT'}
+              imageSrc={draft.avatarUrl || undefined}
+              imageMode="cover"
+              className="profile-avatar-medium"
+            />
+            <div>
+              <strong>{draft.fullName || 'Your name'}</strong>
+              <span>@{draft.username || 'yourhandle'}</span>
+            </div>
+          </div>
+          <p className="profile-preview-bio">{draft.bio || 'Your bio will sit beside every broadcast you publish.'}</p>
+          <div className="profile-preview-includes">
+            <span><Check size={14} /> {draft.categories.length || 'YOUR'} ROOMS</span>
+            <span><Check size={14} /> NAME &amp; BIO</span>
+            <span><Check size={14} /> AGE &amp; LOCATION</span>
+            <span><Check size={14} /> SOCIAL LINKS</span>
+            <span><Check size={14} /> BROADCASTS</span>
+            <span className={draft.walletPublic ? '' : 'is-muted'}>{draft.walletPublic ? <Eye size={14} /> : <EyeOff size={14} />} WALLET SIGNAL</span>
+          </div>
+          <div className="profile-preview-footer">
+            <span>PUBLIC PROFILE</span>
+            <Globe2 size={14} />
+          </div>
+        </aside>
+      )}
     </div>
   );
 }
