@@ -660,6 +660,7 @@ const CategoryPanel = memo(function CategoryPanel({
   const loadedCount = Math.min(visibleCount, broadcasts.length);
   const hasMore = loadedCount < broadcasts.length;
   const loadMarkerRef = useRef<HTMLDivElement>(null);
+  const expandedBroadcastRef = useRef<HTMLDivElement>(null);
   const categoryStyle = {
     '--category-accent': category.accent,
   } as CSSProperties;
@@ -681,6 +682,15 @@ const CategoryPanel = memo(function CategoryPanel({
     return () => observer.disconnect();
   }, [category.name, hasMore, loadedCount, onLoadMore]);
 
+  useEffect(() => {
+    if (!selectedBroadcastId) return;
+
+    expandedBroadcastRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+  }, [selectedBroadcastId]);
+
   return (
     <article
       className="category-market-panel is-active"
@@ -688,16 +698,6 @@ const CategoryPanel = memo(function CategoryPanel({
       aria-label={`${category.name} category, selected`}
     >
       <div className="category-market-panel-inner">
-        <BroadcastVideoCard
-          broadcast={featuredBroadcast}
-          category={category}
-          playingId={playingId}
-          onPlay={onPlay}
-          loadThumbnail
-          dropId={dropIdsByRank[featuredBroadcast.rank] ?? null}
-          useSharedDemoVideo
-        />
-
         <div className="category-market-list-head">
           <strong>LIVE POSITIONS</strong>
           <span className="category-market-list-actions">
@@ -706,47 +706,69 @@ const CategoryPanel = memo(function CategoryPanel({
         </div>
 
         <div className="category-market-list category-position-list">
-          {broadcasts.slice(1, loadedCount).map((broadcast) => (
-            <button
-              className={`category-position-row ${featuredBroadcast.id === broadcast.id ? 'is-featured' : ''}`}
-              key={broadcast.id}
-              type="button"
-              aria-label={`Preview position #${broadcast.rank}, ${broadcast.price}, ${broadcast.title}`}
-              aria-pressed={featuredBroadcast.id === broadcast.id}
-              onPointerEnter={() => onSelectBroadcast(broadcast.id)}
-              onFocus={() => onSelectBroadcast(broadcast.id)}
-              onClick={() => onSelectBroadcast(broadcast.id)}
-            >
-              <span className="category-position-rank">#{broadcast.rank}</span>
-              <ProfileAvatar
-                initials={broadcast.initials}
-                imageSrc="/leaderboard-portraits.png"
-                imagePosition={broadcast.imagePosition}
-                className="category-position-avatar"
-                alt={broadcast.name}
-              />
-              <span className="category-position-copy">
-                <strong>{broadcast.title}</strong>
-                <small>
-                  {broadcast.name} · {broadcast.handle}
-                </small>
-              </span>
-              <span className="category-position-bid">
-                <small>CURRENT BID</small>
-                <strong>{broadcast.price}</strong>
-              </span>
-              <span
-                className={`category-position-change ${broadcast.change > 0 ? 'is-up' : 'is-down'}`}
+          {broadcasts.slice(0, loadedCount).map((broadcast) => {
+            const isExpanded = featuredBroadcast.id === broadcast.id;
+
+            if (isExpanded) {
+              return (
+                <div
+                  ref={expandedBroadcastRef}
+                  className="category-position-expanded"
+                  key={broadcast.id}
+                  aria-label={`Position #${broadcast.rank} expanded${playingId === broadcast.id ? ' and playing' : ''}`}
+                >
+                  <BroadcastVideoCard
+                    broadcast={broadcast}
+                    category={category}
+                    playingId={playingId}
+                    onPlay={onPlay}
+                    loadThumbnail
+                    dropId={dropIdsByRank[broadcast.rank] ?? null}
+                    useSharedDemoVideo
+                  />
+                </div>
+              );
+            }
+
+            return (
+              <button
+                className="category-position-row"
+                key={broadcast.id}
+                type="button"
+                aria-label={`Open and play position #${broadcast.rank}, ${broadcast.price}, ${broadcast.title}`}
+                onClick={() => onSelectBroadcast(broadcast.id)}
               >
-                {broadcast.change > 0 ? '+' : ''}
-                {broadcast.change}%
-              </span>
-              <span className="category-position-next">
-                <small>TAKE THIS SPOT</small>
-                <strong>{broadcast.takePrice}</strong>
-              </span>
-            </button>
-          ))}
+                <span className="category-position-rank">#{broadcast.rank}</span>
+                <ProfileAvatar
+                  initials={broadcast.initials}
+                  imageSrc="/leaderboard-portraits.png"
+                  imagePosition={broadcast.imagePosition}
+                  className="category-position-avatar"
+                  alt={broadcast.name}
+                />
+                <span className="category-position-copy">
+                  <strong>{broadcast.title}</strong>
+                  <small>
+                    {broadcast.name} · {broadcast.handle}
+                  </small>
+                </span>
+                <span className="category-position-bid">
+                  <small>CURRENT BID</small>
+                  <strong>{broadcast.price}</strong>
+                </span>
+                <span
+                  className={`category-position-change ${broadcast.change > 0 ? 'is-up' : 'is-down'}`}
+                >
+                  {broadcast.change > 0 ? '+' : ''}
+                  {broadcast.change}%
+                </span>
+                <span className="category-position-next">
+                  <small>TAKE THIS SPOT</small>
+                  <strong>{broadcast.takePrice}</strong>
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {hasMore && (
@@ -869,7 +891,7 @@ export default function CategoriesPage() {
 
   const selectBroadcast = useCallback((id: string) => {
     setFeaturedBroadcastId(id);
-    setPlayingId((current) => (current === null ? null : id));
+    setPlayingId(id);
   }, []);
 
   const scrollToTop = useCallback(() => {

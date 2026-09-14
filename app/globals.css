@@ -14190,11 +14190,35 @@ html[data-theme='light'] .category-back-to-top {
 }
 
 .category-position-row:hover,
-.category-position-row:focus-visible,
-.category-position-row.is-featured {
+.category-position-row:focus-visible {
   background: linear-gradient(90deg, rgba(239, 43, 50, 0.12), transparent 72%);
   box-shadow: inset 3px 0 0 var(--category-accent, #ef2b32);
   outline: 0;
+}
+
+.category-position-expanded {
+  animation: category-position-expand 220ms cubic-bezier(0.2, 0.8, 0.2, 1)
+    both;
+  background: #030506;
+  border-bottom: 1px solid #202a2e;
+  box-shadow: inset 3px 0 0 var(--category-accent, #ef2b32);
+  overflow: hidden;
+  scroll-margin-block: 96px;
+}
+
+.category-position-expanded .category-lead-card {
+  border-bottom: 0;
+}
+
+@keyframes category-position-expand {
+  from {
+    opacity: 0.55;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .category-position-row:last-child {
