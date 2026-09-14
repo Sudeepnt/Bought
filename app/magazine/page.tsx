@@ -125,8 +125,8 @@ export default function MagazinePage() {
               <h2>One point of view rose above every category.</h2>
               <p>This cover belongs to the single position that held the most weight when the drop locked. It is where the day&apos;s entire room begins.</p>
               <dl>
-                <div><dt>ISSUE REACH</dt><dd>84.6K VIEWS</dd></div>
-                <div><dt>COVER OPENS</dt><dd>18.2K</dd></div>
+                <div><dt>ISSUE REACH</dt><dd>84,600 VIEWS</dd></div>
+                <div><dt>COVER OPENS</dt><dd>18,200</dd></div>
                 <div><dt>ROOMS DOCUMENTED</dt><dd>13</dd></div>
               </dl>
               <Link href={magazineIssueHref(latestIssue)}>READ THE ALL ISSUE <ArrowUpRight size={15} /></Link>
@@ -169,8 +169,8 @@ export default function MagazinePage() {
         </section>
 
         <section className="magazine-edition-reach" aria-label="Latest issue reach">
-          <div><strong>163.2K</strong><span>ISSUE VIEWS</span></div>
-          <div><strong>42.7K</strong><span>UNIQUE READERS</span></div>
+          <div><strong>163,200</strong><span>ISSUE VIEWS</span></div>
+          <div><strong>42,700</strong><span>UNIQUE READERS</span></div>
           <div><strong>13</strong><span>ROOM LEADERS</span></div>
           <div><strong>1</strong><span>ALL #1 COVER</span></div>
         </section>
@@ -264,7 +264,7 @@ export default function MagazinePage() {
               <span>03 / REACH LEDGER</span>
               <h3>See what the issue actually did.</h3>
               <p>Issue views, cover opens, and broadcast visits remain attached to the entry, so attention is visible instead of promised.</p>
-              <div className="magazine-reach-ledger"><span><strong>84.6K</strong> ISSUE VIEWS</span><span><strong>18.2K</strong> COVER OPENS</span><span><strong>6.4K</strong> BROADCAST VISITS</span></div>
+              <div className="magazine-reach-ledger"><span><strong>84,600</strong> ISSUE VIEWS</span><span><strong>18,200</strong> COVER OPENS</span><span><strong>6,400</strong> BROADCAST VISITS</span></div>
             </article>
           </div>
           <p className="magazine-exposure-note"><LockKeyhole size={13} /> BOUGHT can attribute and link to the public accounts you provide, and gives you share-ready issue assets. External-platform distribution and follower growth are never guaranteed.</p>

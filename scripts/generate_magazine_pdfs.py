@@ -10,24 +10,24 @@ OUTPUT = ROOT / "output" / "pdf"
 PAGE_W, PAGE_H = 595, 842
 
 ISSUES = [
-    ("all-2026-09-09", "05", "09 SEPTEMBER 2026", "ANANYA RAO", "ALL / #1 OVERALL", "THE COST OF BEING SEEN", "/ananya-rao-hero.webp", "charcoal", "84.6K", "18.2K"),
-    ("building-2026-09-09", "04", "09 SEPTEMBER 2026", "ARJUN SEN", "BUILDING / #1", "BUILD BEFORE THEY BELIEVE", "/magazine/issue-01-blue.png", "blue", "26.4K", "6.1K"),
-    ("the-rant-2026-09-09", "03", "09 SEPTEMBER 2026", "MAYA KHAN", "THE RANT / #1", "SAY THE QUIET PART OUT LOUD", "/magazine/issue-02-red.png", "red", "19.8K", "4.8K"),
-    ("money-2026-09-09", "02", "09 SEPTEMBER 2026", "PRIYA MEHTA", "MONEY I SET ON FIRE / #1", "WHAT THE ROOM WILL PAY FOR", "/magazine/issue-03-orange.png", "orange", "17.1K", "4.1K"),
-    ("unpopular-opinion-2026-09-09", "01", "09 SEPTEMBER 2026", "MARCUS REED", "UNPOPULAR OPINION / #1", "EVERY POINT HAS A PRICE", "/magazine/issue-04-green.png", "green", "15.3K", "3.6K"),
-    ("beef-2026-09-09", "05", "09 SEPTEMBER 2026", "DEV ARORA", "BEEF / #1", "THE BEEF LEDGER", "/magazine/issue-02-red.png", "red", "14.8K", "3.4K"),
-    ("chaos-2026-09-09", "06", "09 SEPTEMBER 2026", "LINA THOMAS", "CHAOS / #1", "THE CHAOS INDEX", "/magazine/issue-03-orange.png", "orange", "12.9K", "3.0K"),
-    ("wrong-2026-09-09", "07", "09 SEPTEMBER 2026", "ROHAN SHAH", "I WAS WRONG / #1", "THE REVISION NOTE", "/magazine/issue-01-blue.png", "blue", "11.7K", "2.7K"),
-    ("confessions-2026-09-09", "08", "09 SEPTEMBER 2026", "ADA KIM", "CONFESSIONS / #1", "THE PUBLIC ADMISSION", "/magazine/issue-04-green.png", "green", "10.8K", "2.5K"),
-    ("pitch-2026-09-09", "09", "09 SEPTEMBER 2026", "SANJAY BOSE", "THE PITCH THAT GOT REJECTED / #1", "THE REJECTION FILE", "/magazine/issue-01-blue.png", "charcoal", "10.2K", "2.4K"),
-    ("ask-2026-09-09", "10", "09 SEPTEMBER 2026", "CHLOE WU", "THE ASK / #1", "THE OPEN QUESTION", "/magazine/issue-02-red.png", "blue", "9.6K", "2.2K"),
-    ("hiring-2026-09-09", "11", "09 SEPTEMBER 2026", "NEEL GUPTA", "HIRING / #1", "THE HIRING NOTE", "/magazine/issue-03-orange.png", "orange", "9.1K", "2.1K"),
-    ("agency-row-2026-09-09", "12", "09 SEPTEMBER 2026", "LEILA HADDAD", "AGENCY ROW / #1", "THE AGENCY RECORD", "/magazine/issue-02-red.png", "red", "8.9K", "2.0K"),
-    ("indian-d2c-2026-09-09", "13", "09 SEPTEMBER 2026", "RITESH JAIN", "INDIAN D2C / #1", "THE D2C RECEIPT", "/magazine/issue-04-green.png", "green", "8.4K", "1.9K"),
-    ("all-2026-09-08", "04", "08 SEPTEMBER 2026", "KABIR MALIK", "ALL / #1 OVERALL", "THE PATIENCE TO HOLD", "/magazine/archive-2026-09-08.png", "blue", "126K", "21.4K"),
-    ("all-2026-09-07", "03", "07 SEPTEMBER 2026", "NIA KAPOOR", "ALL / #1 OVERALL", "THE ROOM CHANGED ITS MIND", "/magazine/archive-2026-09-07.png", "red", "109K", "18.7K"),
-    ("all-2026-09-06", "02", "06 SEPTEMBER 2026", "JULES REED", "ALL / #1 OVERALL", "DON'T ASK FOR THE ROOM", "/magazine/archive-2026-09-06.png", "green", "91K", "15.8K"),
-    ("all-2026-09-05", "01", "05 SEPTEMBER 2026", "SOFIA DESAI", "ALL / #1 OVERALL", "THE FIRST RECORD", "/magazine/archive-2026-09-06.png", "charcoal", "76K", "13.4K"),
+    ("all-2026-09-09", "05", "09 SEPTEMBER 2026", "ANANYA RAO", "ALL / #1 OVERALL", "THE COST OF BEING SEEN", "/ananya-rao-hero.webp", "charcoal", "84,600", "18,200"),
+    ("building-2026-09-09", "04", "09 SEPTEMBER 2026", "ARJUN SEN", "BUILDING / #1", "BUILD BEFORE THEY BELIEVE", "/magazine/issue-01-blue.png", "blue", "26,400", "6,100"),
+    ("the-rant-2026-09-09", "03", "09 SEPTEMBER 2026", "MAYA KHAN", "THE RANT / #1", "SAY THE QUIET PART OUT LOUD", "/magazine/issue-02-red.png", "red", "19,800", "4,800"),
+    ("money-2026-09-09", "02", "09 SEPTEMBER 2026", "PRIYA MEHTA", "MONEY I SET ON FIRE / #1", "WHAT THE ROOM WILL PAY FOR", "/magazine/issue-03-orange.png", "orange", "17,100", "4,100"),
+    ("unpopular-opinion-2026-09-09", "01", "09 SEPTEMBER 2026", "MARCUS REED", "UNPOPULAR OPINION / #1", "EVERY POINT HAS A PRICE", "/magazine/issue-04-green.png", "green", "15,300", "3,600"),
+    ("beef-2026-09-09", "05", "09 SEPTEMBER 2026", "DEV ARORA", "BEEF / #1", "THE BEEF LEDGER", "/magazine/issue-02-red.png", "red", "14,800", "3,400"),
+    ("chaos-2026-09-09", "06", "09 SEPTEMBER 2026", "LINA THOMAS", "CHAOS / #1", "THE CHAOS INDEX", "/magazine/issue-03-orange.png", "orange", "12,900", "3,000"),
+    ("wrong-2026-09-09", "07", "09 SEPTEMBER 2026", "ROHAN SHAH", "I WAS WRONG / #1", "THE REVISION NOTE", "/magazine/issue-01-blue.png", "blue", "11,700", "2,700"),
+    ("confessions-2026-09-09", "08", "09 SEPTEMBER 2026", "ADA KIM", "CONFESSIONS / #1", "THE PUBLIC ADMISSION", "/magazine/issue-04-green.png", "green", "10,800", "2,500"),
+    ("pitch-2026-09-09", "09", "09 SEPTEMBER 2026", "SANJAY BOSE", "THE PITCH THAT GOT REJECTED / #1", "THE REJECTION FILE", "/magazine/issue-01-blue.png", "charcoal", "10,200", "2,400"),
+    ("ask-2026-09-09", "10", "09 SEPTEMBER 2026", "CHLOE WU", "THE ASK / #1", "THE OPEN QUESTION", "/magazine/issue-02-red.png", "blue", "9,600", "2,200"),
+    ("hiring-2026-09-09", "11", "09 SEPTEMBER 2026", "NEEL GUPTA", "HIRING / #1", "THE HIRING NOTE", "/magazine/issue-03-orange.png", "orange", "9,100", "2,100"),
+    ("agency-row-2026-09-09", "12", "09 SEPTEMBER 2026", "LEILA HADDAD", "AGENCY ROW / #1", "THE AGENCY RECORD", "/magazine/issue-02-red.png", "red", "8,900", "2,000"),
+    ("indian-d2c-2026-09-09", "13", "09 SEPTEMBER 2026", "RITESH JAIN", "INDIAN D2C / #1", "THE D2C RECEIPT", "/magazine/issue-04-green.png", "green", "8,400", "1,900"),
+    ("all-2026-09-08", "04", "08 SEPTEMBER 2026", "KABIR MALIK", "ALL / #1 OVERALL", "THE PATIENCE TO HOLD", "/magazine/archive-2026-09-08.png", "blue", "126,000", "21,400"),
+    ("all-2026-09-07", "03", "07 SEPTEMBER 2026", "NIA KAPOOR", "ALL / #1 OVERALL", "THE ROOM CHANGED ITS MIND", "/magazine/archive-2026-09-07.png", "red", "109,000", "18,700"),
+    ("all-2026-09-06", "02", "06 SEPTEMBER 2026", "JULES REED", "ALL / #1 OVERALL", "DON'T ASK FOR THE ROOM", "/magazine/archive-2026-09-06.png", "green", "91,000", "15,800"),
+    ("all-2026-09-05", "01", "05 SEPTEMBER 2026", "SOFIA DESAI", "ALL / #1 OVERALL", "THE FIRST RECORD", "/magazine/archive-2026-09-06.png", "charcoal", "76,000", "13,400"),
 ]
 
 ACCENTS = {
@@ -163,6 +163,10 @@ def main():
         slug = issue[0]
         for folder in (PUBLIC, OUTPUT):
             draw_issue(folder / f"{slug}.pdf", issue)
+
+    # Keep the original issue-05 URL aligned with the current issue document.
+    for folder in (PUBLIC, OUTPUT):
+        draw_issue(folder / "bought-review-issue-05.pdf", ISSUES[0])
 
 
 if __name__ == "__main__":
