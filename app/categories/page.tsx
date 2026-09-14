@@ -1,27 +1,29 @@
 'use client';
 
 import {
-  ArrowDown,
   ArrowUp,
+  Bookmark,
   Briefcase,
   Building2,
   CircleHelp,
-  Crown,
   DollarSign,
   Eye,
   FileText,
   Flame,
   Megaphone,
   MessageCircle,
+  Pause,
   Play,
   Radio,
+  Share2,
   Store,
   Undo2,
   UsersRound,
+  Volume2,
+  VolumeX,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import Link from '@/components/site-link';
 import {
   memo,
   useCallback,
@@ -31,6 +33,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
 } from 'react';
+import Image from 'next/image';
 
 import { MarketFooter } from '@/components/market-chrome';
 import { MarketTopbar } from '@/components/market-topbar';
@@ -44,6 +47,9 @@ type Creator = {
   initials: string;
   duration: string;
   imagePosition: string;
+  socialPlatform: string;
+  profileType: string;
+  location: string;
 };
 
 type CategoryDefinition = {
@@ -63,7 +69,10 @@ type CategoryBroadcast = Creator & {
   title: string;
   price: string;
   change: number;
-  views: string;
+  views: number;
+  shares: number;
+  outbidCount: number;
+  takePrice: string;
 };
 
 const creators: Creator[] = [
@@ -73,6 +82,9 @@ const creators: Creator[] = [
     initials: 'AR',
     duration: '8:17',
     imagePosition: '25% 15%',
+    socialPlatform: 'LinkedIn',
+    profileType: 'Creator',
+    location: 'Bengaluru, India',
   },
   {
     name: 'Arjun S.',
@@ -80,6 +92,9 @@ const creators: Creator[] = [
     initials: 'AS',
     duration: '12:14',
     imagePosition: '0% 15%',
+    socialPlatform: 'X',
+    profileType: 'Individual',
+    location: 'Mumbai, India',
   },
   {
     name: 'Priya M.',
@@ -87,6 +102,9 @@ const creators: Creator[] = [
     initials: 'PM',
     duration: '10:21',
     imagePosition: '75% 15%',
+    socialPlatform: 'Instagram',
+    profileType: 'Creator',
+    location: 'New Delhi, India',
   },
   {
     name: 'Rahul K.',
@@ -94,6 +112,9 @@ const creators: Creator[] = [
     initials: 'RK',
     duration: '6:43',
     imagePosition: '100% 15%',
+    socialPlatform: 'YouTube',
+    profileType: 'Company',
+    location: 'Hyderabad, India',
   },
   {
     name: 'Karan V.',
@@ -101,6 +122,9 @@ const creators: Creator[] = [
     initials: 'KV',
     duration: '7:43',
     imagePosition: '50% 15%',
+    socialPlatform: 'LinkedIn',
+    profileType: 'Investor',
+    location: 'London, United Kingdom',
   },
   {
     name: 'Maya K.',
@@ -108,6 +132,9 @@ const creators: Creator[] = [
     initials: 'MK',
     duration: '9:12',
     imagePosition: '0% 85%',
+    socialPlatform: 'TikTok',
+    profileType: 'Creator',
+    location: 'Singapore',
   },
   {
     name: 'Dev P.',
@@ -115,6 +142,9 @@ const creators: Creator[] = [
     initials: 'DP',
     duration: '8:06',
     imagePosition: '25% 85%',
+    socialPlatform: 'X',
+    profileType: 'Creator',
+    location: 'New York, United States',
   },
   {
     name: 'Simran N.',
@@ -122,6 +152,9 @@ const creators: Creator[] = [
     initials: 'SN',
     duration: '6:55',
     imagePosition: '50% 85%',
+    socialPlatform: 'Instagram',
+    profileType: 'Individual',
+    location: 'Toronto, Canada',
   },
   {
     name: 'Kabir J.',
@@ -129,6 +162,9 @@ const creators: Creator[] = [
     initials: 'KJ',
     duration: '10:14',
     imagePosition: '75% 85%',
+    socialPlatform: 'LinkedIn',
+    profileType: 'Company',
+    location: 'Bengaluru, India',
   },
   {
     name: 'Aisha T.',
@@ -136,6 +172,9 @@ const creators: Creator[] = [
     initials: 'AT',
     duration: '7:48',
     imagePosition: '100% 85%',
+    socialPlatform: 'YouTube',
+    profileType: 'Creator',
+    location: 'Dubai, United Arab Emirates',
   },
 ];
 
@@ -308,14 +347,16 @@ function makeBroadcasts(
 
   return Array.from({ length: broadcastCount }, (_, index) => {
     const creator = creators[(category.leaderOffset + index) % creators.length];
-    const views = Math.max(
-      1900,
-      14200 - index * 1040 - categoryIndex * 190,
-    );
+    const views = Math.max(1900, 14000 - index * 1040 - categoryIndex * 190);
     const changeMagnitude = 2 + ((categoryIndex * 5 + index * 3) % 14);
-    const change = (categoryIndex + index) % 4 === 0
-      ? -changeMagnitude
-      : changeMagnitude;
+    const change =
+      (categoryIndex + index) % 4 === 0 ? -changeMagnitude : changeMagnitude;
+    const bidValue = Math.max(1800, category.topBid - index * step);
+    const shares = Math.max(18, 327 - index * 23 - categoryIndex * 11);
+    const outbidCount = Math.max(
+      0,
+      3 + (categoryIndex % 3) - Math.min(index, 4),
+    );
 
     return {
       ...creator,
@@ -325,9 +366,12 @@ function makeBroadcasts(
         index === 0
           ? category.leadTitle
           : secondaryTitles[(index + categoryIndex) % secondaryTitles.length],
-      price: formatPrice(Math.max(1800, category.topBid - index * step)),
+      price: formatPrice(bidValue),
       change,
-      views: `${(views / 1000).toFixed(1)}K`,
+      views,
+      shares,
+      outbidCount,
+      takePrice: formatPrice(bidValue + 100),
     };
   });
 }
@@ -348,12 +392,15 @@ function VideoThumbnail({
   prominent?: boolean;
   shouldLoad?: boolean;
 }) {
+  const prominentImage = prominent ? '/category-feature-poster.jpg' : null;
   const style = shouldLoad
-    ? {
-        backgroundImage: 'url(/leaderboard-portraits.png)',
-        backgroundPosition: broadcast.imagePosition,
-        backgroundSize: '500% auto',
-      }
+    ? prominentImage
+      ? undefined
+      : {
+          backgroundImage: 'url(/leaderboard-portraits.png)',
+          backgroundPosition: broadcast.imagePosition,
+          backgroundSize: '500% auto',
+        }
     : undefined;
 
   return (
@@ -362,6 +409,15 @@ function VideoThumbnail({
       style={style}
       aria-hidden="true"
     >
+      {shouldLoad && prominentImage && (
+        <Image
+          className="category-thumbnail-image"
+          src={prominentImage}
+          alt=""
+          fill
+          sizes="(max-width: 680px) 100vw, 48vw"
+        />
+      )}
       {!shouldLoad && (
         <span className="category-thumbnail-deferred">
           <ProfileAvatar
@@ -382,78 +438,196 @@ function BroadcastVideoCard({
   playingId,
   onPlay,
   loadThumbnail,
-  allowPlayback,
   dropId,
+  useSharedDemoVideo = false,
 }: {
   broadcast: CategoryBroadcast;
   category: CategoryDefinition;
   playingId: string | null;
   onPlay: (id: string) => void;
   loadThumbnail: boolean;
-  allowPlayback: boolean;
   dropId: string | null;
+  useSharedDemoVideo?: boolean;
 }) {
-  const isTopRank = broadcast.rank === 1;
   const isPlaying = playingId === broadcast.id;
+  const [isWatchlisted, setIsWatchlisted] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hasLocalDemo = useSharedDemoVideo || broadcast.rank === 1;
+  const canPlay = hasLocalDemo || Boolean(dropId);
+
+  useEffect(() => {
+    if (!hasLocalDemo || !videoRef.current) return;
+
+    if (isPlaying) {
+      void videoRef.current.play();
+      return;
+    }
+
+    videoRef.current.pause();
+  }, [hasLocalDemo, isPlaying]);
 
   return (
     <section
       className={`category-lead-card category-broadcast-video ${isPlaying ? 'is-playing' : ''}`}
     >
-      <VideoThumbnail
-        broadcast={broadcast}
-        prominent
-        shouldLoad={loadThumbnail}
-      />
-      {isPlaying && dropId && (
-        <div className="category-on-demand-player">
-          <DropPlayer dropId={dropId} />
-        </div>
-      )}
-      <span className="category-lead-shade" aria-hidden="true" />
-      <span className="category-lead-rank">
-        {isTopRank && (
-          <Crown
-            size={22}
-            strokeWidth={2}
-            fill="currentColor"
-            aria-hidden="true"
-          />
+      <div className="category-lead-media">
+        <VideoThumbnail
+          broadcast={broadcast}
+          prominent
+          shouldLoad={loadThumbnail}
+        />
+        {hasLocalDemo && (
+          <div className="category-on-demand-player category-local-player">
+            <video
+              ref={videoRef}
+              src="/video/category-feature.mp4"
+              poster="/category-feature-poster.jpg"
+              muted={isMuted}
+              playsInline
+              preload="metadata"
+              aria-label={`${broadcast.name}'s one-minute featured broadcast`}
+              onEnded={() => onPlay(broadcast.id)}
+            >
+              <track
+                kind="captions"
+                src="/video/category-feature.vtt"
+                srcLang="en"
+                label="English"
+                default
+              />
+            </video>
+          </div>
         )}
-        <b>#{broadcast.rank}</b>
-        <em>
-          <i /> LIVE
-        </em>
-      </span>
-      <div className="category-lead-copy">
-        <span>{category.name}</span>
-        <h2>&ldquo;{broadcast.title}&rdquo;</h2>
-        <strong>{broadcast.name}</strong>
-        <small>{broadcast.handle}</small>
-      </div>
-      <div className="category-lead-value">
-        <strong>{broadcast.price}</strong>
-        <span>
-          <Eye size={12} /> {broadcast.views} views
-        </span>
-      </div>
-      {allowPlayback && (
-        <button
-          className="category-lead-play"
-          type="button"
-          disabled={!dropId}
-          onClick={() => {
-            if (dropId) onPlay(broadcast.id);
-          }}
-          aria-label={
-            dropId
-              ? `${isPlaying ? 'Stop' : 'Play'} ${broadcast.name}'s broadcast at rank ${broadcast.rank}`
-              : `${broadcast.name}'s broadcast is not ready to play`
-          }
+        {isPlaying && !hasLocalDemo && dropId && (
+          <div className="category-on-demand-player">
+            <DropPlayer dropId={dropId} />
+          </div>
+        )}
+        <span className="category-lead-shade" aria-hidden="true" />
+        <div
+          className={`category-stage-status ${isPlaying ? 'is-visible' : ''}`}
+          aria-hidden={!isPlaying}
         >
-          {isPlaying ? 'Ⅱ' : <Play size={22} fill="currentColor" />}
-        </button>
-      )}
+          <i aria-hidden="true" />
+          <span>
+            <strong>ON STAGE</strong>
+            <small>LIVE TO THE WORLD</small>
+          </span>
+        </div>
+        <div className="category-lead-media-actions">
+          <button
+            className={`category-lead-control category-lead-watchlist ${isWatchlisted ? 'is-saved' : ''}`}
+            type="button"
+            aria-pressed={isWatchlisted}
+            aria-label={`${isWatchlisted ? 'Remove' : 'Add'} ${broadcast.name}'s broadcast ${isWatchlisted ? 'from' : 'to'} your watchlist`}
+            onClick={() => setIsWatchlisted((saved) => !saved)}
+          >
+            <Bookmark
+              size={15}
+              fill={isWatchlisted ? 'currentColor' : 'none'}
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            className="category-lead-control category-lead-playback"
+            type="button"
+            disabled={!canPlay}
+            onClick={() => {
+              if (canPlay) onPlay(broadcast.id);
+            }}
+            aria-label={
+              canPlay
+                ? `${isPlaying ? 'Stop' : 'Play'} ${broadcast.name}'s broadcast`
+                : `${broadcast.name}'s broadcast is not ready to play`
+            }
+          >
+            {isPlaying ? (
+              <Pause size={15} fill="currentColor" aria-hidden="true" />
+            ) : (
+              <Play size={15} fill="currentColor" aria-hidden="true" />
+            )}
+          </button>
+          <button
+            className="category-lead-control category-lead-sound"
+            type="button"
+            disabled={!hasLocalDemo}
+            onClick={() => setIsMuted((muted) => !muted)}
+            aria-label={isMuted ? 'Turn on video sound' : 'Mute video'}
+          >
+            {isMuted ? (
+              <VolumeX size={16} aria-hidden="true" />
+            ) : (
+              <Volume2 size={16} aria-hidden="true" />
+            )}
+          </button>
+        </div>
+      </div>
+      <div className="category-lead-content">
+        <div className="category-lead-market">
+          <span className="category-lead-rank">
+            <b>#{broadcast.rank}</b>
+            <em>
+              <i /> LIVE
+            </em>
+          </span>
+          <div className="category-lead-stack">
+            <div className="category-lead-value">
+              <small>CURRENT BID</small>
+              <strong>{broadcast.price}</strong>
+            </div>
+            <div className="category-lead-proof">
+              <span className="category-lead-stat">
+                <Eye size={13} aria-hidden="true" />
+                <span>
+                  <strong>{broadcast.views.toLocaleString('en-US')}</strong>
+                  <small>VIEWS</small>
+                </span>
+              </span>
+              <span className="category-lead-stat">
+                <Share2 size={13} aria-hidden="true" />
+                <span>
+                  <strong>{broadcast.shares.toLocaleString('en-US')}</strong>
+                  <small>SHARES</small>
+                </span>
+              </span>
+              <span className="category-lead-stat category-lead-outbid">
+                <UsersRound size={13} aria-hidden="true" />
+                <span>
+                  <strong>{broadcast.outbidCount.toLocaleString('en-US')}</strong>
+                  <small>OUTBID</small>
+                </span>
+              </span>
+            </div>
+            <span className="category-lead-take">
+              <strong>TAKE THIS SPOT</strong>
+              <b>{broadcast.takePrice}</b>
+            </span>
+            <div className="category-lead-author">
+              <ProfileAvatar
+                initials={broadcast.initials}
+                imageSrc="/leaderboard-portraits.png"
+                imagePosition={broadcast.imagePosition}
+                className="category-lead-author-avatar"
+              />
+              <span>
+                <strong>{broadcast.name}</strong>
+                <small>{broadcast.handle}</small>
+              </span>
+              <span className="category-lead-author-platform">
+                {broadcast.socialPlatform}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="category-lead-copy">
+          <span>{category.name}</span>
+          <h2>&ldquo;{broadcast.title}&rdquo;</h2>
+          <small className="category-lead-tagline">
+            BOLD IDEAS MOVE THINGS FORWARD.
+          </small>
+        </div>
+      </div>
     </section>
   );
 }
@@ -461,29 +635,29 @@ function BroadcastVideoCard({
 const CategoryPanel = memo(function CategoryPanel({
   category,
   categoryIndex,
-  position,
   playingId,
   onPlay,
+  selectedBroadcastId,
+  onSelectBroadcast,
   visibleCount,
   onLoadMore,
   dropIdsByRank,
 }: {
   category: CategoryDefinition;
   categoryIndex: number;
-  position: 'previous' | 'active' | 'next';
   playingId: string | null;
   onPlay: (id: string) => void;
+  selectedBroadcastId: string | null;
+  onSelectBroadcast: (id: string) => void;
   visibleCount: number;
   onLoadMore: (categoryName: string) => void;
   dropIdsByRank: Record<number, string>;
 }) {
-  const Icon = category.icon;
   const broadcasts = categoryBroadcasts[categoryIndex];
   const leader = broadcasts[0];
-  const categoryHref = `/categories?category=${encodeURIComponent(category.name)}`;
+  const featuredBroadcast =
+    broadcasts.find(({ id }) => id === selectedBroadcastId) ?? leader;
   const loadedCount = Math.min(visibleCount, broadcasts.length);
-  const listEnd =
-    position === 'active' ? loadedCount : Math.min(10, broadcasts.length);
   const hasMore = loadedCount < broadcasts.length;
   const loadMarkerRef = useRef<HTMLDivElement>(null);
   const categoryStyle = {
@@ -491,7 +665,7 @@ const CategoryPanel = memo(function CategoryPanel({
   } as CSSProperties;
 
   useEffect(() => {
-    if (position !== 'active' || !hasMore) return;
+    if (!hasMore) return;
 
     const marker = loadMarkerRef.current;
     if (!marker) return;
@@ -505,114 +679,77 @@ const CategoryPanel = memo(function CategoryPanel({
 
     observer.observe(marker);
     return () => observer.disconnect();
-  }, [category.name, hasMore, loadedCount, onLoadMore, position]);
+  }, [category.name, hasMore, loadedCount, onLoadMore]);
 
   return (
     <article
-      className={`category-market-panel is-${position}`}
+      className="category-market-panel is-active"
       style={categoryStyle}
-      aria-label={`${category.name} category, ${position === 'active' ? 'selected' : `${position} preview`}`}
+      aria-label={`${category.name} category, selected`}
     >
       <div className="category-market-panel-inner">
-        <header className="category-market-header">
-          <span className="category-market-icon" aria-hidden="true">
-            <Icon
-              size={position === 'active' ? 28 : 23}
-              strokeWidth={2.15}
-            />
-          </span>
-          <span className="category-market-heading">
-            <strong>{category.name}</strong>
-            <small>{category.description}</small>
-          </span>
-          <span className="category-market-live">
-            <i /> {category.liveCount} live drops
-          </span>
-        </header>
-
         <BroadcastVideoCard
-          broadcast={leader}
+          broadcast={featuredBroadcast}
           category={category}
           playingId={playingId}
           onPlay={onPlay}
-          loadThumbnail={position === 'active'}
-          allowPlayback={position === 'active'}
-          dropId={dropIdsByRank[leader.rank] ?? null}
+          loadThumbnail
+          dropId={dropIdsByRank[featuredBroadcast.rank] ?? null}
+          useSharedDemoVideo
         />
 
         <div className="category-market-list-head">
-          <strong>
-            {category.name === 'ALL'
-              ? 'ALL BROADCASTS'
-              : `${category.name} BROADCASTS`}
-          </strong>
+          <strong>LIVE POSITIONS</strong>
           <span className="category-market-list-actions">
-            <span>
-              {position === 'active'
-                ? `${loadedCount} OF ${broadcasts.length.toLocaleString('en-US')}`
-                : `${broadcasts.length.toLocaleString('en-US')} LIVE`}
-            </span>
-            <Link href={categoryHref}>VIEW ALL</Link>
+            {loadedCount} OF {broadcasts.length.toLocaleString('en-US')}
           </span>
         </div>
 
-        <div
-          className={`category-market-list ${position === 'active' ? 'is-video-feed' : ''}`}
-        >
-          {position === 'active'
-            ? broadcasts.slice(1, listEnd).map((broadcast) => (
-                <BroadcastVideoCard
-                  key={broadcast.id}
-                  broadcast={broadcast}
-                  category={category}
-                  playingId={playingId}
-                  onPlay={onPlay}
-                  loadThumbnail
-                  allowPlayback
-                  dropId={dropIdsByRank[broadcast.rank] ?? null}
-                />
-              ))
-            : broadcasts.slice(1, listEnd).map((broadcast) => (
-                <div className="category-market-row" key={broadcast.id}>
-                  <span className="category-market-rank">{broadcast.rank}</span>
-                  <ProfileAvatar
-                    initials={broadcast.initials}
-                    imageSrc="/leaderboard-portraits.png"
-                    imagePosition={broadcast.imagePosition}
-                    className="category-market-avatar"
-                    alt={broadcast.name}
-                  />
-                  <span className="category-market-row-copy">
-                    <strong>{broadcast.title}</strong>
-                    <small>
-                      {broadcast.name} · {broadcast.handle}
-                    </small>
-                  </span>
-                  <span className="category-market-row-value">
-                    <strong>{broadcast.price}</strong>
-                    <span className="category-market-row-meta">
-                      <span
-                        className={
-                          broadcast.change > 0 ? 'is-up' : 'is-down'
-                        }
-                      >
-                        {broadcast.change > 0 ? (
-                          <ArrowUp size={10} strokeWidth={2.4} />
-                        ) : (
-                          <ArrowDown size={10} strokeWidth={2.4} />
-                        )}
-                        {Math.abs(broadcast.change)}%
-                      </span>
-                      <span>
-                        <Eye size={10} /> {broadcast.views}
-                      </span>
-                    </span>
-                  </span>
-                </div>
-              ))}
+        <div className="category-market-list category-position-list">
+          {broadcasts.slice(1, loadedCount).map((broadcast) => (
+            <button
+              className={`category-position-row ${featuredBroadcast.id === broadcast.id ? 'is-featured' : ''}`}
+              key={broadcast.id}
+              type="button"
+              aria-label={`Preview position #${broadcast.rank}, ${broadcast.price}, ${broadcast.title}`}
+              aria-pressed={featuredBroadcast.id === broadcast.id}
+              onPointerEnter={() => onSelectBroadcast(broadcast.id)}
+              onFocus={() => onSelectBroadcast(broadcast.id)}
+              onClick={() => onSelectBroadcast(broadcast.id)}
+            >
+              <span className="category-position-rank">#{broadcast.rank}</span>
+              <ProfileAvatar
+                initials={broadcast.initials}
+                imageSrc="/leaderboard-portraits.png"
+                imagePosition={broadcast.imagePosition}
+                className="category-position-avatar"
+                alt={broadcast.name}
+              />
+              <span className="category-position-copy">
+                <strong>{broadcast.title}</strong>
+                <small>
+                  {broadcast.name} · {broadcast.handle}
+                </small>
+              </span>
+              <span className="category-position-bid">
+                <small>CURRENT BID</small>
+                <strong>{broadcast.price}</strong>
+              </span>
+              <span
+                className={`category-position-change ${broadcast.change > 0 ? 'is-up' : 'is-down'}`}
+              >
+                {broadcast.change > 0 ? '+' : ''}
+                {broadcast.change}%
+              </span>
+              <span className="category-position-next">
+                <small>TAKE THIS SPOT</small>
+                <strong>{broadcast.takePrice}</strong>
+              </span>
+            </button>
+          ))}
         </div>
 
-        {position === 'active' && hasMore && (
+        {hasMore && (
           <div
             ref={loadMarkerRef}
             className="category-market-view-more"
@@ -629,7 +766,11 @@ CategoryPanel.displayName = 'CategoryPanel';
 export default function CategoriesPage() {
   const { entries } = useBought();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [featuredBroadcastId, setFeaturedBroadcastId] = useState<string | null>(
+    null,
+  );
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>(
     {},
   );
@@ -638,11 +779,10 @@ export default function CategoriesPage() {
   const stageRef = useRef<HTMLElement | null>(null);
   const activeIndexRef = useRef(0);
   const scrollFrame = useRef<number | null>(null);
+  const pageScrollFrame = useRef<number | null>(null);
 
-  const previousCategory =
-    activeIndex > 0 ? categories[activeIndex - 1] : null;
-  const nextCategory =
-    activeIndex < categories.length - 1 ? categories[activeIndex + 1] : null;
+  const allCategory = categories[0];
+  const AllCategoryIcon = allCategory.icon;
 
   const scrollToCategory = useCallback(
     (index: number, behavior: ScrollBehavior = 'auto') => {
@@ -650,8 +790,7 @@ export default function CategoriesPage() {
       const slot = slotRefs.current[index];
       if (!stage || !slot) return;
 
-      const left =
-        slot.offsetLeft - (stage.clientWidth - slot.offsetWidth) / 2;
+      const left = slot.offsetLeft - (stage.clientWidth - slot.offsetWidth) / 2;
       stage.scrollTo({ left, behavior });
     },
     [],
@@ -689,6 +828,26 @@ export default function CategoriesPage() {
     [],
   );
 
+  useEffect(() => {
+    function handlePageScroll() {
+      if (pageScrollFrame.current !== null) return;
+
+      pageScrollFrame.current = window.requestAnimationFrame(() => {
+        pageScrollFrame.current = null;
+        setShowBackToTop(window.scrollY > 480);
+      });
+    }
+
+    handlePageScroll();
+    window.addEventListener('scroll', handlePageScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handlePageScroll);
+      if (pageScrollFrame.current !== null)
+        window.cancelAnimationFrame(pageScrollFrame.current);
+    };
+  }, []);
+
   function selectCategory(nextIndex: number) {
     const currentIndex = activeIndexRef.current;
     if (
@@ -699,6 +858,7 @@ export default function CategoriesPage() {
       return;
     activeIndexRef.current = nextIndex;
     setActiveIndex(nextIndex);
+    setFeaturedBroadcastId(null);
     setPlayingId(null);
     scrollToCategory(nextIndex, 'auto');
   }
@@ -707,24 +867,29 @@ export default function CategoriesPage() {
     setPlayingId((current) => (current === id ? null : id));
   }, []);
 
-  const loadMoreBroadcasts = useCallback(
-    (categoryName: string) => {
-      const categoryIndex = categories.findIndex(
-        (category) => category.name === categoryName,
-      );
-      if (categoryIndex < 0) return;
+  const selectBroadcast = useCallback((id: string) => {
+    setFeaturedBroadcastId(id);
+    setPlayingId((current) => (current === null ? null : id));
+  }, []);
 
-      setVisibleCounts((current) => ({
-        ...current,
-        [categoryName]: Math.min(
-          (current[categoryName] ?? initialBroadcastCount) +
-            broadcastBatchSize,
-          categoryBroadcasts[categoryIndex].length,
-        ),
-      }));
-    },
-    [],
-  );
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const loadMoreBroadcasts = useCallback((categoryName: string) => {
+    const categoryIndex = categories.findIndex(
+      (category) => category.name === categoryName,
+    );
+    if (categoryIndex < 0) return;
+
+    setVisibleCounts((current) => ({
+      ...current,
+      [categoryName]: Math.min(
+        (current[categoryName] ?? initialBroadcastCount) + broadcastBatchSize,
+        categoryBroadcasts[categoryIndex].length,
+      ),
+    }));
+  }, []);
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === 'ArrowLeft') {
@@ -761,6 +926,7 @@ export default function CategoriesPage() {
       if (nearestIndex === activeIndexRef.current) return;
       activeIndexRef.current = nearestIndex;
       setActiveIndex(nearestIndex);
+      setFeaturedBroadcastId(null);
       setPlayingId(null);
     });
   }
@@ -775,32 +941,53 @@ export default function CategoriesPage() {
           className="homepage-category-selector dashboard-panel"
           aria-label="Choose a market category"
         >
-          <div className="dashboard-section-head">
-            <span>CATEGORIES</span>
-            <Link href="/categories?category=ALL" onClick={() => selectCategory(0)}>
-              VIEW ALL
-            </Link>
+          <div className="dashboard-section-head category-selector-head">
+            <span className="category-page-heading">
+              <strong>CATEGORIES</strong>
+            </span>
+            <button
+              ref={(element) => {
+                tabRefs.current[0] = element;
+              }}
+              className={`homepage-category-option ${activeIndex === 0 ? 'is-active' : ''}`}
+              type="button"
+              role="tab"
+              aria-selected={activeIndex === 0}
+              aria-label={`${allCategory.name}, ${allCategory.liveCount} bids`}
+              onClick={() => selectCategory(0)}
+              onKeyDown={handleKeyDown}
+            >
+              <AllCategoryIcon
+                className="homepage-category-icon"
+                size={13}
+                strokeWidth={2.2}
+                aria-hidden="true"
+              />
+              <strong>{allCategory.name}</strong>
+              <span>{allCategory.liveCount} bids</span>
+            </button>
           </div>
           <div
             className="homepage-category-list"
             role="tablist"
             aria-label="Market categories"
           >
-            {categories.map((category, index) => {
+            {categories.slice(1).map((category, index) => {
+              const categoryIndex = index + 1;
               const Icon = category.icon;
               const isTrending = category.name === 'BEEF';
               return (
                 <button
                   ref={(element) => {
-                    tabRefs.current[index] = element;
+                    tabRefs.current[categoryIndex] = element;
                   }}
-                  className={`homepage-category-option ${activeIndex === index ? 'is-active' : ''} ${isTrending ? 'is-trending' : ''}`}
+                  className={`homepage-category-option ${activeIndex === categoryIndex ? 'is-active' : ''} ${isTrending ? 'is-trending' : ''}`}
                   key={category.name}
                   type="button"
                   role="tab"
-                  aria-selected={activeIndex === index}
+                  aria-selected={activeIndex === categoryIndex}
                   aria-label={`${category.name}, ${category.liveCount} bids${isTrending ? ', trending today' : ''}`}
-                  onClick={() => selectCategory(index)}
+                  onClick={() => selectCategory(categoryIndex)}
                   onKeyDown={handleKeyDown}
                 >
                   <Icon
@@ -848,33 +1035,35 @@ export default function CategoriesPage() {
                 className={`category-carousel-slot is-${position}`}
                 key={category.name}
               >
-                <CategoryPanel
-                  category={category}
-                  categoryIndex={index}
-                  position={position}
-                  playingId={playingId}
-                  onPlay={toggleBroadcast}
-                  visibleCount={
-                    visibleCounts[category.name] ?? initialBroadcastCount
-                  }
-                  onLoadMore={loadMoreBroadcasts}
-                  dropIdsByRank={Object.fromEntries(
-                    entries
-                      .filter(
-                        (entry) =>
-                          category.name === 'ALL' ||
-                          entry.category.toUpperCase() === category.name,
-                      )
-                      .map((entry) => [entry.position, entry.drop_id]),
-                  )}
-                />
+                {position === 'active' && (
+                  <CategoryPanel
+                    category={category}
+                    categoryIndex={index}
+                    playingId={playingId}
+                    onPlay={toggleBroadcast}
+                    selectedBroadcastId={featuredBroadcastId}
+                    onSelectBroadcast={selectBroadcast}
+                    visibleCount={
+                      visibleCounts[category.name] ?? initialBroadcastCount
+                    }
+                    onLoadMore={loadMoreBroadcasts}
+                    dropIdsByRank={Object.fromEntries(
+                      entries
+                        .filter(
+                          (entry) =>
+                            category.name === 'ALL' ||
+                            entry.category.toUpperCase() === category.name,
+                        )
+                        .map((entry) => [entry.position, entry.drop_id]),
+                    )}
+                  />
+                )}
               </div>
             );
           })}
         </section>
 
         <div className="category-carousel-footer-nav" aria-hidden="true">
-          <span>{previousCategory ? `← ${previousCategory.name}` : ''}</span>
           <div>
             {categories.map((category, index) => (
               <i
@@ -883,11 +1072,22 @@ export default function CategoriesPage() {
               />
             ))}
           </div>
-          <span>{nextCategory ? `${nextCategory.name} →` : ''}</span>
         </div>
 
         <MarketFooter />
       </div>
+
+      {showBackToTop && (
+        <button
+          className="category-back-to-top"
+          type="button"
+          onClick={scrollToTop}
+          aria-label="Back to top of categories"
+        >
+          <ArrowUp size={16} strokeWidth={2.4} aria-hidden="true" />
+          <span>TOP</span>
+        </button>
+      )}
     </main>
   );
 }
