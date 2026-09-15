@@ -668,10 +668,6 @@ const CategoryPanel = memo(function CategoryPanel({
   } as CSSProperties;
 
   useEffect(() => {
-    loadingMoreRef.current = false;
-  }, [loadedCount]);
-
-  useEffect(() => {
     if (!selectedBroadcastId) return;
 
     expandedBroadcastRef.current?.scrollIntoView({
@@ -684,6 +680,17 @@ const CategoryPanel = memo(function CategoryPanel({
     if (!hasMore || loadingMoreRef.current) return;
     loadingMoreRef.current = true;
     onLoadMore(category.name);
+  }
+
+  function handleListScroll(list: HTMLDivElement) {
+    const remaining = list.scrollHeight - list.scrollTop - list.clientHeight;
+
+    if (remaining > 64) {
+      loadingMoreRef.current = false;
+      return;
+    }
+
+    if (remaining <= 24) loadNextBatch();
   }
 
   return (
@@ -704,11 +711,10 @@ const CategoryPanel = memo(function CategoryPanel({
           ref={listRef}
           className="category-market-list category-position-list"
           aria-label="Live positions"
-          onScroll={(event) => {
-            const list = event.currentTarget;
-            const remaining =
-              list.scrollHeight - list.scrollTop - list.clientHeight;
-            if (remaining <= 24) loadNextBatch();
+          onScroll={(event) => handleListScroll(event.currentTarget)}
+          onWheel={(event) => {
+            if (event.deltaY <= 0) return;
+            handleListScroll(event.currentTarget);
           }}
         >
           {broadcasts.slice(0, loadedCount).map((broadcast) => {

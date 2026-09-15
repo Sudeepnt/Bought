@@ -14166,8 +14166,9 @@ html[data-theme='light'] .category-back-to-top {
 .category-position-list {
   display: grid;
   grid-auto-rows: auto;
-  max-height: min(650px, calc(100vh - 180px));
-  min-height: 430px;
+  height: 1014px;
+  max-height: none;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
   padding-bottom: 42px;
@@ -14984,6 +14985,10 @@ html[data-theme='light'] .category-carousel-arrow {
     --category-card-width: min(720px, calc(100vw - 40px));
   }
 
+  .category-position-list {
+    height: min(1014px, calc(56.25vw + 586.5px));
+  }
+
   .category-lead-content {
     padding: 14px 16px 13px;
   }
@@ -15008,6 +15013,10 @@ html[data-theme='light'] .category-carousel-arrow {
 @media (max-width: 680px) {
   .category-carousel-stage {
     --category-card-width: calc(100vw - 20px);
+  }
+
+  .category-position-list {
+    height: calc(56.25vw + 661px);
   }
 
   .category-lead-card {
