@@ -14643,7 +14643,7 @@ html[data-theme='light'] .category-carousel-arrow {
 /* Keep the lead as a compact 16:9 broadcast surface. Market data is layered
    over the thumbnail so the position and price stay attached to the video. */
 .category-carousel-stage {
-  --category-card-width: min(720px, calc(100vw - 36px));
+  --category-card-width: min(1167px, calc(100vw - 36px));
 }
 
 .category-lead-card {
