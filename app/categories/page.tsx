@@ -5,6 +5,7 @@ import {
   Bookmark,
   Briefcase,
   Building2,
+  ChevronDown,
   CircleHelp,
   DollarSign,
   Eye,
@@ -381,7 +382,7 @@ const categoryBroadcasts = categories.map((category, categoryIndex) =>
 );
 
 const initialBroadcastCount = 10;
-const broadcastBatchSize = 20;
+const broadcastBatchSize = 10;
 
 function VideoThumbnail({
   broadcast,
@@ -659,28 +660,16 @@ const CategoryPanel = memo(function CategoryPanel({
     broadcasts.find(({ id }) => id === selectedBroadcastId) ?? leader;
   const loadedCount = Math.min(visibleCount, broadcasts.length);
   const hasMore = loadedCount < broadcasts.length;
-  const loadMarkerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const loadingMoreRef = useRef(false);
   const expandedBroadcastRef = useRef<HTMLDivElement>(null);
   const categoryStyle = {
     '--category-accent': category.accent,
   } as CSSProperties;
 
   useEffect(() => {
-    if (!hasMore) return;
-
-    const marker = loadMarkerRef.current;
-    if (!marker) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) onLoadMore(category.name);
-      },
-      { rootMargin: '0px' },
-    );
-
-    observer.observe(marker);
-    return () => observer.disconnect();
-  }, [category.name, hasMore, loadedCount, onLoadMore]);
+    loadingMoreRef.current = false;
+  }, [loadedCount]);
 
   useEffect(() => {
     if (!selectedBroadcastId) return;
@@ -690,6 +679,12 @@ const CategoryPanel = memo(function CategoryPanel({
       block: 'nearest',
     });
   }, [selectedBroadcastId]);
+
+  function loadNextBatch() {
+    if (!hasMore || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    onLoadMore(category.name);
+  }
 
   return (
     <article
@@ -705,7 +700,17 @@ const CategoryPanel = memo(function CategoryPanel({
           </span>
         </div>
 
-        <div className="category-market-list category-position-list">
+        <div
+          ref={listRef}
+          className="category-market-list category-position-list"
+          aria-label="Live positions"
+          onScroll={(event) => {
+            const list = event.currentTarget;
+            const remaining =
+              list.scrollHeight - list.scrollTop - list.clientHeight;
+            if (remaining <= 24) loadNextBatch();
+          }}
+        >
           {broadcasts.slice(0, loadedCount).map((broadcast) => {
             const isExpanded = featuredBroadcast.id === broadcast.id;
 
@@ -769,14 +774,18 @@ const CategoryPanel = memo(function CategoryPanel({
               </button>
             );
           })}
+
         </div>
 
         {hasMore && (
-          <div
-            ref={loadMarkerRef}
+          <button
             className="category-market-view-more"
-            aria-hidden="true"
-          />
+            type="button"
+            aria-label={`Load positions ${loadedCount + 1}–${Math.min(loadedCount + broadcastBatchSize, broadcasts.length)}`}
+            onClick={loadNextBatch}
+          >
+            <ChevronDown aria-hidden="true" size={16} strokeWidth={2} />
+          </button>
         )}
       </div>
     </article>
