@@ -5,7 +5,6 @@ import {
   Bookmark,
   Briefcase,
   Building2,
-  ChevronDown,
   CircleHelp,
   DollarSign,
   Eye,
@@ -382,7 +381,7 @@ const categoryBroadcasts = categories.map((category, categoryIndex) =>
 );
 
 const initialBroadcastCount = 10;
-const broadcastBatchSize = 10;
+const broadcastBatchSize = 20;
 
 function VideoThumbnail({
   broadcast,
@@ -660,13 +659,28 @@ const CategoryPanel = memo(function CategoryPanel({
     broadcasts.find(({ id }) => id === selectedBroadcastId) ?? leader;
   const loadedCount = Math.min(visibleCount, broadcasts.length);
   const hasMore = loadedCount < broadcasts.length;
-  const listRef = useRef<HTMLDivElement>(null);
-  const loadingMoreRef = useRef(false);
-  const scrollbarThumbRef = useRef<HTMLSpanElement>(null);
+  const loadMarkerRef = useRef<HTMLDivElement>(null);
   const expandedBroadcastRef = useRef<HTMLDivElement>(null);
   const categoryStyle = {
     '--category-accent': category.accent,
   } as CSSProperties;
+
+  useEffect(() => {
+    if (!hasMore) return;
+
+    const marker = loadMarkerRef.current;
+    if (!marker) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) onLoadMore(category.name);
+      },
+      { rootMargin: '0px' },
+    );
+
+    observer.observe(marker);
+    return () => observer.disconnect();
+  }, [category.name, hasMore, loadedCount, onLoadMore]);
 
   useEffect(() => {
     if (!selectedBroadcastId) return;
@@ -676,41 +690,6 @@ const CategoryPanel = memo(function CategoryPanel({
       block: 'nearest',
     });
   }, [selectedBroadcastId]);
-
-  function loadNextBatch() {
-    if (!hasMore || loadingMoreRef.current) return;
-    loadingMoreRef.current = true;
-    onLoadMore(category.name);
-  }
-
-  function syncScrollIndicator(list: HTMLDivElement) {
-    const thumb = scrollbarThumbRef.current;
-    if (!thumb) return;
-
-    const thumbHeight = 72;
-    const rowHeight = window.innerWidth <= 680 ? 70 : 63;
-    const traversedPositions = list.scrollTop / rowHeight;
-    const remainingPositions = Math.max(
-      1,
-      broadcasts.length - initialBroadcastCount,
-    );
-    const progress = Math.min(1, traversedPositions / remainingPositions);
-    const thumbTop = progress * Math.max(0, list.clientHeight - thumbHeight);
-
-    thumb.style.transform = `translateY(${thumbTop}px)`;
-  }
-
-  function handleListScroll(list: HTMLDivElement) {
-    syncScrollIndicator(list);
-    const remaining = list.scrollHeight - list.scrollTop - list.clientHeight;
-
-    if (remaining > 64) {
-      loadingMoreRef.current = false;
-      return;
-    }
-
-    if (remaining <= 24) loadNextBatch();
-  }
 
   return (
     <article
@@ -726,16 +705,7 @@ const CategoryPanel = memo(function CategoryPanel({
           </span>
         </div>
 
-        <div
-          ref={listRef}
-          className="category-market-list category-position-list"
-          aria-label="Live positions"
-          onScroll={(event) => handleListScroll(event.currentTarget)}
-          onWheel={(event) => {
-            if (event.deltaY <= 0) return;
-            handleListScroll(event.currentTarget);
-          }}
-        >
+        <div className="category-market-list category-position-list">
           {broadcasts.slice(0, loadedCount).map((broadcast) => {
             const isExpanded = featuredBroadcast.id === broadcast.id;
 
@@ -799,26 +769,14 @@ const CategoryPanel = memo(function CategoryPanel({
               </button>
             );
           })}
-
-          {hasMore && (
-            <div className="category-position-scroll-tail" aria-hidden="true" />
-          )}
-
-        </div>
-
-        <div className="category-position-scrollbar" aria-hidden="true">
-          <span ref={scrollbarThumbRef} />
         </div>
 
         {hasMore && (
-          <button
+          <div
+            ref={loadMarkerRef}
             className="category-market-view-more"
-            type="button"
-            aria-label={`Load positions ${loadedCount + 1}–${Math.min(loadedCount + broadcastBatchSize, broadcasts.length)}`}
-            onClick={loadNextBatch}
-          >
-            <ChevronDown aria-hidden="true" size={16} strokeWidth={2} />
-          </button>
+            aria-hidden="true"
+          />
         )}
       </div>
     </article>
