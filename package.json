@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "vinext dev",
-    "build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npm run preflight:production; fi && if [ \"$VERCEL\" = \"1\" ]; then NITRO_PRESET=vercel vite build; else vinext build; fi",
+    "build": "if [ \"$REQUIRE_PRODUCTION_SERVICES\" = \"1\" ]; then npm run preflight:production; fi && if [ \"$VERCEL\" = \"1\" ]; then NITRO_PRESET=vercel vite build; else vinext build; fi",
     "start": "vinext start",
     "lint": "oxlint",
     "format": "oxfmt",
