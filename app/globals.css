@@ -14169,7 +14169,7 @@ html[data-theme='light'] .category-back-to-top {
   height: 1014px;
   max-height: none;
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: scroll;
   overscroll-behavior-y: contain;
   padding-bottom: 42px;
   scrollbar-color: #536166 #080d0f;
@@ -14178,7 +14178,7 @@ html[data-theme='light'] .category-back-to-top {
 }
 
 .category-position-list::-webkit-scrollbar {
-  width: 7px;
+  width: 8px;
 }
 
 .category-position-list::-webkit-scrollbar-track {
@@ -14186,9 +14186,35 @@ html[data-theme='light'] .category-back-to-top {
 }
 
 .category-position-list::-webkit-scrollbar-thumb {
-  background: #536166;
+  background: #657378;
   border: 2px solid #080d0f;
   border-radius: 99px;
+}
+
+.category-position-scroll-tail {
+  min-height: 48px;
+}
+
+.category-position-scrollbar {
+  background: #11191c;
+  border-left: 1px solid #263237;
+  bottom: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 34px;
+  width: 8px;
+  z-index: 7;
+}
+
+.category-position-scrollbar > span {
+  background: #657378;
+  border-radius: 99px;
+  display: block;
+  height: 72px;
+  margin: 3px 1px;
+  transition: transform 100ms linear;
+  width: 5px;
 }
 
 .category-position-row {
@@ -14338,6 +14364,7 @@ html[data-theme='light'] .category-back-to-top {
     color 140ms ease,
     transform 140ms ease;
   width: 30px;
+  z-index: 6;
 }
 
 .category-market-view-more:hover,

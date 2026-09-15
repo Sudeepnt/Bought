@@ -662,6 +662,7 @@ const CategoryPanel = memo(function CategoryPanel({
   const hasMore = loadedCount < broadcasts.length;
   const listRef = useRef<HTMLDivElement>(null);
   const loadingMoreRef = useRef(false);
+  const scrollbarThumbRef = useRef<HTMLSpanElement>(null);
   const expandedBroadcastRef = useRef<HTMLDivElement>(null);
   const categoryStyle = {
     '--category-accent': category.accent,
@@ -682,7 +683,25 @@ const CategoryPanel = memo(function CategoryPanel({
     onLoadMore(category.name);
   }
 
+  function syncScrollIndicator(list: HTMLDivElement) {
+    const thumb = scrollbarThumbRef.current;
+    if (!thumb) return;
+
+    const thumbHeight = 72;
+    const rowHeight = window.innerWidth <= 680 ? 70 : 63;
+    const traversedPositions = list.scrollTop / rowHeight;
+    const remainingPositions = Math.max(
+      1,
+      broadcasts.length - initialBroadcastCount,
+    );
+    const progress = Math.min(1, traversedPositions / remainingPositions);
+    const thumbTop = progress * Math.max(0, list.clientHeight - thumbHeight);
+
+    thumb.style.transform = `translateY(${thumbTop}px)`;
+  }
+
   function handleListScroll(list: HTMLDivElement) {
+    syncScrollIndicator(list);
     const remaining = list.scrollHeight - list.scrollTop - list.clientHeight;
 
     if (remaining > 64) {
@@ -781,6 +800,14 @@ const CategoryPanel = memo(function CategoryPanel({
             );
           })}
 
+          {hasMore && (
+            <div className="category-position-scroll-tail" aria-hidden="true" />
+          )}
+
+        </div>
+
+        <div className="category-position-scrollbar" aria-hidden="true">
+          <span ref={scrollbarThumbRef} />
         </div>
 
         {hasMore && (
