@@ -1085,17 +1085,6 @@ export default function CategoriesPage() {
           })}
         </section>
 
-        <div className="category-carousel-footer-nav" aria-hidden="true">
-          <div>
-            {categories.map((category, index) => (
-              <i
-                className={index === activeIndex ? 'is-active' : ''}
-                key={category.name}
-              />
-            ))}
-          </div>
-        </div>
-
         <MarketFooter />
       </div>
 
