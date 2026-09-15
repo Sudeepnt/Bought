@@ -891,7 +891,7 @@ export default function CategoriesPage() {
 
   const selectBroadcast = useCallback((id: string) => {
     setFeaturedBroadcastId(id);
-    setPlayingId(id);
+    setPlayingId(null);
   }, []);
 
   const scrollToTop = useCallback(() => {
