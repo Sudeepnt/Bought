@@ -21474,6 +21474,39 @@ html[data-theme='light'] .watchlist-filters button.is-active {
   .dashboard-shell .countdown-segment small {
     font-size: 6px;
   }
+
+  .dashboard-shell:not(.route-market-shell) .dashboard-main-grid {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dashboard-shell:not(.route-market-shell) .dashboard-primary-stack {
+    display: contents;
+  }
+
+  .dashboard-shell:not(.route-market-shell)
+    .dashboard-primary-stack
+    > .leader-spot {
+    align-self: stretch;
+    order: 1;
+    width: 100%;
+  }
+
+  .dashboard-shell:not(.route-market-shell) .leaderboard-panel {
+    min-height: 0;
+    order: 2;
+    width: 100%;
+  }
+
+  .dashboard-shell:not(.route-market-shell) .dashboard-primary-lower-grid {
+    align-self: stretch;
+    order: 3;
+    width: 100%;
+  }
+
+  .dashboard-shell:not(.route-market-shell) .dashboard-activity-stack {
+    order: 4;
+  }
 }
 
 @media (max-width: 360px) {
