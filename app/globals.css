@@ -21375,6 +21375,105 @@ html[data-theme='light'] .watchlist-filters button.is-active {
     min-width: 0;
     right: 16px;
   }
+
+  .dashboard-shell .dashboard-status-row {
+    align-items: stretch;
+    grid-template-columns: minmax(112px, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .dashboard-shell .next-position {
+    display: none;
+  }
+
+  .dashboard-shell .market-status-wrap .dashboard-status-row > .dashboard-panel,
+  .dashboard-shell .status-countdown,
+  .dashboard-shell .total-panel {
+    height: 78px;
+    min-height: 78px;
+  }
+
+  .dashboard-shell .total-panel {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+    justify-content: center;
+    padding: 9px 11px;
+  }
+
+  .dashboard-shell .total-panel > div {
+    gap: 3px;
+  }
+
+  .dashboard-shell .dashboard-eyebrow {
+    font-size: 8px;
+  }
+
+  .dashboard-shell .total-panel strong {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .dashboard-shell .total-panel .dashboard-delta {
+    font-size: 8px;
+  }
+
+  .dashboard-shell .status-countdown {
+    column-gap: 0;
+    grid-template-areas:
+      'label'
+      'value';
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    padding: 9px 10px;
+    row-gap: 5px;
+  }
+
+  .dashboard-shell .status-countdown::before,
+  .dashboard-shell .countdown-icon {
+    display: none;
+  }
+
+  .dashboard-shell .countdown-label {
+    align-items: baseline;
+    flex-direction: row;
+    gap: 6px;
+    grid-area: label;
+  }
+
+  .dashboard-shell .countdown-label strong {
+    font-size: 11px;
+    line-height: 1;
+    min-height: 0;
+  }
+
+  .dashboard-shell .countdown-label span {
+    font-size: 7px;
+    line-height: 1;
+    min-height: 0;
+  }
+
+  .dashboard-shell .countdown-value {
+    grid-area: value;
+    grid-column: auto;
+  }
+
+  .dashboard-shell .countdown-segments,
+  .dashboard-shell .countdown-value strong {
+    font-size: clamp(18px, 5.5vw, 22px);
+  }
+
+  .dashboard-shell .countdown-segments {
+    column-gap: 2px;
+    justify-content: flex-start;
+  }
+
+  .dashboard-shell .countdown-segment {
+    gap: 3px;
+  }
+
+  .dashboard-shell .countdown-segment small {
+    font-size: 6px;
+  }
 }
 
 @media (max-width: 360px) {
