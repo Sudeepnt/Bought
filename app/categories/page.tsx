@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
+  Clock3,
   DollarSign,
   Eye,
   FileText,
@@ -730,10 +731,6 @@ function BroadcastVideoCard({
             </em>
           </span>
           <div className="category-lead-stack">
-            <div className="category-lead-value">
-              <small>CURRENT BID</small>
-              <strong>{broadcast.price}</strong>
-            </div>
             <div className="category-lead-proof">
               <span className="category-lead-stat">
                 <Eye size={13} aria-hidden="true" />
@@ -756,6 +753,10 @@ function BroadcastVideoCard({
                   <small>people outbid this</small>
                 </span>
               </span>
+            </div>
+            <div className="category-lead-value">
+              <small>CURRENT BID</small>
+              <strong>{broadcast.price}</strong>
             </div>
             <span className="category-lead-take">
               <strong>TAKE THIS SPOT</strong>
@@ -797,8 +798,16 @@ function BroadcastVideoCard({
             className="category-lead-history"
             aria-label={`Uploaded ${broadcast.uploadedAt}; bid to number one ${broadcast.topRankedAt}`}
           >
-            <span>UPLOADED {broadcast.uploadedAt}</span>
-            <span>BID TO #1 {broadcast.topRankedAt}</span>
+            <span className="category-lead-uploaded-at">
+              UPLOADED {broadcast.uploadedAt}
+            </span>
+            <span className="category-lead-top-ranked">
+              <Clock3 size={20} strokeWidth={1.8} aria-hidden="true" />
+              <span>
+                <strong>Took #1 spot</strong>
+                <small>{broadcast.topRankedAt}</small>
+              </span>
+            </span>
           </div>
           <div className="category-lead-engagement">
             <div className="category-lead-engagement-head">
@@ -1207,11 +1216,6 @@ export default function CategoriesPage() {
           className="homepage-category-selector dashboard-panel"
           aria-label="Choose a market category"
         >
-          <div className="dashboard-section-head category-selector-head">
-            <span className="category-page-heading">
-              <strong>CATEGORIES</strong>
-            </span>
-          </div>
           <div
             className="homepage-category-list"
             role="tablist"

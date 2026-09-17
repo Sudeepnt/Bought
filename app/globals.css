@@ -13886,26 +13886,72 @@ html[data-theme='light'] .category-back-to-top {
 }
 
 .category-lead-history {
-  align-items: center;
+  align-items: flex-end;
   color: #aeb9b5;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   font-family: var(--mono);
   font-size: 7px;
-  gap: 5px 9px;
+  gap: 8px;
   justify-content: flex-end;
   margin-top: 9px;
-  width: 100%;
+  width: auto;
 }
 
-.category-lead-history span {
+.category-lead-history > span {
   border-left: 1px solid rgba(255, 255, 255, 0.28);
   padding-left: 7px;
 }
 
-.category-lead-history span:first-child {
+.category-lead-history > span:first-child {
   border-left: 0;
   padding-left: 0;
+}
+
+.category-lead-uploaded-at {
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.04em;
+}
+
+.category-lead-top-ranked {
+  align-items: center;
+  background: rgba(8, 10, 10, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 8px;
+  display: flex;
+  gap: 11px;
+  min-width: 176px;
+  padding: 9px 13px;
+  text-align: left;
+}
+
+.category-lead-top-ranked > svg {
+  color: #f1f4f2;
+  flex: 0 0 auto;
+}
+
+.category-lead-top-ranked > span {
+  display: grid;
+  gap: 2px;
+}
+
+.category-lead-top-ranked strong,
+.category-lead-top-ranked small {
+  font-family: var(--font-inter), Arial, sans-serif;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.category-lead-top-ranked strong {
+  color: #f1f4f2;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.category-lead-top-ranked small {
+  color: #c4ccca;
+  font-size: 12px;
 }
 
 .category-lead-engagement {
@@ -14841,16 +14887,18 @@ html[data-theme='light'] .category-carousel-arrow {
 
 .category-lead-proof {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .category-lead-stat {
   align-items: center;
-  display: flex;
-  gap: 7px;
+  display: grid;
+  gap: 3px;
+  justify-items: start;
   min-width: 0;
   padding: 0;
+  text-align: left;
 }
 
 .category-lead-stat > svg {
@@ -14861,7 +14909,9 @@ html[data-theme='light'] .category-carousel-arrow {
 .category-lead-stat > span {
   display: grid;
   gap: 2px;
+  justify-items: start;
   min-width: 0;
+  text-align: left;
 }
 
 .category-lead-stat strong,
@@ -14888,10 +14938,12 @@ html[data-theme='light'] .category-carousel-arrow {
 
 .category-lead-take {
   align-self: flex-start;
+  gap: 24px;
+  justify-content: flex-start;
   margin-top: 0;
-  max-width: 360px;
+  max-width: 100%;
   min-height: 38px;
-  width: min(100%, 360px);
+  width: fit-content;
 }
 
 .category-lead-media .category-lead-shade {
@@ -15210,10 +15262,10 @@ html[data-theme='light'] .category-carousel-arrow {
   }
 
   .category-lead-proof {
-    align-items: flex-start;
+    align-items: center;
     display: grid;
     gap: 4px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .category-lead-value strong {
@@ -21287,5 +21339,59 @@ html[data-theme='light'] .watchlist-filters button.is-active {
 
   .route-market-shell .watchlist-table {
     margin-inline: -4px;
+  }
+}
+
+/* Phone viewport pass: keep the shared chrome fully legible and prevent the
+   homepage hero actions from competing with the attribution block. */
+@media (max-width: 700px) {
+  .dashboard-shell .top-navigation {
+    gap: 0;
+    justify-content: flex-start;
+    padding-inline: 7px;
+    scroll-padding-inline: 7px;
+    scrollbar-width: none;
+  }
+
+  .dashboard-shell .top-navigation::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dashboard-shell .top-navigation-link {
+    flex: 0 0 auto;
+    font-size: 10px;
+    letter-spacing: 0;
+    padding: 12px 7px 10px;
+  }
+
+  .dashboard-shell .leader-person {
+    bottom: 72px;
+    right: 16px;
+  }
+
+  .dashboard-shell .leader-cta {
+    bottom: 20px;
+    left: 16px;
+    min-width: 0;
+    right: 16px;
+  }
+}
+
+@media (max-width: 360px) {
+  .dashboard-shell .leaderboard-row {
+    grid-template-columns: 18px 28px minmax(0, 1fr) 54px 54px;
+  }
+
+  .dashboard-shell .leaderboard-person small,
+  .dashboard-shell .leaderboard-category {
+    display: none;
+  }
+
+  .dashboard-shell .leaderboard-movement strong {
+    font-size: 9px;
+  }
+
+  .dashboard-shell .leaderboard-movement small {
+    font-size: 7px;
   }
 }
