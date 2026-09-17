@@ -21378,6 +21378,11 @@ html[data-theme='light'] .watchlist-filters button.is-active {
 }
 
 @media (max-width: 360px) {
+  .dashboard-shell .top-navigation-link {
+    font-size: 9px;
+    padding-inline: 4px;
+  }
+
   .dashboard-shell .leaderboard-row {
     grid-template-columns: 18px 28px minmax(0, 1fr) 54px 54px;
   }
