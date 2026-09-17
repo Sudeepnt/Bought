@@ -31,14 +31,7 @@ import { useBought } from '@/components/bought-provider';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { latestIssue } from '@/lib/magazine';
 
-type LeaderboardRow = [
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-];
+type LeaderboardRow = [string, string, string, string, string, string];
 
 const leaderboard: LeaderboardRow[] = [
   ['Ananya R.', '@ananyabuilds', 'UNPOPULAR OPINION', '$11,400', 'AR', 'coral'],
@@ -48,10 +41,46 @@ const leaderboard: LeaderboardRow[] = [
   ['Karan V.', '@karanv', 'UNPOPULAR OPINION', '$4,800', 'KV', 'purple'],
   ['Maya K.', '@mayaknowsthis', 'THE RANT', '$4,200', 'MK', 'green'],
   ['Dev P.', '@devpicks', 'THE ASK', '$3,900', 'DP', 'blue'],
-  ['Simran N.', '@simrannotes', 'MONEY I SET ON FIRE', '$3,600', 'SN', 'orange'],
+  [
+    'Simran N.',
+    '@simrannotes',
+    'MONEY I SET ON FIRE',
+    '$3,600',
+    'SN',
+    'orange',
+  ],
   ['Kabir J.', '@kabirj', 'BUILDING', '$3,200', 'KJ', 'coral'],
   ['Aisha T.', '@aishatellsit', 'CONFESSIONS', '$2,900', 'AT', 'purple'],
 ];
+
+const leaderboardMovementSeeds = [
+  1_340, 920, -640, 480, 360, -280, 220, -180, 140, -100,
+] as const;
+const leaderboardMovementPercentSeeds = [
+  7.9, 5.4, -3.5, 2.8, 2.4, -1.8, 1.4, -1.2, 0.9, -0.7,
+] as const;
+
+function getLeaderboardMovement(index: number, pulse: number) {
+  const seed =
+    leaderboardMovementSeeds[index % leaderboardMovementSeeds.length];
+  if (pulse === 0) return seed;
+
+  const direction = (pulse + index) % 2 === 0 ? 1 : -1;
+  const scale = 0.72 + ((pulse + index) % 5) * 0.08;
+  return direction * Math.max(120, Math.round(Math.abs(seed) * scale));
+}
+
+function getLeaderboardMovementPercent(index: number, pulse: number) {
+  const seed =
+    leaderboardMovementPercentSeeds[
+      index % leaderboardMovementPercentSeeds.length
+    ];
+  if (pulse === 0) return seed;
+
+  const direction = (pulse + index) % 2 === 0 ? 1 : -1;
+  const scale = 0.74 + ((pulse + index) % 5) * 0.07;
+  return direction * Math.max(0.4, Number((Math.abs(seed) * scale).toFixed(1)));
+}
 
 type LeaderboardSelection = {
   rank: number;
@@ -273,7 +302,9 @@ function Avatar({
   };
 
   return (
-    <span className={showCrown ? 'leaderboard-avatar-wrap has-crown' : undefined}>
+    <span
+      className={showCrown ? 'leaderboard-avatar-wrap has-crown' : undefined}
+    >
       <ProfileAvatar
         initials={initials}
         className={`dashboard-avatar avatar-${tone}`}
@@ -298,6 +329,52 @@ function Delta({ value, down = false }: { value: string; down?: boolean }) {
     <span className={`dashboard-delta ${down ? 'is-down' : ''}`}>
       {down ? <ArrowDownRight size={13} /> : <ArrowUpRight size={13} />}
       {value}
+    </span>
+  );
+}
+
+type LeaderboardMarketState = 'live' | 'exposure' | 'syncing';
+
+function LeaderboardMovement({
+  state,
+  index,
+  pulse,
+}: {
+  state: LeaderboardMarketState;
+  index: number;
+  pulse: number;
+}) {
+  if (state !== 'live') {
+    const label = state === 'exposure' ? 'EXPOSURE PERIOD' : 'SYNCING';
+    return (
+      <span
+        className={`leaderboard-movement is-${state}`}
+        aria-label={
+          state === 'exposure' ? 'Exposure period' : 'Market syncing'
+        }
+      >
+        <span>—</span>
+        <small>{label}</small>
+      </span>
+    );
+  }
+
+  const movement = getLeaderboardMovement(index, pulse);
+  const percentage = getLeaderboardMovementPercent(index, pulse);
+  const down = movement < 0;
+  const amount = `${down ? '-' : '+'}$${Math.abs(movement).toLocaleString('en-US')}`;
+  const percent = `${percentage < 0 ? '-' : '+'}${Math.abs(percentage).toFixed(1)}%`;
+
+  return (
+    <span
+      className={`leaderboard-movement ${down ? 'is-down' : 'is-up'}`}
+      aria-label={`${amount}, ${percent}`}
+    >
+      {down ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
+      <span>
+        <strong>{amount}</strong>
+        <small>{percent}</small>
+      </span>
     </span>
   );
 }
@@ -328,7 +405,7 @@ function PulseSparkline({
 }
 
 export default function Home() {
-  const { entries } = useBought();
+  const { entries, market, marketFresh } = useBought();
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [selectedLeaderboard, setSelectedLeaderboard] =
     useState<LeaderboardSelection | null>(null);
@@ -336,8 +413,25 @@ export default function Home() {
   const [reviewText, setReviewText] = useState('');
   const [reviewSent, setReviewSent] = useState(false);
   const [activeCategory, setActiveCategory] = useState('ALL');
+  const [leaderboardPulse, setLeaderboardPulse] = useState(0);
+  const leaderboardAuctionActive = marketFresh && market?.phase === 'bidding';
+  const leaderboardMarketState: LeaderboardMarketState =
+    leaderboardAuctionActive
+      ? 'live'
+      : marketFresh && market?.phase === 'exposure'
+        ? 'exposure'
+        : 'syncing';
   const displayedLeaderboard =
     categoryLeaderboards[activeCategory] ?? categoryLeaderboards.ALL;
+
+  useEffect(() => {
+    if (!leaderboardAuctionActive) return;
+
+    const timer = window.setInterval(() => {
+      setLeaderboardPulse((current) => current + 1);
+    }, 2800);
+    return () => window.clearInterval(timer);
+  }, [leaderboardAuctionActive]);
 
   function selectCategory(category: string) {
     setActiveCategory(category);
@@ -524,9 +618,7 @@ export default function Home() {
                         ? 'MAKE A BROADCAST'
                         : 'TAKE THIS SPOT'}
                     </span>
-                    <strong>
-                      {selectedLeaderboard ? 'OPEN' : '$11,500'}
-                    </strong>
+                    <strong>{selectedLeaderboard ? 'OPEN' : '$11,500'}</strong>
                   </Link>
                 </div>
               </div>
@@ -583,10 +675,7 @@ export default function Home() {
                     fill
                     sizes="(max-width: 700px) 100vw, (max-width: 1365px) 32vw, 22vw"
                   />
-                  <span
-                    className="homepage-magazine-wash"
-                    aria-hidden="true"
-                  />
+                  <span className="homepage-magazine-wash" aria-hidden="true" />
                   <div className="homepage-magazine-copy">
                     <span>
                       YESTERDAY&apos;S #1 / ISSUE {latestIssue.number}
@@ -600,11 +689,21 @@ export default function Home() {
           </div>
 
           <section className="leaderboard-panel dashboard-panel">
-            <div className="dashboard-section-head">
+            <div className="dashboard-section-head leaderboard-section-head">
               <span>
                 {activeCategory === 'ALL'
                   ? 'GLOBAL LEADERBOARD'
                   : `${activeCategory} LEADERBOARD`}
+              </span>
+              <span
+                className={`leaderboard-market-state is-${leaderboardMarketState}`}
+              >
+                <i />
+                {leaderboardMarketState === 'live'
+                  ? 'LIVE AUCTION'
+                  : leaderboardMarketState === 'exposure'
+                    ? 'EXPOSURE PERIOD'
+                    : 'MARKET SYNCING'}
               </span>
             </div>
             <div className="leaderboard-list">
@@ -629,6 +728,11 @@ export default function Home() {
                       <small>{handle}</small>
                     </span>
                     <span className="leaderboard-category">{category}</span>
+                    <LeaderboardMovement
+                      state={leaderboardMarketState}
+                      index={index}
+                      pulse={leaderboardPulse}
+                    />
                     <strong className="leaderboard-price">{price}</strong>
                   </button>
                 );
@@ -649,9 +753,7 @@ export default function Home() {
               <span className="club-price">
                 $— <small>/ MONTH</small>
               </span>
-              <Link href="/profile" aria-label="Open your profile to join The Bought Club">
-                JOIN THE CLUB
-              </Link>
+              <span className="club-coming-soon">COMING SOON...</span>
             </section>
 
             <article className="review-dashboard dashboard-panel">

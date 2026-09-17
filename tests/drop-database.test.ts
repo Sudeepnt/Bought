@@ -36,6 +36,18 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
     'utf8',
   );
   await db.exec(captureSql);
+  const snapshotSql = await readFile(
+    new URL(
+      '../supabase/migrations/20260913165454_optimize_public_snapshot.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  await db.exec(
+    snapshotSql
+      .replaceAll('clock_timestamp()', 'public.test_now()')
+      .replace(/\bnow\(\)/g, 'public.test_now()'),
+  );
   const owner = '10000000-0000-4000-8000-000000000001';
   const stranger = '10000000-0000-4000-8000-000000000002';
   const moderator = '10000000-0000-4000-8000-000000000003';
@@ -109,15 +121,26 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
       },
     );
     await t.test(
-      'an ambiguous checkout cannot create a second payable order',
+      'checkout retries are serialized and an ambiguous attempt can reconcile after its lease',
       async () => {
-        await db.query('select public.bought_claim_checkout($1)', [one]);
-        await assert.rejects(
-          db.query('select public.bought_claim_checkout($1)', [one]),
-          /being reconciled/,
+        const first = await db.query<{ claimed: boolean }>(
+          'select public.bought_claim_checkout($1) claimed',
+          [one],
         );
+        const retry = await db.query<{ claimed: boolean }>(
+          'select public.bought_claim_checkout($1) claimed',
+          [one],
+        );
+        assert.equal(first.rows[0].claimed, true);
+        assert.equal(retry.rows[0].claimed, false);
+        await db.exec("set test.now='2026-09-08T05:00:31Z'");
+        const recovery = await db.query<{ claimed: boolean }>(
+          'select public.bought_claim_checkout($1) claimed',
+          [one],
+        );
+        assert.equal(recovery.rows[0].claimed, true);
         await db.query(
-          "update public.bought_drops set checkout_state='ready' where id=$1",
+          "update public.bought_drops set checkout_state='ready',checkout_claimed_at=null where id=$1",
           [one],
         );
         const result = await db.query<{ claimed: boolean }>(
@@ -125,6 +148,7 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
           [one],
         );
         assert.equal(result.rows[0].claimed, false);
+        await db.exec("set test.now='2026-09-08T05:00:00Z'");
       },
     );
     await t.test('unpaid drops cannot record, submit, or publish', async () => {
@@ -196,6 +220,69 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
           /permission denied/,
         );
         await db.exec('reset role');
+      },
+    );
+    await t.test(
+      'browser roles hold only the table privileges the public API needs',
+      async () => {
+        const result = await db.query<{
+          anon_drops: boolean;
+          anon_ladder: boolean;
+          anon_ladder_write: boolean;
+          auth_webhooks: boolean;
+          auth_drops_write: boolean;
+        }>(`
+          select
+            has_table_privilege('anon', 'public.bought_drops', 'select') anon_drops,
+            has_table_privilege('anon', 'public.bought_ladder', 'select') anon_ladder,
+            has_table_privilege('anon', 'public.bought_ladder', 'insert,update,delete') anon_ladder_write,
+            has_table_privilege('authenticated', 'public.bought_webhook_events', 'select') auth_webhooks,
+            has_table_privilege('authenticated', 'public.bought_drops', 'insert,update,delete') auth_drops_write
+        `);
+        assert.deepEqual(result.rows[0], {
+          anon_drops: false,
+          anon_ladder: true,
+          anon_ladder_write: false,
+          auth_webhooks: false,
+          auth_drops_write: false,
+        });
+      },
+    );
+    await t.test(
+      'provider upload resources have per-broadcast retry budgets',
+      async () => {
+        const path = `${owner}/${one}/thumbnail-staging`;
+        const claimed = await db.query<{ previous: string | null }>(
+          'select public.bought_claim_thumbnail($1,$2) previous',
+          [one, path],
+        );
+        assert.equal(claimed.rows[0].previous, null);
+        assert.equal((await row()).thumbnail_path, path);
+        assert.equal((await row()).thumbnail_attempts, 1);
+        await assert.rejects(
+          db.query('select public.bought_claim_thumbnail($1,$2)', [
+            one,
+            `${owner}/${one}/attacker-controlled.jpg`,
+          ]),
+          /Invalid thumbnail path/,
+        );
+
+        await db.query(
+          'update public.bought_drops set upload_attempts=20,thumbnail_attempts=30 where id=$1',
+          [one],
+        );
+        await assert.rejects(
+          db.query('select public.bought_claim_upload($1,true)', [one]),
+          /upload retry limit/,
+        );
+        await assert.rejects(
+          db.query('select public.bought_claim_thumbnail($1,$2)', [one, path]),
+          /thumbnail retry limit/,
+        );
+        await db.query(
+          'update public.bought_drops set upload_attempts=0,thumbnail_attempts=1 where id=$1',
+          [one],
+        );
       },
     );
     await t.test(
@@ -401,6 +488,35 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
         assert.deepEqual(
           result.rows.map((r) => r.drop_id),
           [two, one],
+        );
+        await db.exec('reset role');
+      },
+    );
+    await t.test(
+      'one server-only snapshot returns the market and ordered public ladder',
+      async () => {
+        const result = await db.query<{
+          snapshot: {
+            market: { auctionId: string };
+            entries: { drop_id: string; position: number }[];
+          };
+        }>('select public.bought_snapshot() snapshot');
+        assert.equal(result.rows[0].snapshot.market.auctionId, '2026-09-08');
+        assert.deepEqual(
+          result.rows[0].snapshot.entries.map((entry) => [
+            entry.drop_id,
+            entry.position,
+          ]),
+          [
+            [two, 1],
+            [one, 2],
+          ],
+        );
+
+        await db.exec('set role anon');
+        await assert.rejects(
+          db.query('select public.bought_snapshot()'),
+          /permission denied/,
         );
         await db.exec('reset role');
       },

@@ -5,19 +5,18 @@ import {
   AlertTriangle,
   Camera,
   Check,
+  ExternalLink,
   MonitorUp,
   ShieldCheck,
 } from 'lucide-react';
 import type { CaptureMode } from '@/lib/drop-domain';
+import { supportedRecordingMimeType } from '@/lib/recording-capabilities';
 
 function recorderSupported() {
   if (!window.MediaRecorder) return false;
-  return [
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
-    'video/mp4',
-    'video/webm',
-  ].some((type) => MediaRecorder.isTypeSupported(type));
+  return !!supportedRecordingMimeType((type) =>
+    MediaRecorder.isTypeSupported(type),
+  );
 }
 
 export function CapturePreflight({
@@ -61,7 +60,9 @@ export function CapturePreflight({
         });
         streams.push(display);
         if (!display.getVideoTracks().length)
-          throw new Error('Choose a screen, window, or browser tab to continue.');
+          throw new Error(
+            'Choose a screen, window, or browser tab to continue.',
+          );
         const microphone = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true },
         });
@@ -82,9 +83,11 @@ export function CapturePreflight({
       setError(
         err instanceof DOMException && err.name === 'NotAllowedError'
           ? `${mode === 'screen' ? 'Screen sharing' : 'Camera or microphone'} permission was not granted.`
-          : err instanceof Error
-            ? err.message
-            : 'This browser could not complete the recording check.',
+          : err instanceof DOMException && err.name === 'NotFoundError'
+            ? `${mode === 'screen' ? 'A microphone was not found' : 'No camera was found on this device'}. Use the other-recorder option below.`
+            : err instanceof Error
+              ? err.message
+              : 'This browser could not complete the recording check.',
       );
     } finally {
       streams.forEach((stream) =>
@@ -118,15 +121,15 @@ export function CapturePreflight({
       </div>
       <p>
         {mode === 'screen'
-          ? 'This category needs visible proof. You will choose a screen, app window, or browser tab. The test stops sharing immediately.'
-          : 'This category is built for a direct take. Test your camera and microphone before opening checkout.'}
+          ? 'This category needs visible proof. Test screen sharing here, or record with another screen recorder and import the finished video after checkout.'
+          : 'Test your camera here. If this computer has no camera, record on your phone or another device and import the finished video after checkout.'}
       </p>
       {supported === false && (
         <p className="drop-capture-warning" role="alert">
           <AlertTriangle size={16} />
           {mode === 'screen'
-            ? 'Screen recording needs a supported desktop browser. Open this broadcast on desktop before paying.'
-            : 'This browser cannot record a camera broadcast over the current connection.'}
+            ? 'Direct screen recording is unavailable here. You can still record elsewhere and import the video.'
+            : 'Direct camera recording is unavailable here. You can still use a phone or another device.'}
         </p>
       )}
       {error && (
@@ -134,21 +137,43 @@ export function CapturePreflight({
           <AlertTriangle size={16} /> {error}
         </p>
       )}
-      <button
-        className="drop-button drop-preflight-button"
-        type="button"
-        disabled={!supported || checking || passed}
-        onClick={() => void testCapture()}
-      >
-        {passed
-          ? 'CAPTURE CHECK PASSED'
-          : checking
-            ? 'CHECKING…'
-            : mode === 'screen'
-              ? 'TEST SCREEN + MIC'
-              : 'TEST CAMERA + MIC'}
-        {passed && <Check size={16} />}
-      </button>
+      <div className="drop-preflight-actions">
+        <button
+          className="drop-button drop-preflight-button"
+          type="button"
+          disabled={!supported || checking || passed}
+          onClick={() => void testCapture()}
+        >
+          {passed
+            ? 'CAPTURE PLAN READY'
+            : checking
+              ? 'CHECKING…'
+              : mode === 'screen'
+                ? 'TEST SCREEN + MIC'
+                : 'TEST CAMERA + MIC'}
+          {passed && <Check size={16} />}
+        </button>
+        {!passed && (
+          <button
+            className="drop-button"
+            type="button"
+            disabled={checking}
+            onClick={onPassed}
+          >
+            <ExternalLink size={16} />
+            {mode === 'camera'
+              ? 'USE PHONE / OTHER CAMERA'
+              : 'USE ANOTHER RECORDER'}
+          </button>
+        )}
+      </div>
+      {!passed && (
+        <small className="drop-preflight-help">
+          You will upload the finished video here. It must include clear voice
+          audio, be 1 second–2 minutes long, at least 240 × 240, and no more
+          than 250 MB.
+        </small>
+      )}
     </section>
   );
 }

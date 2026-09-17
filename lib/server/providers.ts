@@ -51,12 +51,95 @@ export async function providerRequest<T>(
   }
 }
 
-function secureUrl(value: string) {
+export function validProviderReference(value: unknown) {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 255 &&
+    /^[A-Za-z0-9_-]+$/.test(value)
+  );
+}
+
+export function trustedStripeCheckoutUrl(value: unknown) {
+  if (typeof value !== 'string') return false;
   try {
-    return new URL(value).protocol === 'https:';
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      url.hostname === 'checkout.stripe.com' &&
+      !url.username &&
+      !url.password &&
+      (!url.port || url.port === '443')
+    );
   } catch {
     return false;
   }
+}
+
+export function validMuxUploadTarget(id: unknown, value: unknown) {
+  if (!validProviderReference(id) || typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      !url.username &&
+      !url.password &&
+      (!url.port || url.port === '443') &&
+      (url.hostname === 'storage.googleapis.com' ||
+        url.hostname.endsWith('.mux.com'))
+    );
+  } catch {
+    return false;
+  }
+}
+
+type RazorpayOrder = {
+  id: string;
+  amount: number;
+  currency: string;
+  receipt: string;
+  status: string;
+};
+
+function validRazorpayOrder(
+  order: unknown,
+  drop: Drop,
+): order is RazorpayOrder {
+  if (!order || typeof order !== 'object') return false;
+  const candidate = order as Partial<RazorpayOrder>;
+  return (
+    validProviderReference(candidate.id) &&
+    candidate.amount === drop.amount_minor &&
+    typeof candidate.currency === 'string' &&
+    candidate.currency.toUpperCase() === drop.currency &&
+    candidate.receipt === drop.id &&
+    typeof candidate.status === 'string' &&
+    ['created', 'attempted', 'paid'].includes(candidate.status)
+  );
+}
+
+async function reconcileRazorpayOrder(drop: Drop) {
+  const query = new URLSearchParams({ receipt: drop.id, count: '2' });
+  const response = await providerRequest<{ items?: RazorpayOrder[] }>(
+    `https://api.razorpay.com/v1/orders?${query}`,
+    {
+      headers: {
+        Authorization: basic('RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET'),
+      },
+    },
+  );
+  if (!Array.isArray(response.items))
+    throw new HttpError(502, 'The payment provider returned invalid orders.');
+  if (response.items.length === 0) return null;
+  if (
+    response.items.length !== 1 ||
+    !validRazorpayOrder(response.items[0], drop)
+  )
+    throw new HttpError(
+      502,
+      'The existing payment order could not be reconciled safely.',
+    );
+  return { reference: response.items[0].id, url: null };
 }
 
 export async function createCheckout(drop: Drop) {
@@ -73,26 +156,40 @@ export async function createCheckout(drop: Drop) {
       success_url: `${origin()}/broadcast?dropId=${drop.id}&payment=return`,
       cancel_url: `${origin()}/broadcast?dropId=${drop.id}`,
     });
-    const session = await providerRequest<{ id: string; url: string }>(
-      'https://api.stripe.com/v1/checkout/sessions',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${required('STRIPE_SECRET_KEY')}`,
-          'Idempotency-Key': `bought:${drop.id}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params,
+    const session = await providerRequest<{
+      id: string;
+      url: string;
+      client_reference_id: string;
+      amount_total: number;
+      currency: string;
+    }>('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${required('STRIPE_SECRET_KEY')}`,
+        'Idempotency-Key': `bought:${drop.id}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-    );
-    if (!session.id || !secureUrl(session.url))
+      body: params,
+    });
+    if (
+      !validProviderReference(session.id) ||
+      !trustedStripeCheckoutUrl(session.url) ||
+      session.client_reference_id !== drop.id ||
+      session.amount_total !== drop.amount_minor ||
+      typeof session.currency !== 'string' ||
+      session.currency.toUpperCase() !== drop.currency
+    )
       throw new HttpError(
         502,
         'The payment provider returned an invalid checkout.',
       );
     return { reference: session.id, url: session.url };
   }
-  const order = await providerRequest<{ id: string }>(
+  if (drop.checkout_state === 'creating') {
+    const existing = await reconcileRazorpayOrder(drop);
+    if (existing) return existing;
+  }
+  const order = await providerRequest<RazorpayOrder>(
     'https://api.razorpay.com/v1/orders',
     {
       method: 'POST',
@@ -109,7 +206,7 @@ export async function createCheckout(drop: Drop) {
       }),
     },
   );
-  if (!order.id)
+  if (!validRazorpayOrder(order, drop))
     throw new HttpError(
       502,
       'The payment provider returned an invalid checkout.',

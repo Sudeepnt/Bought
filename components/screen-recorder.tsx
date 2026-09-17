@@ -17,16 +17,12 @@ import {
   type Drop,
 } from '@/lib/drop-domain';
 import { saveTake, videoFrame } from '@/lib/local-recording';
+import {
+  createRecordingDevice,
+  supportedRecordingMimeType,
+  validRecordedTake,
+} from '@/lib/recording-capabilities';
 import { useBought } from './bought-provider';
-
-function supportedMimeType() {
-  return [
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
-    'video/mp4',
-    'video/webm',
-  ].find((type) => MediaRecorder.isTypeSupported(type));
-}
 
 export function ScreenRecorder({
   dropId,
@@ -44,6 +40,7 @@ export function ScreenRecorder({
   const context = useRef<AudioContext | null>(null);
   const monitor = useRef<number | undefined>(undefined);
   const started = useRef(0);
+  const autoStop = useRef<number | undefined>(undefined);
   const active = useRef(true);
   const [paymentReady, setPaymentReady] = useState(false);
   const [ready, setReady] = useState(false);
@@ -57,7 +54,9 @@ export function ScreenRecorder({
 
   const release = useCallback(() => {
     clearInterval(monitor.current);
+    clearTimeout(autoStop.current);
     monitor.current = undefined;
+    autoStop.current = undefined;
     recordingStream.current?.getTracks().forEach((track) => track.stop());
     displayStream.current?.getTracks().forEach((track) => track.stop());
     microphoneStream.current?.getTracks().forEach((track) => track.stop());
@@ -100,6 +99,13 @@ export function ScreenRecorder({
       release();
     };
   }, [api, dropId, release]);
+
+  useEffect(() => {
+    if (!recording) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [recording]);
 
   async function setup() {
     if (!paymentReady || settingUp) return;
@@ -186,15 +192,14 @@ export function ScreenRecorder({
         await preview.current.play();
       }
 
-      const mime = supportedMimeType();
+      const mime = supportedRecordingMimeType((type) =>
+        MediaRecorder.isTypeSupported(type),
+      );
       if (!mime)
         throw new Error(
           'This browser cannot create a supported screen recording.',
         );
-      const recordingDevice = new MediaRecorder(combined, {
-        mimeType: mime,
-        videoBitsPerSecond: 3000000,
-      });
+      const recordingDevice = createRecordingDevice(combined, mime, 3000000);
       recorder.current = recordingDevice;
       let chunks: Blob[] = [];
       let totalBytes = 0;
@@ -224,9 +229,7 @@ export function ScreenRecorder({
         }
         release();
         if (
-          blob.size === 0 ||
-          blob.size > MAX_VIDEO_BYTES ||
-          performance.now() - started.current < 1000
+          !validRecordedTake(blob.size, performance.now() - started.current)
         ) {
           if (active.current) {
             setRecording(false);
@@ -287,9 +290,11 @@ export function ScreenRecorder({
         setError(
           err instanceof DOMException && err.name === 'NotAllowedError'
             ? 'Screen or microphone permission was not granted. Your payment is saved.'
-            : err instanceof Error
-              ? err.message
-              : 'Could not prepare screen recording.',
+            : err instanceof DOMException && err.name === 'NotFoundError'
+              ? 'No microphone was found. Record the screen with voice on another device, then use Import Video below.'
+              : err instanceof Error
+                ? err.message
+                : 'Could not prepare screen recording.',
         );
     } finally {
       if (active.current) setSettingUp(false);
@@ -303,6 +308,11 @@ export function ScreenRecorder({
     void context.current?.resume();
     try {
       recorder.current.start(1000);
+      autoStop.current = window.setTimeout(
+        () =>
+          recorder.current?.state === 'recording' && recorder.current.stop(),
+        MAX_VIDEO_SECONDS * 1000,
+      );
       setRecording(true);
     } catch {
       setError('Screen recording could not start. Share the screen again.');
@@ -363,6 +373,11 @@ export function ScreenRecorder({
           {screenAudio ? 'Screen audio included' : 'Screen audio optional'}
         </span>
       </div>
+      <p className="drop-recording-guidance">
+        {recording
+          ? 'Recording continues while you switch apps. Keep this Bought page open and use the browser sharing indicator to return.'
+          : 'Choose Entire Screen to move between apps, or choose one window to capture only that window. Keep this page open.'}
+      </p>
       {error && (
         <p className="drop-error" role="alert">
           {error}
@@ -392,11 +407,7 @@ export function ScreenRecorder({
             className={`drop-button ${recording ? 'recording' : 'primary'}`}
             type="button"
             disabled={!mic}
-            onClick={
-              recording
-                ? () => recorder.current?.stop()
-                : start
-            }
+            onClick={recording ? () => recorder.current?.stop() : start}
           >
             {recording ? (
               <>

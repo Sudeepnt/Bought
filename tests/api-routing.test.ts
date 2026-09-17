@@ -26,6 +26,18 @@ void test('public API routes are exact, cacheable, and hardened', async () => {
   );
   assert.equal(unsupportedMethod.status, 405);
   assert.equal(unsupportedMethod.headers.get('allow'), 'GET, POST');
+
+  const snapshot = await handleApi(
+    new Request('https://bought.example/api/bought/snapshot'),
+  );
+  assert.equal(snapshot.status, 200);
+  assert.match(snapshot.headers.get('cache-control') ?? '', /s-maxage=5/);
+  const snapshotBody = (await snapshot.json()) as {
+    market: { configured: boolean };
+    entries: unknown[];
+  };
+  assert.equal(snapshotBody.market.configured, false);
+  assert.deepEqual(snapshotBody.entries, []);
 });
 
 void test('Vercel cron GET requests require the configured bearer secret', async () => {

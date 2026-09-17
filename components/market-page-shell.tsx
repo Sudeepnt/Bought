@@ -8,20 +8,23 @@ export function MarketPageShell({
   eyebrow,
   title,
   description,
+  showIntro = true,
   children,
 }: {
   active: MarketPage;
   eyebrow: string;
   title: string;
   description: string;
+  showIntro?: boolean;
   children: ReactNode;
 }) {
   return (
     <main className="market-shell dashboard-shell route-market-shell">
       <div className="scanlines" aria-hidden="true" />
       <MarketTopbar active={active} />
-      <div className="route-page">
-        <header className="route-intro dashboard-panel">
+      <div className={`route-page${showIntro ? '' : ' route-page-no-intro'}`}>
+        {showIntro && (
+          <header className="route-intro dashboard-panel">
           <div className="dashboard-section-head">
             <span>
               <i /> {eyebrow}
@@ -39,7 +42,8 @@ export function MarketPageShell({
               <em>+23% TODAY</em>
             </div>
           </div>
-        </header>
+          </header>
+        )}
         {children}
 
         <MarketFooter />

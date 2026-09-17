@@ -88,6 +88,7 @@ export default function BroadcastPage() {
         const params = new URLSearchParams(window.location.search);
         const id = params.get('dropId');
         setDrop(null);
+        setCaptureReady(false);
         if (id && validUuid(id)) {
           setDropId(id);
           setLoading(true);
@@ -188,6 +189,7 @@ export default function BroadcastPage() {
   function openSaved(id: string) {
     setDrop(null);
     setDropId(id);
+    setCaptureReady(false);
     setLoading(true);
     setError('');
     setNotice('');
@@ -196,12 +198,15 @@ export default function BroadcastPage() {
 
   async function checkout() {
     if (busy) return;
+    let razorpayOpen = false;
     setBusy(true);
     setError('');
     setNotice('');
     try {
-      if (!captureReady && !dropId)
-        throw new Error('Complete the recording check before opening checkout.');
+      if (!captureReady)
+        throw new Error(
+          'Complete the recording check before opening checkout.',
+        );
       let id = dropId;
       if (!id) {
         const amountMinor = parseBid(amount);
@@ -263,6 +268,7 @@ export default function BroadcastPage() {
         setBusy(false);
       });
       modal.open();
+      razorpayOpen = true;
     } catch (err) {
       setError(
         err instanceof Error
@@ -270,7 +276,7 @@ export default function BroadcastPage() {
           : 'Checkout failed. Your broadcast is saved.',
       );
     } finally {
-      setBusy(false);
+      if (!razorpayOpen) setBusy(false);
     }
   }
 
@@ -462,13 +468,11 @@ export default function BroadcastPage() {
                     </button>
                   ))}
                 </fieldset>
-                {!dropId && (
-                  <CapturePreflight
-                    mode={captureMode}
-                    passed={captureReady}
-                    onPassed={() => setCaptureReady(true)}
-                  />
-                )}
+                <CapturePreflight
+                  mode={captureMode}
+                  passed={captureReady}
+                  onPassed={() => setCaptureReady(true)}
+                />
                 <label className="drop-field">
                   Give your broadcast a title
                   <input
@@ -565,7 +569,7 @@ export default function BroadcastPage() {
                   disabled={
                     busy ||
                     !session ||
-                    (!dropId && !captureReady) ||
+                    !captureReady ||
                     !paymentsAvailable ||
                     !config?.providers[drop?.provider ?? provider] ||
                     !marketFresh ||
@@ -623,8 +627,8 @@ export default function BroadcastPage() {
               <div className="drop-receipt-note">
                 <ShieldCheck size={20} />
                 <p>
-                  Your payment stays with your broadcast. If an upload fails, return
-                  here and pick up where you left off.
+                  Your payment stays with your broadcast. If an upload fails,
+                  return here and pick up where you left off.
                 </p>
               </div>
               {dropId && (
@@ -639,8 +643,9 @@ export default function BroadcastPage() {
               <Video size={23} />
               <h3>THEN, THE FLOOR IS YOURS.</h3>
               <p>
-                Record inside BOUGHT, preview your take, and choose a thumbnail.
-                Your broadcast and image are checked before publication.
+                Record inside BOUGHT or import a video made on your phone or in
+                another recorder. Preview your take and choose a thumbnail. Your
+                broadcast and image are checked before publication.
               </p>
               <p>
                 If processing or review passes the cutoff, your paid entry

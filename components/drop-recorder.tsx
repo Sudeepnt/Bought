@@ -32,6 +32,13 @@ import {
   saveTake,
   videoFrame,
 } from '@/lib/local-recording';
+import {
+  createRecordingDevice,
+  importedRecordingIssue,
+  recordingExtension,
+  supportedRecordingMimeType,
+  validRecordedTake,
+} from '@/lib/recording-capabilities';
 import { useBought } from './bought-provider';
 import { ScreenRecorder } from './screen-recorder';
 
@@ -49,6 +56,7 @@ function CameraRecorder({
   const detector = useRef<FaceDetector | null>(null);
   const context = useRef<AudioContext | null>(null);
   const started = useRef(0);
+  const autoStop = useRef<number | undefined>(undefined);
   const facePresent = useRef(false);
   const [face, setFace] = useState(false);
   const [mic, setMic] = useState(false);
@@ -67,10 +75,6 @@ function CameraRecorder({
     const stop = () => {
       if (recorder.current?.state === 'recording') recorder.current.stop();
     };
-    const hidden = () => {
-      if (document.hidden) stop();
-    };
-    document.addEventListener('visibilitychange', hidden);
     const connect = async () => {
       setReady(false);
       setError('');
@@ -194,20 +198,14 @@ function CameraRecorder({
           );
         }
         // Enforce the byte limit independently of state updates.
-        const mime = [
-          'video/webm;codecs=vp9,opus',
-          'video/webm;codecs=vp8,opus',
-          'video/mp4',
-          'video/webm',
-        ].find((type) => MediaRecorder.isTypeSupported(type));
+        const mime = supportedRecordingMimeType((type) =>
+          MediaRecorder.isTypeSupported(type),
+        );
         if (!mime)
           throw new Error(
             'This browser cannot record a supported broadcast. Try Chrome, Edge, or Safari.',
           );
-        const recordingDevice = new MediaRecorder(media, {
-          mimeType: mime,
-          videoBitsPerSecond: 2500000,
-        });
+        const recordingDevice = createRecordingDevice(media, mime, 2500000);
         recorder.current = recordingDevice;
         let chunks: Blob[] = [];
         recordingDevice.onstart = () => {
@@ -229,11 +227,11 @@ function CameraRecorder({
           stop();
         };
         recordingDevice.onstop = async () => {
+          clearTimeout(autoStop.current);
+          autoStop.current = undefined;
           const blob = new Blob(chunks, { type: recordingDevice.mimeType });
           if (
-            blob.size === 0 ||
-            blob.size > MAX_VIDEO_BYTES ||
-            performance.now() - started.current < 1000
+            !validRecordedTake(blob.size, performance.now() - started.current)
           ) {
             if (active) {
               setRecording(false);
@@ -267,18 +265,20 @@ function CameraRecorder({
           setError(
             err instanceof DOMException && err.name === 'NotAllowedError'
               ? 'Camera or microphone access was denied. Allow both in your browser settings, then try again. Your payment is saved.'
-              : err instanceof Error
-                ? err.message
-                : 'Could not open the camera.',
+              : err instanceof DOMException && err.name === 'NotFoundError'
+                ? 'No camera was found on this computer. Record on a phone or another device, then use Import Video below. Your payment is saved.'
+                : err instanceof Error
+                  ? err.message
+                  : 'Could not open the camera.',
           );
       }
     };
     void connect();
     return () => {
       active = false;
+      clearTimeout(autoStop.current);
       stop();
       clearInterval(monitor);
-      document.removeEventListener('visibilitychange', hidden);
       stream.current?.getTracks().forEach((track) => track.stop());
       stream.current = null;
       detector.current?.close();
@@ -287,6 +287,13 @@ function CameraRecorder({
       context.current = null;
     };
   }, [api, attempt, dropId, onRecorded]);
+
+  useEffect(() => {
+    if (!recording) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [recording]);
 
   function start() {
     if (
@@ -301,6 +308,11 @@ function CameraRecorder({
     void context.current?.resume();
     try {
       recorder.current.start(1000);
+      autoStop.current = window.setTimeout(
+        () =>
+          recorder.current?.state === 'recording' && recorder.current.stop(),
+        MAX_VIDEO_SECONDS * 1000,
+      );
       setRecording(true);
     } catch {
       setError('Recording could not start. Reconnect your camera.');
@@ -359,6 +371,11 @@ function CameraRecorder({
           </i>
         </span>
       </div>
+      <p className="drop-recording-guidance">
+        {recording
+          ? 'Recording continues if you switch tabs or apps. Keep this Bought page open.'
+          : 'You may switch tabs or apps after recording starts. Do not close or reload this page.'}
+      </p>
       {error && (
         <p className="drop-error" role="alert">
           {error}
@@ -408,6 +425,7 @@ export function DropRecorder({
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
@@ -497,6 +515,67 @@ export function DropRecorder({
     [drop.id],
   );
 
+  async function importRecording(file: File) {
+    if (importing) return;
+    setImporting(true);
+    setError('');
+    const url = URL.createObjectURL(file);
+    try {
+      const metadata = await new Promise<{
+        duration: number;
+        width: number;
+        height: number;
+      }>((resolve, reject) => {
+        const imported = document.createElement('video');
+        const timeout = window.setTimeout(
+          () =>
+            reject(
+              new Error(
+                'The video took too long to read. Try MP4, MOV, or WebM.',
+              ),
+            ),
+          15_000,
+        );
+        imported.preload = 'metadata';
+        imported.muted = true;
+        imported.onloadedmetadata = () => {
+          clearTimeout(timeout);
+          resolve({
+            duration: imported.duration,
+            width: imported.videoWidth,
+            height: imported.videoHeight,
+          });
+        };
+        imported.onerror = () => {
+          clearTimeout(timeout);
+          reject(
+            new Error(
+              'This browser could not read that video. Try MP4, MOV, or WebM.',
+            ),
+          );
+        };
+        imported.src = url;
+      });
+      const issue = importedRecordingIssue({
+        size: file.size,
+        type: file.type,
+        ...metadata,
+      });
+      if (issue) throw new Error(issue);
+      onRecorded(file);
+      setNotice(
+        'Video imported. Play it back and confirm that your face or screen is clear and your voice is audible.',
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not import this video.',
+      );
+    } finally {
+      URL.revokeObjectURL(url);
+      setImporting(false);
+    }
+  }
+
   async function chooseThumbnail(next: Blob) {
     setThumbnail(next);
     if (blob)
@@ -569,7 +648,7 @@ export function DropRecorder({
               endpoint: target.url,
               file: new File(
                 [blob],
-                `broadcast-${drop.id}.${blob.type.includes('mp4') ? 'mp4' : 'webm'}`,
+                `broadcast-${drop.id}.${recordingExtension(blob.type)}`,
                 { type: blob.type },
               ),
               chunkSize: 5120,
@@ -648,11 +727,43 @@ export function DropRecorder({
       )}
       {notice && <p className="drop-notice">{notice}</p>}
       {!blob ? (
-        drop.capture_mode === 'screen' ? (
-          <ScreenRecorder dropId={drop.id} onRecorded={onRecorded} />
-        ) : (
-          <CameraRecorder dropId={drop.id} onRecorded={onRecorded} />
-        )
+        <>
+          {drop.capture_mode === 'screen' ? (
+            <ScreenRecorder dropId={drop.id} onRecorded={onRecorded} />
+          ) : (
+            <CameraRecorder dropId={drop.id} onRecorded={onRecorded} />
+          )}
+          <section className="drop-import-recording">
+            <div>
+              <strong>
+                {drop.capture_mode === 'camera'
+                  ? 'NO CAMERA ON THIS COMPUTER?'
+                  : 'ALREADY RECORDED YOUR SCREEN?'}
+              </strong>
+              <p>
+                {drop.capture_mode === 'camera'
+                  ? 'Record your face and voice on a phone or another device, move the file here, then import it.'
+                  : 'You can import a screen recording made in another app instead.'}{' '}
+                MP4, MOV, or WebM · 1 second–2 minutes · up to 250 MB.
+              </p>
+            </div>
+            <label className={`drop-button ${importing ? 'disabled' : ''}`}>
+              <Upload size={16} />
+              {importing ? 'CHECKING VIDEO…' : 'IMPORT VIDEO'}
+              <input
+                className="drop-file-input"
+                type="file"
+                accept="video/mp4,video/quicktime,video/webm,video/x-m4v"
+                disabled={importing}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void importRecording(file);
+                  event.target.value = '';
+                }}
+              />
+            </label>
+          </section>
+        </>
       ) : (
         <>
           <div className="drop-camera drop-recorded">
@@ -697,7 +808,7 @@ export function DropRecorder({
           <a
             className="drop-text-button"
             href={videoUrl}
-            download={`broadcast-${drop.id}.${blob.type.includes('mp4') ? 'mp4' : 'webm'}`}
+            download={`broadcast-${drop.id}.${recordingExtension(blob.type)}`}
           >
             Download a backup of this take
           </a>

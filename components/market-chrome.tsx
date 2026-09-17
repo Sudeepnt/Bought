@@ -3,9 +3,9 @@
 import {
   ArrowUpRight,
   BarChart3,
-  Bell,
   Eye,
   LockKeyhole,
+  Radio,
   Timer,
   Users,
 } from 'lucide-react';
@@ -27,9 +27,72 @@ const MARKET_MARQUEE_PIXELS_PER_SECOND = 60;
 const FALLBACK_BOARD_TOTAL_MINOR = 5_530_000;
 const FALLBACK_BOARD_BROADCASTS = 10;
 
-export function useMarqueeDuration(
-  trackRef: RefObject<HTMLElement | null>,
-) {
+function useMarketCountdown() {
+  const { market, serverTime, marketFresh, entries } = useBought();
+  const [previewSeconds, setPreviewSeconds] = useState<number | null>(null);
+
+  useEffect(() => {
+    const criticalPreview =
+      process.env.NODE_ENV === 'development' &&
+      new URLSearchParams(window.location.search).get('countdown') ===
+        'critical';
+    if (!criticalPreview) return;
+
+    const frame = window.requestAnimationFrame(() => setPreviewSeconds(582));
+    const timer = window.setInterval(
+      () =>
+        setPreviewSeconds((current) =>
+          current === null ? null : Math.max(0, current - 1),
+        ),
+      1000,
+    );
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const marketSeconds =
+    market && serverTime !== null
+      ? Math.max(
+          0,
+          Math.floor(
+            (Date.parse(
+              market.phase === 'bidding'
+                ? market.closesAt
+                : market.exposureEndsAt,
+            ) -
+              serverTime) /
+              1000,
+          ),
+        )
+      : 0;
+  const totalSeconds = previewSeconds ?? marketSeconds;
+  const countdown = {
+    totalSeconds,
+    hours: Math.floor(totalSeconds / 3600)
+      .toString()
+      .padStart(2, '0'),
+    minutes: Math.floor((totalSeconds % 3600) / 60)
+      .toString()
+      .padStart(2, '0'),
+    seconds: (totalSeconds % 60).toString().padStart(2, '0'),
+  };
+  const countdownReady = market !== null && serverTime !== null;
+  const exposureLocked = market?.phase === 'exposure';
+
+  return {
+    countdown,
+    countdownReady,
+    countdownIsCritical: marketFresh && countdown.totalSeconds < 600,
+    countdownIsUrgent: marketFresh && countdown.totalSeconds < 3600,
+    entries,
+    exposureLocked,
+    marketFresh,
+  };
+}
+
+export function useMarqueeDuration(trackRef: RefObject<HTMLElement | null>) {
   const [duration, setDuration] = useState<number | null>(null);
 
   useEffect(() => {
@@ -74,65 +137,18 @@ export const fallbackFeedItems: FeedItem[] = [
 export function MarketStatusStrip({
   eyebrow = 'THE OPEN POSITION',
   title = 'BE THE NEXT #1',
-  description = 'Get the most visibility for your message.',
 }: {
   eyebrow?: string;
   title?: string;
-  description?: string;
 }) {
-  const { market, serverTime, marketFresh, entries } = useBought();
-  const [previewSeconds, setPreviewSeconds] = useState<number | null>(null);
-
-  useEffect(() => {
-    const criticalPreview =
-      process.env.NODE_ENV === 'development' &&
-      new URLSearchParams(window.location.search).get('countdown') ===
-        'critical';
-    if (!criticalPreview) return;
-
-    const frame = window.requestAnimationFrame(() => setPreviewSeconds(582));
-    const timer = window.setInterval(
-      () =>
-        setPreviewSeconds((current) =>
-          current === null ? null : Math.max(0, current - 1),
-        ),
-      1000,
-    );
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  const marketSeconds =
-    market && serverTime
-      ? Math.max(
-          0,
-          Math.floor(
-            (Date.parse(
-              market.phase === 'bidding'
-                ? market.closesAt
-                : market.exposureEndsAt,
-            ) -
-              serverTime) /
-              1000,
-          ),
-        )
-      : 0;
-  const totalSeconds = previewSeconds ?? marketSeconds;
-  const countdown = {
-    totalSeconds,
-    hours: Math.floor(totalSeconds / 3600)
-      .toString()
-      .padStart(2, '0'),
-    minutes: Math.floor((totalSeconds % 3600) / 60)
-      .toString()
-      .padStart(2, '0'),
-    seconds: (totalSeconds % 60).toString().padStart(2, '0'),
-  };
-  const exposureLocked = marketFresh && market?.phase === 'exposure';
-  const countdownIsUrgent = marketFresh && countdown.totalSeconds < 3600;
-  const countdownIsCritical = marketFresh && countdown.totalSeconds < 600;
+  const {
+    countdown,
+    countdownReady,
+    countdownIsCritical,
+    countdownIsUrgent,
+    entries,
+    exposureLocked,
+  } = useMarketCountdown();
   const hasPublishedEntries = entries.length > 0;
   const totalAmount = hasPublishedEntries
     ? entries.reduce((sum, entry) => sum + entry.amount_minor, 0)
@@ -155,19 +171,15 @@ export function MarketStatusStrip({
           <span className="dashboard-delta">
             <ArrowUpRight size={13} /> {broadcastCount} BROADCASTS
           </span>
-          <span>
-            {hasPublishedEntries ? 'verified & published' : 'current board total'}
-          </span>
         </div>
       </div>
       <div className="next-position dashboard-panel">
         <div>
           <span className="dashboard-eyebrow">{eyebrow}</span>
           <strong>{title}</strong>
-          <p>{description}</p>
         </div>
         <div className="next-position-mark">
-          <Bell size={17} />
+          <Radio size={17} />
           <Link href="/broadcast">MAKE A BROADCAST</Link>
         </div>
       </div>
@@ -183,26 +195,28 @@ export function MarketStatusStrip({
         </div>
         <div className="countdown-label">
           <strong>{exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
-          <span>{exposureLocked ? 'EXPOSURE LOCKED' : 'BIDDING CLOSES IN'}</span>
+          <span>
+            {exposureLocked ? 'EXPOSURE LOCKED' : 'BIDDING CLOSES IN'}
+          </span>
         </div>
         <div className="countdown-value">
           <div className="countdown-segments">
             <span className="countdown-segment">
-              <strong>{marketFresh ? countdown.hours : '--'}</strong>
+              <strong>{countdownReady ? countdown.hours : '--'}</strong>
               <small>HOURS</small>
             </span>
             <strong className="countdown-separator" aria-hidden="true">
               :
             </strong>
             <span className="countdown-segment is-pulsing">
-              <strong>{marketFresh ? countdown.minutes : '--'}</strong>
+              <strong>{countdownReady ? countdown.minutes : '--'}</strong>
               <small>MINUTES</small>
             </span>
             <strong className="countdown-separator" aria-hidden="true">
               :
             </strong>
             <span className="countdown-segment is-pulsing">
-              <strong>{marketFresh ? countdown.seconds : '--'}</strong>
+              <strong>{countdownReady ? countdown.seconds : '--'}</strong>
               <small>SECONDS</small>
             </span>
           </div>
@@ -212,17 +226,55 @@ export function MarketStatusStrip({
   );
 }
 
+export function FloatingMarketCountdown({ visible }: { visible: boolean }) {
+  const { countdown, countdownReady, exposureLocked } = useMarketCountdown();
+
+  return (
+    <aside
+      className={`floating-market-countdown ${visible ? 'is-visible' : ''}`}
+      aria-label="Persistent market countdown"
+      aria-hidden={!visible}
+    >
+      <span className="floating-market-countdown-icon" aria-hidden="true">
+        {exposureLocked ? (
+          <LockKeyhole size={28} strokeWidth={1.8} />
+        ) : (
+          <Timer size={28} strokeWidth={1.8} />
+        )}
+      </span>
+      <span className="floating-market-countdown-label">
+        <strong>{exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
+        <small>
+          {exposureLocked ? 'EXPOSURE LOCKED' : 'BIDDING CLOSES IN'}
+        </small>
+      </span>
+      <span className="floating-market-countdown-time">
+        <strong>
+          {countdownReady
+            ? `${countdown.hours}:${countdown.minutes}:${countdown.seconds}`
+            : '--:--:--'}
+        </strong>
+        <small>
+          HOURS&nbsp;&nbsp;&nbsp;&nbsp; MINUTES&nbsp;&nbsp;&nbsp; SECONDS
+        </small>
+      </span>
+    </aside>
+  );
+}
+
 export function LiveMarketFeed() {
   const { entries } = useBought();
   const trackRef = useRef<HTMLDivElement>(null);
   const marqueeDuration = useMarqueeDuration(trackRef);
-  const publishedFeedItems: FeedItem[] = entries.slice(0, 8).map(entry => [
-    entry.title,
-    entry.position === 1 ? 'took #1 in' : `took #${entry.position} in`,
-    entry.category,
-    money(entry.amount_minor),
-    'just now',
-  ]);
+  const publishedFeedItems: FeedItem[] = entries
+    .slice(0, 8)
+    .map((entry) => [
+      entry.title,
+      entry.position === 1 ? 'took #1 in' : `took #${entry.position} in`,
+      entry.category,
+      money(entry.amount_minor),
+      'just now',
+    ]);
   const feedItems = [...publishedFeedItems, ...fallbackFeedItems].slice(0, 14);
   const feedLoop = [...feedItems, ...feedItems];
 
@@ -238,20 +290,20 @@ export function LiveMarketFeed() {
         <div
           className="live-feed-track"
           ref={trackRef}
-          style={marqueeDuration ? { animationDuration: marqueeDuration } : undefined}
+          style={
+            marqueeDuration ? { animationDuration: marqueeDuration } : undefined
+          }
         >
-          {feedLoop.map(
-            ([name, action, category, amount, time], index) => (
-              <span
-                aria-hidden={index >= feedItems.length ? true : undefined}
-                key={`${name}-${action}-${time}-${index}`}
-              >
-                <b>{name}</b> {action} <strong>{category}</strong>
-                {amount && <em> · {amount}</em>}
-                <small> · {time}</small>
-              </span>
-            ),
-          )}
+          {feedLoop.map(([name, action, category, amount, time], index) => (
+            <span
+              aria-hidden={index >= feedItems.length ? true : undefined}
+              key={`${name}-${action}-${time}-${index}`}
+            >
+              <b>{name}</b> {action} <strong>{category}</strong>
+              {amount && <em> · {amount}</em>}
+              <small> · {time}</small>
+            </span>
+          ))}
         </div>
       </div>
     </div>
@@ -269,7 +321,7 @@ export function MarketFooter() {
         <span>
           <BarChart3 size={17} />
           <b>2,843</b>
-            <small>Total Broadcasts</small>
+          <small>Total Broadcasts</small>
         </span>
         <span>
           <Eye size={17} />
@@ -283,7 +335,6 @@ export function MarketFooter() {
         </span>
       </div>
       <div className="footer-links">
-        <Link href="/how-it-works">About</Link>
         <Link href="/how-it-works">How it works</Link>
         <Link href="/categories">Categories</Link>
         <Link href="/magazine">Magazine</Link>

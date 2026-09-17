@@ -1,77 +1,178 @@
 'use client';
 
-import Link from '@/components/site-link';
 import {
-  ArrowLeft,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from 'react';
+import {
   ArrowUpRight,
   BarChart3,
-  BadgeCheck,
-  BriefcaseBusiness,
   Building2,
-  Check,
   CalendarDays,
-  Compass,
+  Check,
+  ChevronDown,
+  ClipboardPaste,
+  Edit3,
   Eye,
-  EyeOff,
-  Gamepad2,
-  Globe2,
-  GraduationCap,
-  Handshake,
-  ImagePlus,
-  Lightbulb,
-  LockKeyhole,
-  LogOut,
+  Link2,
   MapPin,
-  MessageCircle,
+  MoreHorizontal,
   Pencil,
+  Play,
+  Plus,
   Radio,
-  ShieldCheck,
-  Sparkles,
-  Sprout,
-  Target,
-  TrendingUp,
-  UserRoundPlus,
-  UsersRound,
+  Share2,
+  Trash2,
+  X as CloseIcon,
   UserRound,
-  WalletCards,
-  type LucideIcon,
+  Video,
 } from 'lucide-react';
-import { useState, type ChangeEvent, type SyntheticEvent } from 'react';
+import Link from 'next/link';
 
-import { DropSignIn } from '@/components/drop-sign-in';
 import { MarketPageShell } from '@/components/market-page-shell';
 import { ProfileAvatar } from '@/components/profile-avatar';
+import {
+  InstagramBrandIcon,
+  LinkedInBrandIcon,
+  TikTokBrandIcon,
+  XBrandIcon,
+  YouTubeBrandIcon,
+  type SocialBrandIcon,
+} from '@/components/social-brand-icons';
 import { useBought } from '@/components/bought-provider';
-import { CATEGORIES } from '@/lib/drop-domain';
+import {
+  DEV_TEST_AUTH_STORAGE_KEY,
+  DEV_TEST_PROFILE_STORAGE_KEY,
+  isDevAuthTestMode,
+} from '@/lib/dev-auth';
+import {
+  parseSocialAvatarUrl,
+  socialAvatarImageUrl,
+} from '@/lib/social-avatar';
 
-const featuredBroadcasts = [
+type ProfileType = 'Individual' | 'Company' | 'Creator' | 'Investor' | 'Other';
+type SocialLinkKey =
+  | 'x'
+  | 'instagram'
+  | 'linkedin'
+  | 'youtube'
+  | 'tiktok'
+  | 'website';
+type SocialLinks = Record<SocialLinkKey, string>;
+
+type ProfileBroadcast = {
+  id: string;
+  title: string;
+  category: string;
+  state: string;
+  amount_minor: number;
+  created_at: string;
+  thumbnail_path?: string;
+};
+
+type ProfileStats = {
+  broadcasts: number;
+  published: number;
+  totalViews: number;
+  topPositions: number;
+};
+
+type ProfileDraft = {
+  avatarUrl: string;
+  age: string;
+  bio: string;
+  fullName: string;
+  username: string;
+  socialLinks: SocialLinks;
+  city: string;
+  country: string;
+  profileType: ProfileType;
+};
+
+const SOCIAL_LINK_FIELDS: Array<{
+  key: SocialLinkKey;
+  label: string;
+  placeholder: string;
+  icon: SocialBrandIcon;
+}> = [
   {
-    title: 'I switched from Notion to Anytype. Here’s why.',
-    category: 'WHY I SWITCHED',
-    amount: '$9,200',
-    views: '12.4K',
-    duration: '01:36',
+    key: 'x',
+    label: 'X (Twitter)',
+    placeholder: 'https://x.com/yourusername',
+    icon: XBrandIcon,
   },
   {
-    title: 'We spent $50,000 on LinkedIn ads. Here are the results.',
-    category: 'SHOW THE RECEIPTS',
-    amount: '$7,800',
-    views: '9.8K',
-    duration: '02:12',
+    key: 'instagram',
+    label: 'Instagram',
+    placeholder: 'https://instagram.com/yourusername',
+    icon: InstagramBrandIcon,
   },
   {
-    title: 'Roast my landing page. Be brutal.',
-    category: 'TEARDOWN',
-    amount: '$5,900',
-    views: '8.2K',
-    duration: '02:05',
+    key: 'linkedin',
+    label: 'LinkedIn',
+    placeholder: 'https://linkedin.com/in/yourusername',
+    icon: LinkedInBrandIcon,
+  },
+  {
+    key: 'youtube',
+    label: 'YouTube',
+    placeholder: 'https://youtube.com/@yourusername',
+    icon: YouTubeBrandIcon,
+  },
+  {
+    key: 'tiktok',
+    label: 'TikTok',
+    placeholder: 'https://tiktok.com/@yourusername',
+    icon: TikTokBrandIcon,
+  },
+  {
+    key: 'website',
+    label: 'Website',
+    placeholder: 'https://yourwebsite.com',
+    icon: Link2,
   },
 ];
 
-const publicActivity = [
-  ['BROADCAST PUBLISHED', 'Your latest broadcast is live on today’s floor.', '2H AGO'],
-  ['POSITION MOVED', 'You moved up in UNPOPULAR OPINION.', '5H AGO'],
-  ['BID CONFIRMED', 'Your $9,200 position is secured for this cycle.', '1D AGO'],
+const PROFILE_TYPES: Array<{
+  label: ProfileType;
+  description: string;
+  icon: typeof UserRound;
+}> = [
+  { label: 'Individual', description: 'Personal profile', icon: UserRound },
+  { label: 'Company', description: 'Business or team', icon: Building2 },
+  { label: 'Creator', description: 'Maker or publisher', icon: Video },
+  { label: 'Investor', description: 'Backer or fund', icon: BarChart3 },
+  { label: 'Other', description: 'Something else', icon: MoreHorizontal },
+];
+
+const CITY_OPTIONS = [
+  'Bengaluru',
+  'Mumbai',
+  'New Delhi',
+  'Hyderabad',
+  'Chennai',
+  'Pune',
+  'London',
+  'New York',
+  'San Francisco',
+  'Singapore',
+  'Dubai',
+  'Toronto',
+];
+
+const COUNTRY_OPTIONS = [
+  'India',
+  'United States',
+  'United Kingdom',
+  'Singapore',
+  'United Arab Emirates',
+  'Canada',
+  'Australia',
+  'Germany',
+  'Japan',
 ];
 
 function metadataValue(metadata: Record<string, unknown>, ...keys: string[]) {
@@ -82,8 +183,102 @@ function metadataValue(metadata: Record<string, unknown>, ...keys: string[]) {
   return '';
 }
 
-function externalUrl(value: string) {
-  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+function metadataProfileType(metadata: Record<string, unknown>): ProfileType {
+  const value = metadataValue(metadata, 'profile_type', 'profile_kind', 'role');
+  return PROFILE_TYPES.some((item) => item.label === value)
+    ? (value as ProfileType)
+    : 'Individual';
+}
+
+function emptySocialLinks(): SocialLinks {
+  return {
+    x: '',
+    instagram: '',
+    linkedin: '',
+    youtube: '',
+    tiktok: '',
+    website: '',
+  };
+}
+
+function socialKeyFromUrl(url: string): SocialLinkKey {
+  const value = url.toLowerCase();
+  if (value.includes('instagram')) return 'instagram';
+  if (value.includes('linkedin')) return 'linkedin';
+  if (value.includes('youtube') || value.includes('youtu.be')) return 'youtube';
+  if (value.includes('tiktok')) return 'tiktok';
+  if (value.includes('twitter') || value.includes('x.com')) return 'x';
+  return 'website';
+}
+
+function socialLinksFromMetadata(metadata: Record<string, unknown>) {
+  const links = emptySocialLinks();
+  const storedLinks = metadata.social_links;
+  if (
+    storedLinks &&
+    typeof storedLinks === 'object' &&
+    !Array.isArray(storedLinks)
+  ) {
+    for (const field of SOCIAL_LINK_FIELDS) {
+      const value = (storedLinks as Record<string, unknown>)[field.key];
+      if (typeof value === 'string') links[field.key] = value.trim();
+    }
+  }
+
+  const metadataKeys: Record<SocialLinkKey, string[]> = {
+    x: ['x_url', 'x', 'twitter'],
+    instagram: ['instagram_url', 'instagram'],
+    linkedin: ['linkedin_url', 'linkedin'],
+    youtube: ['youtube_url', 'youtube'],
+    tiktok: ['tiktok_url', 'tiktok'],
+    website: ['website_url', 'website'],
+  };
+  for (const field of SOCIAL_LINK_FIELDS) {
+    if (!links[field.key])
+      links[field.key] = metadataValue(metadata, ...metadataKeys[field.key]);
+  }
+
+  const legacyUrl = metadataValue(
+    metadata,
+    'social_profile_url',
+    'social_url',
+    'url',
+  );
+  if (legacyUrl && !Object.values(links).some(Boolean)) {
+    links[socialKeyFromUrl(legacyUrl)] = legacyUrl;
+  }
+  return links;
+}
+
+function primarySocialUrl(links: SocialLinks) {
+  return (
+    SOCIAL_LINK_FIELDS.map((field) => links[field.key]).find(Boolean) ?? ''
+  );
+}
+
+function profileDraft(
+  metadata: Record<string, unknown>,
+  email: string,
+): ProfileDraft {
+  const emailName = email.split('@')[0] || '';
+  const location = metadataValue(metadata, 'location');
+  const city = metadataValue(metadata, 'city') || location.split(',')[0].trim();
+  const country =
+    metadataValue(metadata, 'country') ||
+    location.split(',').slice(1).join(',').trim();
+  const rawHandle = metadataValue(metadata, 'username', 'handle') || emailName;
+
+  return {
+    avatarUrl: metadataValue(metadata, 'avatar_url', 'picture'),
+    age: metadataValue(metadata, 'age'),
+    bio: metadataValue(metadata, 'bio'),
+    fullName: metadataValue(metadata, 'full_name', 'name'),
+    username: rawHandle.replace(/^@/, ''),
+    socialLinks: socialLinksFromMetadata(metadata),
+    city,
+    country,
+    profileType: metadataProfileType(metadata),
+  };
 }
 
 function compactAvatar(file: File) {
@@ -92,18 +287,32 @@ function compactAvatar(file: File) {
     reader.onerror = () => reject(new Error('That image could not be read.'));
     reader.onload = () => {
       const image = new Image();
-      image.onerror = () => reject(new Error('That image could not be opened.'));
+      image.onerror = () =>
+        reject(new Error('That image could not be opened.'));
       image.onload = () => {
         const side = 320;
         const canvas = document.createElement('canvas');
         canvas.width = side;
         canvas.height = side;
         const context = canvas.getContext('2d');
-        if (!context) return reject(new Error('Your browser could not prepare that image.'));
+        if (!context) {
+          reject(new Error('Your browser could not prepare that image.'));
+          return;
+        }
         const crop = Math.min(image.naturalWidth, image.naturalHeight);
         const offsetX = (image.naturalWidth - crop) / 2;
         const offsetY = (image.naturalHeight - crop) / 2;
-        context.drawImage(image, offsetX, offsetY, crop, crop, 0, 0, side, side);
+        context.drawImage(
+          image,
+          offsetX,
+          offsetY,
+          crop,
+          crop,
+          0,
+          0,
+          side,
+          side,
+        );
         resolve(canvas.toDataURL('image/webp', 0.82));
       };
       if (typeof reader.result !== 'string') {
@@ -116,210 +325,357 @@ function compactAvatar(file: File) {
   });
 }
 
-function metadataBoolean(metadata: Record<string, unknown>, key: string) {
-  const value = metadata[key];
-  return value === true || value === 'true' || value === 1;
+function withCurrentOption(options: string[], current: string) {
+  return current && !options.includes(current)
+    ? [current, ...options]
+    : options;
 }
 
-function metadataCategories(metadata: Record<string, unknown>) {
-  const raw = metadata.preferred_categories ?? metadata.interests;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (item): item is string =>
-      typeof item === 'string' && (CATEGORIES as readonly string[]).includes(item),
+function profileIsCreated(profile: ProfileDraft) {
+  return Boolean(
+    profile.fullName.trim() &&
+    profile.username.trim() &&
+    profile.city &&
+    profile.country,
   );
 }
 
-function metadataGoals(metadata: Record<string, unknown>) {
-  const raw = metadata.profile_goals ?? metadata.goals;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (item): item is string =>
-      typeof item === 'string' && GOALS.some((goal) => goal.label === item),
-  );
-}
-
-type ProfileDraft = {
-  avatarUrl: string;
-  age: string;
-  country: string;
-  city: string;
-  goals: string[];
-  categories: string[];
-  fullName: string;
-  username: string;
-  bio: string;
-  location: string;
-  website: string;
-  x: string;
-  linkedin: string;
-  walletAddress: string;
-  walletPublic: boolean;
-};
-
-function profileDraft(
+function countFromMetadata(
   metadata: Record<string, unknown>,
-  email: string,
-): ProfileDraft {
-  const emailName = email.split('@')[0] || '';
-  const rawHandle = metadataValue(metadata, 'username', 'handle') || emailName;
-  const location = metadataValue(metadata, 'location');
-  const city = metadataValue(metadata, 'city') || location.split(',')[0].trim();
-  const country =
-    metadataValue(metadata, 'country') || location.split(',').slice(1).join(',').trim();
-  return {
-    avatarUrl: metadataValue(metadata, 'avatar_url', 'picture'),
-    age: metadataValue(metadata, 'age'),
-    country,
-    city,
-    goals: metadataGoals(metadata),
-    categories: metadataCategories(metadata),
-    fullName: metadataValue(metadata, 'full_name', 'name'),
-    username: rawHandle.replace(/^@/, ''),
-    bio: metadataValue(metadata, 'bio', 'description'),
-    location: location || [city, country].filter(Boolean).join(', '),
-    website: metadataValue(metadata, 'website', 'url'),
-    x: metadataValue(metadata, 'x', 'twitter', 'twitter_username'),
-    linkedin: metadataValue(metadata, 'linkedin', 'linkedin_url'),
-    walletAddress: metadataValue(metadata, 'wallet_address', 'wallet'),
-    walletPublic: metadataBoolean(metadata, 'wallet_public'),
-  };
+  ...keys: string[]
+) {
+  for (const key of keys) {
+    const value = Number(metadata[key]);
+    if (Number.isFinite(value) && value >= 0) return value;
+  }
+  return 0;
 }
 
-const previewProfile: ProfileDraft = {
-  avatarUrl: '',
-  age: '29',
-  country: 'India',
-  city: 'Bengaluru',
-  goals: [
-    'Discover interesting people',
-    'Learn from real results',
-    'Follow debates and opinions',
-    'Just browse and be entertained',
-  ],
-  categories: ['BEEF', 'CONFESSIONS', 'BUILDING'],
-  fullName: 'Ananya Rao',
-  username: 'ananyabuilds',
-  bio: 'Building in public. Backing ideas worth hearing.',
-  location: 'Bengaluru, India',
-  website: 'https://ananyabuilds.com',
-  x: '@ananyabuilds',
-  linkedin: '',
-  walletAddress: '',
-  walletPublic: false,
-};
+function displayCount(value: number) {
+  return new Intl.NumberFormat('en-US', { notation: 'compact' }).format(value);
+}
 
-const GOALS: { label: string; description: string; icon: LucideIcon }[] = [
-  {
-    label: 'Discover interesting people',
-    description: 'Follow builders, investors, creators and more.',
-    icon: UsersRound,
-  },
-  {
-    label: 'Find products and companies',
-    description: 'Explore what people are building and buying.',
-    icon: Building2,
-  },
-  {
-    label: 'Follow business and startups',
-    description: 'Stay updated on markets, trends and new ideas.',
-    icon: TrendingUp,
-  },
-  {
-    label: 'Learn from real results',
-    description: "See what works. What doesn't. Real experiences.",
-    icon: BarChart3,
-  },
-  {
-    label: 'Find jobs and hiring opportunities',
-    description: 'Discover roles and opportunities.',
-    icon: BriefcaseBusiness,
-  },
-  {
-    label: 'Find customers',
-    description: 'Connect with people who need what you build.',
-    icon: UserRoundPlus,
-  },
-  {
-    label: 'Find founders, partners, or collaborators',
-    description: "Meet people to build what's next.",
-    icon: Handshake,
-  },
-  {
-    label: 'Follow debates and opinions',
-    description: 'See different perspectives on what matters.',
-    icon: MessageCircle,
-  },
-  {
-    label: 'Discover new opportunities',
-    description: 'Get early access to ideas, drops and more.',
-    icon: Sparkles,
-  },
-  {
-    label: 'Find investors or fundraising opportunities',
-    description: 'Connect with capital and backers.',
-    icon: Sprout,
-  },
-  {
-    label: 'Discover creators and experts',
-    description: 'Learn from industry experts and thought leaders.',
-    icon: GraduationCap,
-  },
-  {
-    label: 'Just browse and be entertained',
-    description: 'Explore, watch and enjoy the community.',
-    icon: Gamepad2,
-  },
-];
+function externalProfileHref(value: string) {
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+}
 
-const setupSteps = [
-  {
-    key: 'goals',
-    label: 'WHAT BRINGS YOU',
-    title: 'What brings you to BOUGHT?',
-    description: 'Help us personalize what you see first.',
-  },
-  {
-    key: 'categories',
-    label: 'CATEGORIES',
-    title: 'Choose your categories.',
-    description: 'Pick at least 3. This helps us personalize your feed.',
-  },
-  {
-    key: 'identity',
-    label: 'CREATE PROFILE',
-    title: 'Create your profile.',
-    description: 'Add the details people will see when they find your signal.',
-  },
-  {
-    key: 'wallet',
-    label: 'WALLET',
-    title: 'Choose your wallet signal.',
-    description: 'Keep your wallet private or show the proof. Your call.',
-  },
-] as const;
+function ProfileOverview({
+  profile,
+  stats,
+  broadcasts,
+  joinedAt,
+  onEdit,
+}: {
+  profile: ProfileDraft;
+  stats: ProfileStats;
+  broadcasts: ProfileBroadcast[];
+  joinedAt: string;
+  onEdit: () => void;
+}) {
+  const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'value'>('recent');
+  const initials =
+    profile.fullName
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'BT';
+  const connectedLinks = SOCIAL_LINK_FIELDS.filter(
+    (field) => profile.socialLinks[field.key],
+  );
+  const joinedDate = new Date(joinedAt);
+  const joinedLabel = Number.isNaN(joinedDate.getTime())
+    ? 'Joined recently'
+    : `Joined ${new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        year: 'numeric',
+      }).format(joinedDate)}`;
+  const sortedBroadcasts = [...broadcasts].sort((left, right) => {
+    if (sortBy === 'value') return right.amount_minor - left.amount_minor;
+    const direction = sortBy === 'oldest' ? 1 : -1;
+    return (
+      direction *
+      (new Date(left.created_at).getTime() -
+        new Date(right.created_at).getTime())
+    );
+  });
 
-type SetupStep = (typeof setupSteps)[number]['key'];
+  async function shareProfile() {
+    const shareData = {
+      title: `${profile.fullName} on BOUGHT`,
+      text: `View ${profile.fullName}'s BOUGHT profile.`,
+      url: window.location.href,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+      }
+    } catch {
+      // Closing the native share sheet is not an error the profile needs to show.
+    }
+  }
 
-function ProfileSetup({
+  return (
+    <div className="profile-overview-page profile-showcase">
+      <section className="profile-showcase-hero">
+        <div className="profile-showcase-identity">
+          <ProfileAvatar
+            initials={initials}
+            imageSrc={profile.avatarUrl}
+            imageMode="cover"
+            className="profile-showcase-avatar"
+            alt={`${profile.fullName} profile image`}
+          />
+          <div className="profile-showcase-copy">
+            <div className="profile-showcase-header-row">
+              <div className="profile-showcase-name-row">
+                <h1>{profile.fullName}</h1>
+                <span title="Profile complete" aria-label="Profile complete">
+                  <Check size={13} strokeWidth={3} />
+                </span>
+              </div>
+              <div className="profile-showcase-actions">
+                <button type="button" onClick={onEdit}>
+                  <Edit3 size={17} /> Edit profile
+                </button>
+                <button
+                  className="profile-showcase-share"
+                  type="button"
+                  onClick={() => void shareProfile()}
+                  aria-label="Share profile"
+                  title="Share profile"
+                >
+                  <Share2 size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="profile-showcase-meta">
+              <span>@{profile.username}</span>
+              {profile.age && <span>{profile.age}</span>}
+              <span>
+                <MapPin size={14} /> {profile.city}, {profile.country}
+              </span>
+              <span>{profile.profileType}</span>
+            </div>
+
+            <p className="profile-showcase-bio">
+              {profile.bio ||
+                `${profile.profileType} on BOUGHT. Sharing ideas, opinions, and attention.`}
+            </p>
+
+            <div className="profile-showcase-stats">
+              <span>
+                <Play size={17} />
+                <strong>{displayCount(stats.broadcasts)}</strong> Broadcasts
+              </span>
+              <span>
+                <Eye size={18} />
+                <strong>{displayCount(stats.totalViews)}</strong> Total views
+              </span>
+              <span>
+                <CalendarDays size={17} /> {joinedLabel}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="profile-showcase-socials">
+          <h2>Socials</h2>
+          {connectedLinks.length > 0 ? (
+            <div className="profile-showcase-social-grid">
+              {connectedLinks.map(({ key, label, icon: Icon }) => (
+                <a
+                  key={key}
+                  href={externalProfileHref(profile.socialLinks[key])}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={label}
+                >
+                  <span className={`profile-social-icon is-${key}`}>
+                    <Icon size={24} aria-hidden="true" />
+                  </span>
+                  <small>{label.replace(' (Twitter)', '')}</small>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <button
+              className="profile-showcase-add-socials"
+              type="button"
+              onClick={onEdit}
+            >
+              <Plus size={16} /> Add social links
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="profile-showcase-broadcasts">
+        <div className="profile-showcase-broadcast-heading">
+          <h2>
+            Your broadcasts <span>({stats.broadcasts})</span>
+          </h2>
+          <div>
+            {broadcasts.length > 1 && (
+              <label className="profile-showcase-sort">
+                <span>Sort by</span>
+                <select
+                  value={sortBy}
+                  onChange={(event) =>
+                    setSortBy(event.target.value as typeof sortBy)
+                  }
+                  aria-label="Sort broadcasts"
+                >
+                  <option value="recent">Recent</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="value">Highest bid</option>
+                </select>
+                <ChevronDown size={15} />
+              </label>
+            )}
+            {broadcasts.length > 0 && (
+              <Link href="/broadcast" className="profile-showcase-create">
+                <Radio size={16} /> Create broadcast
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {sortedBroadcasts.length > 0 ? (
+          <div className="profile-showcase-broadcast-grid">
+            {sortedBroadcasts.map((broadcast, index) => {
+              const thumbnail = broadcast.thumbnail_path;
+              const canDisplayThumbnail = Boolean(
+                thumbnail && /^(https?:\/\/|data:image\/|\/)/.test(thumbnail),
+              );
+              return (
+                <article className="profile-showcase-card" key={broadcast.id}>
+                  <div
+                    className={`profile-showcase-card-visual is-tone-${index % 4}`}
+                    style={
+                      canDisplayThumbnail
+                        ? { backgroundImage: `url(${thumbnail})` }
+                        : undefined
+                    }
+                  >
+                    <span>{broadcast.category}</span>
+                    <Radio size={30} aria-hidden="true" />
+                    <small>{broadcast.state.replaceAll('_', ' ')}</small>
+                  </div>
+                  <div className="profile-showcase-card-copy">
+                    <div>
+                      <h3>{broadcast.title}</h3>
+                      <span
+                        className="profile-showcase-card-menu"
+                        aria-hidden="true"
+                      >
+                        <MoreHorizontal size={18} />
+                      </span>
+                    </div>
+                    <p>
+                      {broadcast.category} <span>•</span>{' '}
+                      {new Intl.DateTimeFormat('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      }).format(new Date(broadcast.created_at))}
+                    </p>
+                    <footer>
+                      <span>
+                        <Eye size={15} /> {broadcast.state.replaceAll('_', ' ')}
+                      </span>
+                      <strong>
+                        {new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: 'USD',
+                          maximumFractionDigits: 0,
+                        }).format(broadcast.amount_minor / 100)}
+                      </strong>
+                    </footer>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="profile-showcase-empty">
+            <div className="profile-showcase-empty-kicker">
+              <Radio size={12} /> Global ladder
+            </div>
+            <div className="profile-showcase-empty-content">
+              <Video size={27} aria-hidden="true" />
+              <h3>The floor is open.</h3>
+              <p>
+                The live ladder opens with the first verified, approved
+                broadcasts.
+              </p>
+              <Link href="/broadcast">
+                Make a broadcast <ArrowUpRight size={15} />
+              </Link>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function ProfileEditor({
   initial,
-  onComplete,
-  previewOnly = false,
+  onChange,
+  onDone,
+  isModal = false,
 }: {
   initial: ProfileDraft;
-  onComplete: () => void;
-  previewOnly?: boolean;
+  onChange: (profile: ProfileDraft) => void;
+  onDone: (profile: ProfileDraft) => void;
+  isModal?: boolean;
 }) {
   const { client } = useBought();
-  const [step, setStep] = useState<SetupStep>('goals');
   const [draft, setDraft] = useState<ProfileDraft>(initial);
-  const [busy, setBusy] = useState(false);
+  const [fetchingImage, setFetchingImage] = useState(false);
   const [error, setError] = useState('');
-  const stepIndex = setupSteps.findIndex((item) => item.key === step);
-  const current = setupSteps[stepIndex];
+  const [fetchUrl, setFetchUrl] = useState(
+    primarySocialUrl(initial.socialLinks),
+  );
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const mountedRef = useRef(false);
 
-  function update<K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) {
-    setDraft((valueBefore) => ({ ...valueBefore, [key]: value }));
+  function update<K extends keyof ProfileDraft>(
+    key: K,
+    value: ProfileDraft[K],
+  ) {
+    setDraft((before) => ({ ...before, [key]: value }));
+    setError('');
+  }
+
+  function updateSocialLink(key: SocialLinkKey, value: string) {
+    setDraft((before) => ({
+      ...before,
+      socialLinks: { ...before.socialLinks, [key]: value },
+    }));
+    setError('');
+  }
+
+  async function pasteInto(
+    input: HTMLInputElement | null,
+    onPaste: (value: string) => void,
+  ) {
+    input?.focus();
+    try {
+      const value = (await navigator.clipboard?.readText())?.trim();
+      if (!value) return;
+      onPaste(value);
+      setError('');
+    } catch {
+      // Some embedded browsers do not expose clipboard contents to pages.
+      // Keep the intended field focused without showing a disruptive error.
+      setError('');
+    }
   }
 
   async function chooseAvatar(event: ChangeEvent<HTMLInputElement>) {
@@ -327,7 +683,11 @@ function ProfileSetup({
     event.currentTarget.value = '';
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      setError('Choose an image file for your profile photo.');
+      setError('Choose a JPG, PNG, or other image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Keep the profile image under 5MB.');
       return;
     }
     try {
@@ -337,234 +697,365 @@ function ProfileSetup({
       setError(
         avatarError instanceof Error
           ? avatarError.message
-          : 'That image could not be prepared. Please try another one.',
+          : 'That image could not be prepared.',
       );
     }
   }
 
-  function continueSetup(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function fetchImage() {
+    const value = fetchUrl.trim() || primarySocialUrl(draft.socialLinks);
+    if (!value) {
+      setError('Paste a social profile link first.');
+      return;
+    }
+    setFetchingImage(true);
     setError('');
-    if (step === 'goals' && draft.goals.length === 0) {
-      return setError('Choose at least one reason so we know what to surface first.');
-    }
-    if (step === 'categories' && draft.categories.length < 3) {
-      return setError('Pick at least 3 categories so we can tune your feed.');
-    }
-    if (step === 'identity') {
-      if (draft.fullName.trim().length < 2)
-        return setError('Add the name you want the world to see.');
-      if (!/^[a-zA-Z0-9_.-]{2,32}$/.test(draft.username.trim()))
-        return setError('Use a handle with 2–32 letters, numbers, dots, dashes, or underscores.');
-      const age = Number(draft.age);
-      if (!Number.isInteger(age) || age < 13 || age > 120)
-        return setError('Add an age between 13 and 120.');
-      if (!draft.country.trim()) return setError('Add the country you call home.');
-      if (!draft.city.trim()) return setError('Add the city you call home.');
-    }
-    if (stepIndex < setupSteps.length - 1) {
-      setStep(setupSteps[stepIndex + 1].key);
-      return;
-    }
-    if (previewOnly) {
-      onComplete();
-      return;
-    }
-    void saveProfile();
-  }
-
-  async function saveProfile() {
-    if (!client || busy) return;
-    setBusy(true);
     try {
-      const { error: updateError } = await client.auth.updateUser({
-        data: {
-          avatar_url: draft.avatarUrl.trim(),
-          age: draft.age.trim(),
-          country: draft.country.trim(),
-          city: draft.city.trim(),
-          profile_goals: draft.goals,
-          preferred_categories: draft.categories,
-          full_name: draft.fullName.trim(),
-          username: draft.username.trim(),
-          bio: draft.bio.trim(),
-          location: [draft.city.trim(), draft.country.trim()].filter(Boolean).join(', '),
-          website: draft.website.trim(),
-          x: draft.x.trim(),
-          linkedin: draft.linkedin.trim(),
-          wallet_address: draft.walletAddress.trim(),
-          wallet_public: draft.walletPublic,
-          profile_completed: true,
-          profile_updated_at: new Date().toISOString(),
-        },
+      const lookup = parseSocialAvatarUrl(value);
+      const avatarUrl = socialAvatarImageUrl(lookup);
+      await new Promise<void>((resolve, reject) => {
+        const image = new Image();
+        const timeout = window.setTimeout(() => {
+          image.src = '';
+          reject(
+            new Error(
+              'The profile image lookup timed out. Upload one instead.',
+            ),
+          );
+        }, 12000);
+        image.onload = () => {
+          window.clearTimeout(timeout);
+          resolve();
+        };
+        image.onerror = () => {
+          window.clearTimeout(timeout);
+          reject(
+            new Error(
+              'No public profile image was found. Private profiles must be uploaded.',
+            ),
+          );
+        };
+        image.src = avatarUrl;
       });
-      if (updateError) throw updateError;
-      onComplete();
-    } catch (updateError) {
+      setDraft((before) => ({
+        ...before,
+        avatarUrl,
+        socialLinks: {
+          ...before.socialLinks,
+          [lookup.platform]: lookup.normalizedUrl,
+        },
+      }));
+      setFetchUrl(lookup.normalizedUrl);
+    } catch (fetchError) {
       setError(
-        updateError instanceof Error
-          ? updateError.message
-          : 'Your profile could not be saved. Please try again.',
+        fetchError instanceof Error
+          ? fetchError.message
+          : 'That profile image could not be fetched.',
       );
     } finally {
-      setBusy(false);
+      setFetchingImage(false);
     }
   }
 
+  const persistProfile = useCallback(
+    async (nextDraft: ProfileDraft) => {
+      const fullName = nextDraft.fullName.trim();
+      const username = nextDraft.username.trim();
+      if (fullName.length < 2) return;
+      if (!/^[a-zA-Z0-9_.-]{2,32}$/.test(username)) return;
+      if (!nextDraft.city || !nextDraft.country) return;
+
+      setError('');
+      const socialLinks = Object.fromEntries(
+        SOCIAL_LINK_FIELDS.map((field) => [
+          field.key,
+          nextDraft.socialLinks[field.key].trim(),
+        ]),
+      ) as SocialLinks;
+      const profileData = {
+        avatar_url: nextDraft.avatarUrl.trim(),
+        full_name: fullName,
+        username,
+        social_profile_url: primarySocialUrl(socialLinks),
+        social_links: socialLinks,
+        x_url: socialLinks.x,
+        instagram_url: socialLinks.instagram,
+        linkedin_url: socialLinks.linkedin,
+        youtube_url: socialLinks.youtube,
+        tiktok_url: socialLinks.tiktok,
+        website_url: socialLinks.website,
+        city: nextDraft.city,
+        country: nextDraft.country,
+        location: [nextDraft.city, nextDraft.country]
+          .filter(Boolean)
+          .join(', '),
+        profile_type: nextDraft.profileType,
+        bio: nextDraft.bio.trim(),
+        age: nextDraft.age.trim(),
+        profile_completed: true,
+        profile_updated_at: new Date().toISOString(),
+      };
+
+      try {
+        if (!client) {
+          if (
+            isDevAuthTestMode() &&
+            window.localStorage.getItem(DEV_TEST_AUTH_STORAGE_KEY) === '1'
+          ) {
+            window.localStorage.setItem(
+              DEV_TEST_PROFILE_STORAGE_KEY,
+              JSON.stringify(profileData),
+            );
+            return;
+          }
+          throw new Error('Your sign-in session is not ready yet.');
+        }
+        const { error: updateError } = await client.auth.updateUser({
+          data: profileData,
+        });
+        if (updateError) throw updateError;
+      } catch (saveError) {
+        setError(
+          saveError instanceof Error
+            ? saveError.message
+            : 'Your profile could not be saved. Please try again.',
+        );
+      }
+    },
+    [client],
+  );
+
+  const queueSave = useCallback(
+    (nextDraft: ProfileDraft) => {
+      const nextSave = saveQueueRef.current.then(() =>
+        persistProfile(nextDraft),
+      );
+      saveQueueRef.current = nextSave.catch(() => undefined);
+      return nextSave;
+    },
+    [persistProfile],
+  );
+
+  useEffect(() => {
+    onChange(draft);
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void queueSave(draft);
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [draft, onChange, queueSave]);
+
+  const finishEditing = useCallback(async () => {
+    if (!profileIsCreated(draft)) {
+      setError('Add your name, username, city, and country to finish.');
+      return;
+    }
+    await queueSave(draft);
+    onDone(draft);
+  }, [draft, onDone, queueSave]);
+
+  useEffect(() => {
+    if (!isModal) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') void finishEditing();
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [finishEditing, isModal]);
+
+  const initials =
+    draft.fullName
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'BT';
+  const cityOptions = withCurrentOption(CITY_OPTIONS, draft.city);
+  const countryOptions = withCurrentOption(COUNTRY_OPTIONS, draft.country);
+
   return (
-    <div className="profile-setup-layout">
-      <section className="profile-setup-panel route-panel">
-        <div className="profile-setup-topline">
-          <span className="eyebrow">
-            <i /> PROFILE SETUP
-          </span>
-          <span className="profile-setup-topline-actions">
-            {previewOnly && (
+    <div className="profile-settings-page profile-editor-reference">
+      <form
+        className="profile-settings-form"
+        onSubmit={(event) => event.preventDefault()}
+      >
+        <div className="profile-editor-toolbar">
+          <div>
+            <h1 id="profile-editor-title">Edit profile</h1>
+            <p>Update your profile information and how you appear on BOUGHT.</p>
+          </div>
+          <div className="profile-editor-toolbar-actions">
+            {isModal && (
               <button
+                className="profile-editor-close"
                 type="button"
-                className="profile-preview-exit"
-                onClick={onComplete}
+                onClick={() => void finishEditing()}
+                aria-label="Close edit profile"
               >
-                EXIT PREVIEW
+                <CloseIcon size={18} />
               </button>
             )}
-            STEP {stepIndex + 2} / 5
-          </span>
+            {!isModal && (
+              <button type="button" onClick={() => void finishEditing()}>
+                Finish profile
+              </button>
+            )}
+          </div>
         </div>
-        <div className="profile-setup-steps" aria-label="Profile setup progress">
-          {setupSteps.map((item, index) => (
-            <div
-              className={`profile-setup-step ${index <= stepIndex ? 'is-active' : ''} ${item.key === step ? 'is-current' : ''}`}
-              key={item.key}
-            >
-              <span>{index < stepIndex ? <Check size={13} /> : `0${index + 1}`}</span>
-              <small>{item.label}</small>
-            </div>
-          ))}
-        </div>
-
-        <header className="profile-setup-heading">
-          <span className="profile-kicker">{current.label}</span>
-          <h2>{current.title}</h2>
-          <p>{current.description}</p>
-        </header>
-
-        <form className="profile-setup-form" onSubmit={continueSetup}>
-          {step === 'goals' && (
-            <div className="profile-form-fields">
-              <fieldset className="profile-category-picker profile-goal-picker">
-                <legend>
-                  WHAT I WANT TO SEE <span>SELECT AT LEAST ONE</span>
-                </legend>
-                <div className="profile-goal-grid">
-                  {GOALS.map((goal) => {
-                    const selected = draft.goals.includes(goal.label);
-                    const GoalIcon = goal.icon;
-                    return (
-                      <button
-                        key={goal.label}
-                        type="button"
-                        className={`profile-goal-option ${selected ? 'is-selected' : ''}`}
-                        aria-pressed={selected}
-                        onClick={() =>
-                          update(
-                            'goals',
-                            selected
-                              ? draft.goals.filter((item) => item !== goal.label)
-                              : [...draft.goals, goal.label],
-                          )
-                        }
-                      >
-                        <span className="profile-goal-icon"><GoalIcon size={22} /></span>
-                        <span className="profile-goal-copy">
-                          <strong>{goal.label}</strong>
-                          <small>{goal.description}</small>
-                        </span>
-                        <span className="profile-goal-toggle">
-                          {selected ? <Check size={14} /> : '+'}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="profile-setup-note profile-preference-note">
-                  <Compass size={16} />
-                  <span>Your choices tune what we surface first. You can change them later.</span>
-                </div>
-              </fieldset>
-            </div>
-          )}
-
-          {step === 'categories' && (
-            <div className="profile-form-fields">
-              <fieldset className="profile-category-picker">
-                <legend>
-                  CATEGORIES I WANT TO SEE <span>PICK AT LEAST 3</span>
-                </legend>
-                <div className="profile-category-grid">
-                  {CATEGORIES.map((category, index) => {
-                    const selected = draft.categories.includes(category);
-                    return (
-                      <button
-                        key={category}
-                        type="button"
-                        className={`profile-category-option ${selected ? 'is-selected' : ''}`}
-                        aria-pressed={selected}
-                        onClick={() =>
-                          update(
-                            'categories',
-                            selected
-                              ? draft.categories.filter((item) => item !== category)
-                              : [...draft.categories, category],
-                          )
-                        }
-                      >
-                        <span className="profile-category-check">
-                          {selected ? <Check size={14} /> : String(index + 1).padStart(2, '0')}
-                        </span>
-                        <strong>{category}</strong>
-                        <small>{selected ? 'ON YOUR FLOOR' : 'ADD TO YOUR FEED'}</small>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="profile-setup-note profile-preference-note">
-                  <Compass size={16} />
-                  <span>Your choices tune what we surface first. You can change them later.</span>
-                </div>
-              </fieldset>
-            </div>
-          )}
-
-          {step === 'identity' && (
-            <div className="profile-form-fields">
-              <div className="profile-photo-field">
-                <ProfileAvatar
-                  initials={draft.fullName.slice(0, 2).toUpperCase() || 'BT'}
-                  imageSrc={draft.avatarUrl || undefined}
-                  imageMode="cover"
-                  className="profile-avatar-medium"
-                  alt="Profile photo preview"
-                />
-                <label className="profile-field">
-                  <span><ImagePlus size={14} /> PROFILE PHOTO <span className="profile-field-optional">OPTIONAL</span></span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={chooseAvatar}
-                  />
-                  <input
-                    type="url"
-                    value={draft.avatarUrl}
-                    onChange={(event) => update('avatarUrl', event.target.value)}
-                    placeholder="Or paste a photo URL"
-                  />
-                  <small>We crop uploads square. Leave blank and BOUGHT will use your initials.</small>
-                </label>
+        {error && (
+          <div className="profile-editor-error" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="profile-editor-workspace">
+          <div className="profile-editor-fields">
+            <section className="profile-settings-card profile-image-card">
+              <div className="profile-editor-card-heading">
+                <h2 className="profile-editor-section-title">Profile image</h2>
               </div>
-              <div className="profile-form-grid">
-                <label className="profile-field">
-                  DISPLAY NAME
+              <div className="profile-image-layout">
+                <div className="profile-upload-column">
+                  <div
+                    className={`profile-upload-box ${draft.avatarUrl ? 'has-image' : 'is-empty'}`}
+                  >
+                    <input
+                      id="profile-avatar-file"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={chooseAvatar}
+                    />
+                    <ProfileAvatar
+                      initials={initials}
+                      imageSrc={draft.avatarUrl}
+                      imageMode="cover"
+                      className="profile-upload-preview"
+                      alt="Selected profile image"
+                    />
+                    <div className="profile-upload-hover">
+                      <div className="profile-upload-actions">
+                        <label
+                          className="profile-upload-action"
+                          htmlFor="profile-avatar-file"
+                          title={draft.avatarUrl ? 'Change photo' : 'Add photo'}
+                          aria-label={
+                            draft.avatarUrl ? 'Change photo' : 'Add photo'
+                          }
+                        >
+                          {draft.avatarUrl ? (
+                            <Pencil size={16} />
+                          ) : (
+                            <Plus size={17} />
+                          )}
+                        </label>
+                        {draft.avatarUrl && (
+                          <button
+                            className="profile-upload-action is-danger"
+                            type="button"
+                            onClick={() => update('avatarUrl', '')}
+                            title="Delete photo"
+                            aria-label="Delete photo"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <label
+                    className="profile-upload-button"
+                    htmlFor="profile-avatar-file"
+                  >
+                    <Plus size={15} /> Upload photo
+                  </label>
+                  <small>JPG, PNG or WEBP · Max 5MB</small>
+                </div>
+
+                <div className="profile-image-divider" aria-hidden="true">
+                  <span />
+                  <b>OR</b>
+                  <span />
+                </div>
+
+                <div className="profile-fetch-column">
+                  <div className="profile-fetch-heading">
+                    <span>
+                      <Link2 size={19} />
+                    </span>
+                    <div>
+                      <strong>Fetch from social media</strong>
+                      <small>
+                        Paste a public profile link and we’ll fetch the photo.
+                      </small>
+                    </div>
+                  </div>
+                  <div className="profile-fetch-row">
+                    <label className="profile-inline-input">
+                      <input
+                        type="url"
+                        value={fetchUrl}
+                        onChange={(event) => setFetchUrl(event.target.value)}
+                        placeholder="https://instagram.com/username"
+                        aria-label="Social profile link for profile image"
+                      />
+                    </label>
+                    <button
+                      className="profile-paste-button"
+                      type="button"
+                      onClick={(event) =>
+                        void pasteInto(
+                          event.currentTarget.parentElement?.querySelector(
+                            'input',
+                          ) ?? null,
+                          setFetchUrl,
+                        )
+                      }
+                    >
+                      <ClipboardPaste size={15} /> Paste
+                    </button>
+                    <button
+                      className="profile-fetch-button"
+                      type="button"
+                      onClick={fetchImage}
+                      disabled={fetchingImage}
+                    >
+                      {fetchingImage ? 'Fetching…' : 'Fetch photo'}
+                    </button>
+                  </div>
+                  <div
+                    className="profile-fetch-sources"
+                    aria-label="Supported social profiles"
+                  >
+                    {SOCIAL_LINK_FIELDS.map(({ key, label, icon: Icon }) => (
+                      <span
+                        className={`profile-social-icon is-${key}`}
+                        title={label}
+                        key={key}
+                      >
+                        <Icon size={17} aria-hidden="true" />
+                      </span>
+                    ))}
+                  </div>
+                  <small className="profile-helper-text">
+                    Public profiles only. Private or restricted profiles must be
+                    uploaded from your files.
+                  </small>
+                </div>
+              </div>
+            </section>
+
+            <section className="profile-settings-card">
+              <div className="profile-editor-card-heading">
+                <h2 className="profile-editor-section-title">
+                  Profile details
+                </h2>
+              </div>
+              <div className="profile-form-grid profile-details-grid">
+                <label className="profile-settings-field">
+                  <span>Display name</span>
                   <input
                     autoComplete="name"
                     value={draft.fullName}
@@ -574,578 +1065,283 @@ function ProfileSetup({
                     required
                   />
                 </label>
-                <label className="profile-field">
-                  PUBLIC HANDLE
-                  <span className="profile-input-prefix">@<input
+                <label className="profile-settings-field">
+                  <span>Username</span>
+                  <input
                     autoComplete="username"
                     value={draft.username}
-                    onChange={(event) => update('username', event.target.value.replace(/^@/, ''))}
-                    placeholder="yourhandle"
+                    onChange={(event) =>
+                      update('username', event.target.value.replace(/^@/, ''))
+                    }
+                    placeholder="username"
                     maxLength={32}
                     required
-                  /></span>
-                </label>
-              </div>
-              <div className="profile-form-grid">
-                <label className="profile-field">
-                  AGE
-                  <input
-                    type="number"
-                    min={13}
-                    max={120}
-                    value={draft.age}
-                    onChange={(event) => update('age', event.target.value)}
-                    placeholder="29"
-                    required
                   />
                 </label>
-                <label className="profile-field">
-                  COUNTRY
-                  <input
-                    autoComplete="country-name"
-                    value={draft.country}
-                    onChange={(event) => update('country', event.target.value)}
-                    placeholder="India"
-                    maxLength={60}
-                    required
+                <label className="profile-settings-field profile-bio-field">
+                  <span>Short bio / About</span>
+                  <textarea
+                    value={draft.bio}
+                    onChange={(event) => update('bio', event.target.value)}
+                    placeholder="Tell the community about yourself…"
+                    maxLength={160}
                   />
+                  <small>{draft.bio.length}/160</small>
+                </label>
+                <label className="profile-settings-field">
+                  <span>City</span>
+                  <div className="profile-select-wrap">
+                    <select
+                      autoComplete="address-level2"
+                      value={draft.city}
+                      onChange={(event) => update('city', event.target.value)}
+                      required
+                    >
+                      <option value="">Choose a city</option>
+                      {cityOptions.map((city) => (
+                        <option key={city} value={city}>
+                          {city}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={17} />
+                  </div>
+                </label>
+                <label className="profile-settings-field">
+                  <span>Country</span>
+                  <div className="profile-select-wrap">
+                    <select
+                      autoComplete="country-name"
+                      value={draft.country}
+                      onChange={(event) =>
+                        update('country', event.target.value)
+                      }
+                      required
+                    >
+                      <option value="">Choose a country</option>
+                      {countryOptions.map((country) => (
+                        <option key={country} value={country}>
+                          {country}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={17} />
+                  </div>
                 </label>
               </div>
-              <label className="profile-field">
-                CITY
-                <input
-                  autoComplete="address-level2"
-                  value={draft.city}
-                  onChange={(event) => update('city', event.target.value)}
-                  placeholder="Bengaluru"
-                  maxLength={60}
-                  required
-                />
-              </label>
-              <label className="profile-field">
-                BIO
-                <textarea
-                  value={draft.bio}
-                  onChange={(event) => update('bio', event.target.value)}
-                  placeholder="What should people know before they hear you?"
-                  maxLength={160}
-                  rows={3}
-                />
-                <small>{draft.bio.length} / 160</small>
-              </label>
-              <div className="profile-create-links">
-                <label className="profile-field">
-                  WEBSITE <span className="profile-field-optional">OPTIONAL</span>
-                  <input
-                    type="url"
-                    value={draft.website}
-                    onChange={(event) => update('website', event.target.value)}
-                    placeholder="https://your-site.com"
-                  />
-                </label>
-                <div className="profile-form-grid">
-                  <label className="profile-field">
-                    X PROFILE <span className="profile-field-optional">OPTIONAL</span>
-                    <input
-                      value={draft.x}
-                      onChange={(event) => update('x', event.target.value)}
-                      placeholder="@yourhandle"
-                    />
-                  </label>
-                  <label className="profile-field">
-                    LINKEDIN <span className="profile-field-optional">OPTIONAL</span>
-                    <input
-                      value={draft.linkedin}
-                      onChange={(event) => update('linkedin', event.target.value)}
-                      placeholder="linkedin.com/in/yourname"
-                    />
-                  </label>
-                </div>
-                <div className="profile-setup-note">
-                  <Globe2 size={16} />
-                  <span>These links are optional. Add them now or edit them anytime from your profile.</span>
-                </div>
-              </div>
-            </div>
-          )}
+            </section>
 
-          {step === 'wallet' && (
-            <div className="profile-form-fields">
-              <label className="profile-field">
-                PUBLIC WALLET ADDRESS <span className="profile-field-optional">OPTIONAL</span>
-                <input
-                  value={draft.walletAddress}
-                  onChange={(event) => update('walletAddress', event.target.value)}
-                  placeholder="Wallet address or public wallet name"
-                />
-              </label>
-              <div className="profile-wallet-option">
-                <div>
-                  <strong>Show wallet signal on my profile</strong>
-                  <span>People can see your BOUGHT wallet signal and backing power.</span>
-                </div>
-                <button
-                  type="button"
-                  className={`profile-switch ${draft.walletPublic ? 'is-on' : ''}`}
-                  role="switch"
-                  aria-checked={draft.walletPublic}
-                  aria-label="Show wallet signal on my profile"
-                  onClick={() => update('walletPublic', !draft.walletPublic)}
-                >
-                  <span />
-                </button>
+            <section className="profile-settings-card profile-social-links-card">
+              <div className="profile-editor-card-heading">
+                <h2 className="profile-editor-section-title">Social links</h2>
+                <p>Add your social profiles to help people find you.</p>
               </div>
-              <div className="profile-setup-note profile-setup-note-warn">
-                <EyeOff size={16} />
-                <span>Never enter a seed phrase or private key. BOUGHT only needs a public address or handle.</span>
+              <div className="profile-social-links-list">
+                {SOCIAL_LINK_FIELDS.map(
+                  ({ key, label, placeholder, icon: Icon }) => (
+                    <div className="profile-social-row" key={key}>
+                      <span className="profile-social-platform" title={label}>
+                        <span className={`profile-social-icon is-${key}`}>
+                          <Icon size={17} strokeWidth={2} aria-hidden="true" />
+                        </span>
+                        <b>{label}</b>
+                      </span>
+                      <span className="profile-social-entry">
+                        <input
+                          type="url"
+                          value={draft.socialLinks[key]}
+                          onChange={(event) =>
+                            updateSocialLink(key, event.target.value)
+                          }
+                          placeholder={placeholder}
+                          aria-label={`${label} profile link`}
+                        />
+                        <button
+                          className="profile-paste-button"
+                          type="button"
+                          onClick={(event) =>
+                            void pasteInto(
+                              event.currentTarget.parentElement?.querySelector(
+                                'input',
+                              ) ?? null,
+                              (value) => updateSocialLink(key, value),
+                            )
+                          }
+                        >
+                          <ClipboardPaste size={14} /> Paste
+                        </button>
+                      </span>
+                    </div>
+                  ),
+                )}
               </div>
-            </div>
-          )}
+            </section>
 
-          {error && <p className="profile-form-error" role="alert">{error}</p>}
-          <div className="profile-setup-actions">
-            {stepIndex > 0 && (
-              <button
-                type="button"
-                className="profile-back-button"
-                onClick={() => {
-                  setError('');
-                  setStep(setupSteps[stepIndex - 1].key);
-                }}
-              >
-                <ArrowLeft size={15} /> BACK
-              </button>
-            )}
-            <button className="profile-continue-button" type="submit" disabled={busy || (!client && !previewOnly)}>
-              {busy
-                ? 'SAVING…'
-                : previewOnly && stepIndex === setupSteps.length - 1
-                  ? 'EXIT PREVIEW'
-                  : stepIndex === setupSteps.length - 1
-                    ? 'SAVE & OPEN PROFILE'
-                    : 'CONTINUE'}
-              <ArrowUpRight size={16} />
-            </button>
-          </div>
-        </form>
-      </section>
-
-      {step === 'goals' ? (
-        <aside className="profile-setup-preview profile-setup-summary route-panel">
-          <div className="profile-card-label">
-            <span><UsersRound size={15} /> YOUR BOUGHT WILL FOCUS ON</span>
-            <span className="profile-summary-count">{draft.goals.length} / {GOALS.length}</span>
-          </div>
-          <div className="profile-selection-list">
-            {draft.goals.map((goal) => {
-              const GoalIcon = GOALS.find((item) => item.label === goal)?.icon ?? Sparkles;
-              return (
-                <div key={goal}>
-                  <span className="profile-selection-icon"><GoalIcon size={16} /></span>
-                  <span>{goal}</span>
+            <section className="profile-settings-card profile-type-card">
+              <div className="profile-editor-card-heading">
+                <h2 className="profile-editor-section-title">
+                  What best describes you?
+                </h2>
+              </div>
+              <div className="profile-type-options">
+                {PROFILE_TYPES.map(({ label, description, icon: Icon }) => (
                   <button
+                    key={label}
                     type="button"
-                    aria-label={`Remove ${goal}`}
-                    onClick={() => update('goals', draft.goals.filter((item) => item !== goal))}
-                  >×</button>
-                </div>
-              );
-            })}
-            {!draft.goals.length && <p className="profile-summary-empty">Choose what you want to see first.</p>}
-          </div>
-          <div className="profile-summary-benefits">
-            <div><Sparkles size={19} /><span><strong>More relevant broadcasts</strong><small>See content from people and topics you care about.</small></span></div>
-            <div><Target size={19} /><span><strong>Smarter recommendations</strong><small>We’ll surface the most relevant people, ideas and opportunities.</small></span></div>
-            <div><Lightbulb size={19} /><span><strong>You can change this later</strong><small>Your choices stay editable from your profile.</small></span></div>
-          </div>
-        </aside>
-      ) : step === 'categories' ? (
-        <aside className="profile-setup-preview profile-setup-summary route-panel">
-          <div className="profile-card-label">
-            <span><Compass size={15} /> YOUR SELECTION</span>
-            <span className="profile-summary-count">{draft.categories.length} / {CATEGORIES.length}</span>
-          </div>
-          <div className="profile-selection-list">
-            {draft.categories.map((category) => (
-              <div key={category}>
-                <span className="profile-selection-icon"><Compass size={16} /></span>
-                <span>{category}</span>
-                <button
-                  type="button"
-                  aria-label={`Remove ${category}`}
-                  onClick={() => update('categories', draft.categories.filter((item) => item !== category))}
-                >×</button>
+                    className={`profile-type-option ${draft.profileType === label ? 'is-selected' : ''}`}
+                    onClick={() => update('profileType', label)}
+                    aria-pressed={draft.profileType === label}
+                  >
+                    <Icon size={20} />
+                    <span>
+                      <strong>{label}</strong>
+                      <small>{description}</small>
+                    </span>
+                    {draft.profileType === label && <Check size={16} />}
+                  </button>
+                ))}
               </div>
-            ))}
-            {!draft.categories.length && <p className="profile-summary-empty">Pick at least 3 categories for your feed.</p>}
+            </section>
           </div>
-          <div className="profile-summary-benefits">
-            <div><Sparkles size={19} /><span><strong>A more relevant feed</strong><small>See the people, categories and topics you care about.</small></span></div>
-            <div><Target size={19} /><span><strong>Discover new opportunities</strong><small>Find broadcasts, people and ideas faster.</small></span></div>
-            <div><Lightbulb size={19} /><span><strong>Fully customizable</strong><small>You can always edit your categories later.</small></span></div>
-          </div>
-        </aside>
-      ) : (
-        <aside className="profile-setup-preview route-panel">
-          <div className="profile-card-label"><UserRound size={15} /> YOUR PUBLIC PREVIEW</div>
-          <div className="profile-preview-identity">
-            <ProfileAvatar
-              initials={draft.fullName.slice(0, 2).toUpperCase() || 'BT'}
-              imageSrc={draft.avatarUrl || undefined}
-              imageMode="cover"
-              className="profile-avatar-medium"
-            />
-            <div>
-              <strong>{draft.fullName || 'Your name'}</strong>
-              <span>@{draft.username || 'yourhandle'}</span>
-            </div>
-          </div>
-          <p className="profile-preview-bio">{draft.bio || 'Your bio will sit beside every broadcast you publish.'}</p>
-          <div className="profile-preview-includes">
-            <span><Check size={14} /> {draft.categories.length || 'YOUR'} ROOMS</span>
-            <span><Check size={14} /> NAME &amp; BIO</span>
-            <span><Check size={14} /> AGE &amp; LOCATION</span>
-            <span><Check size={14} /> SOCIAL LINKS</span>
-            <span><Check size={14} /> BROADCASTS</span>
-            <span className={draft.walletPublic ? '' : 'is-muted'}>{draft.walletPublic ? <Eye size={14} /> : <EyeOff size={14} />} WALLET SIGNAL</span>
-          </div>
-          <div className="profile-preview-footer">
-            <span>PUBLIC PROFILE</span>
-            <Globe2 size={14} />
-          </div>
-        </aside>
-      )}
+        </div>
+      </form>
     </div>
   );
 }
 
-export default function ProfilePage() {
-  const { client, session } = useBought();
-  const [editing, setEditing] = useState(false);
-  const [previewing, setPreviewing] = useState(false);
-  const metadata = (session?.user.user_metadata ?? {}) as Record<string, unknown>;
-  const email = session?.user.email ?? '';
-  const emailName = email.split('@')[0] || 'bought member';
-  const memberProfile = profileDraft(metadata, email);
-  const profileComplete = metadataBoolean(metadata, 'profile_completed');
-  const setupRequired = Boolean(session && (!profileComplete || editing));
-  const displayName = metadataValue(metadata, 'full_name', 'name') || emailName;
-  const rawHandle = metadataValue(metadata, 'username', 'handle') || emailName;
-  const handle = rawHandle.startsWith('@') ? rawHandle : `@${rawHandle}`;
-  const initials = displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-  const bio =
-    metadataValue(metadata, 'bio', 'description') ||
-    'Building in public. Backing ideas worth hearing.';
-  const avatarUrl = memberProfile.avatarUrl;
-  const age = memberProfile.age;
-  const location = [memberProfile.city, memberProfile.country].filter(Boolean).join(', ') || memberProfile.location || 'Add your city';
-  const preferredCategories = memberProfile.categories;
-  const website = metadataValue(metadata, 'website', 'url');
-  const xHandle = metadataValue(metadata, 'x', 'twitter', 'twitter_username');
-  const linkedin = metadataValue(metadata, 'linkedin', 'linkedin_url');
-  const walletAddress = metadataValue(metadata, 'wallet_address', 'wallet');
-  const walletPublic = metadataBoolean(metadata, 'wallet_public');
+function ProfileExperience({
+  metadata,
+  email,
+  joinedAt,
+}: {
+  metadata: Record<string, unknown>;
+  email: string;
+  joinedAt: string;
+}) {
+  const { api, client } = useBought();
+  const initial = profileDraft(metadata, email);
+  const hasExistingProfile = profileIsCreated(initial);
+  const [profile, setProfile] = useState(initial);
+  const [editing, setEditing] = useState(() => !hasExistingProfile);
+  const [broadcasts, setBroadcasts] = useState<ProfileBroadcast[]>([]);
+
+  useEffect(() => {
+    if (!hasExistingProfile || !editing) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [editing, hasExistingProfile]);
+
+  useEffect(() => {
+    let active = true;
+    if (!client)
+      return () => {
+        active = false;
+      };
+    void api<{ drops: ProfileBroadcast[] }>('drops')
+      .then(({ drops }) => {
+        if (active) setBroadcasts(drops);
+      })
+      .catch(() => {
+        if (active) setBroadcasts([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, client]);
+
+  const updateProfile = useCallback((next: ProfileDraft) => {
+    setProfile(next);
+  }, []);
+  const finishEditing = useCallback((next: ProfileDraft) => {
+    setProfile(next);
+    setEditing(false);
+  }, []);
+  const published = broadcasts.filter(
+    ({ state }) => state === 'published',
+  ).length;
+  const stats: ProfileStats = {
+    broadcasts: Math.max(
+      broadcasts.length,
+      countFromMetadata(metadata, 'broadcast_count', 'broadcasts'),
+    ),
+    published: Math.max(
+      published,
+      countFromMetadata(
+        metadata,
+        'published_broadcast_count',
+        'published_broadcasts',
+      ),
+    ),
+    totalViews: countFromMetadata(metadata, 'total_views', 'broadcast_views'),
+    topPositions: countFromMetadata(
+      metadata,
+      'top_positions',
+      'position_count',
+    ),
+  };
 
   return (
     <MarketPageShell
       active="profile"
-      eyebrow={
-        !session
-          ? previewing
-            ? 'PROFILE SETUP / UI PREVIEW'
-            : 'YOUR PROFILE / SIGN IN'
-          : setupRequired
-            ? 'PROFILE SETUP / YOUR DETAILS'
-            : 'PUBLIC PROFILE / YOU'
-      }
-      title={
-        !session
-          ? previewing
-            ? 'Preview your public profile.'
-            : 'Find the winners. Tune your room.'
-          : setupRequired
-            ? 'Build your public profile.'
-            : 'Your public signal.'
-      }
-      description={
-        !session
-          ? previewing
-            ? 'This is a no-login preview. Try every step and nothing will be saved.'
-            : 'Your profile keeps the rooms you care about close, helps you find today’s winners, and gives your own signal a home.'
-          : setupRequired
-            ? 'A few quick choices tune what rises into view and decide what the world sees when they find you on BOUGHT.'
-            : 'One place for the identity, links, broadcasts, positions, and wallet signal you choose to put on the floor.'
-      }
+      eyebrow="PROFILE"
+      title="Profile"
+      description=""
+      showIntro={false}
     >
-      {previewing ? (
-        <ProfileSetup
-          initial={previewProfile}
-          previewOnly
-          onComplete={() => setPreviewing(false)}
-        />
-      ) : !session ? (
-        <section className="profile-auth-layout">
-          <article className="profile-auth-poster">
-            <div className="profile-auth-header">
-              <span className="profile-kicker">YOUR FIRST SIGNAL / LOCKED</span>
-              <LockKeyhole size={19} />
-            </div>
-            <div className="profile-auth-identity">
-              <ProfileAvatar initials="BT" className="profile-avatar-large" />
-              <div>
-                <span>YOUR FIRST VIEW</span>
-                <strong>Ready to be tuned.</strong>
-              </div>
-            </div>
-            <h2>FIND TODAY&apos;S WINNERS. FOLLOW THE SIGNAL.</h2>
-            <p>
-              Create a profile so BOUGHT can remember the rooms you care about,
-              surface the people earning attention there, and keep your own
-              signal attached to every broadcast. You can change your choices anytime.
-            </p>
-            <div className="profile-preview-grid">
-              <span>
-                <BadgeCheck size={16} /> FIND TODAY&apos;S WINNERS
-              </span>
-              <span>
-                <Compass size={16} /> TUNE YOUR ROOMS
-              </span>
-              <span>
-                <Radio size={16} /> SAVE YOUR SIGNAL
-              </span>
-              <span>
-                <Pencil size={16} /> EDIT ANYTIME
-              </span>
-            </div>
-          </article>
-          <div className="profile-auth-entry">
-            <DropSignIn
-              title="TWO WAYS IN"
-              description="Choose Google for one-tap access, or use your email for a password-free code. We’ll use your account to save preferences and build your public profile."
-              showGoogle
-            />
-            <button
-              type="button"
-              className="profile-auth-preview-button"
-              onClick={() => setPreviewing(true)}
-            >
-              <Eye size={16} />
-              <span>
-                <strong>CHECK ONBOARDING UI</strong>
-                <small>Step through it with sample data. Nothing is saved.</small>
-              </span>
-              <ArrowUpRight size={16} />
-            </button>
-          </div>
-        </section>
-      ) : setupRequired ? (
-        <ProfileSetup
-          initial={memberProfile}
-          onComplete={() => setEditing(false)}
+      {!hasExistingProfile ? (
+        <ProfileEditor
+          initial={profile}
+          onChange={updateProfile}
+          onDone={finishEditing}
         />
       ) : (
         <>
-          <section className="profile-hero-grid">
-            <article className="profile-identity-card route-panel">
-              <div className="profile-identity-header">
-                <ProfileAvatar
-                  initials={initials || 'BT'}
-                  imageSrc={avatarUrl || undefined}
-                  imageMode="cover"
-                  className="profile-avatar-large"
-                  alt={`${displayName} profile photo`}
+          <ProfileOverview
+            profile={profile}
+            stats={stats}
+            broadcasts={broadcasts}
+            joinedAt={joinedAt}
+            onEdit={() => setEditing(true)}
+          />
+          {editing && (
+            <div className="profile-editor-modal-backdrop" role="presentation">
+              <dialog
+                className="profile-editor-modal"
+                open
+                aria-labelledby="profile-editor-title"
+              >
+                <ProfileEditor
+                  initial={profile}
+                  onChange={updateProfile}
+                  onDone={finishEditing}
+                  isModal
                 />
-                <div className="profile-identity-name">
-                  <span className="profile-kicker">
-                    <i /> PUBLIC PROFILE
-                  </span>
-                  <h2>{displayName}</h2>
-                  <p>{handle}</p>
-                </div>
-                <div className="profile-identity-actions">
-                  <span className="profile-public-badge">
-                    <Globe2 size={13} /> PUBLIC
-                  </span>
-                  <button
-                    className="profile-icon-action"
-                    type="button"
-                    onClick={() => setEditing(true)}
-                    aria-label="Edit your public profile"
-                    title="Edit profile"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    className="profile-icon-action"
-                    type="button"
-                    onClick={() => void client?.auth.signOut()}
-                    aria-label="Sign out"
-                    title="Sign out"
-                  >
-                    <LogOut size={14} />
-                  </button>
-                </div>
-              </div>
-              <p className="profile-bio">{bio}</p>
-              <div className="profile-meta-row">
-                <span>
-                  <MapPin size={14} /> {location}
-                </span>
-                <span>
-                  <CalendarDays size={14} /> {age ? `${age} YEARS OLD` : 'ADD AGE'}
-                </span>
-              </div>
-              <div className="profile-social-links" aria-label="Public social links">
-                {website ? (
-                  <a href={externalUrl(website)} target="_blank" rel="noreferrer">
-                    <Globe2 size={14} /> {website.replace(/^https?:\/\//i, '')}
-                    <ArrowUpRight size={13} />
-                  </a>
-                ) : (
-                  <span className="is-empty"><Globe2 size={14} /> ADD WEBSITE</span>
-                )}
-                {xHandle ? (
-                  <a href={externalUrl(xHandle.startsWith('@') ? `x.com/${xHandle.slice(1)}` : xHandle)} target="_blank" rel="noreferrer">
-                    <span className="profile-social-letter">X</span> {xHandle}
-                    <ArrowUpRight size={13} />
-                  </a>
-                ) : (
-                  <span className="is-empty"><span className="profile-social-letter">X</span> ADD X</span>
-                )}
-                {linkedin ? (
-                  <a href={externalUrl(linkedin)} target="_blank" rel="noreferrer">
-                    <span className="profile-social-letter">in</span> LINKEDIN
-                    <ArrowUpRight size={13} />
-                  </a>
-                ) : (
-                  <span className="is-empty"><span className="profile-social-letter">in</span> ADD LINKEDIN</span>
-                )}
-              </div>
-              {preferredCategories.length > 0 && (
-                <div className="profile-interest-list" aria-label="Preferred categories">
-                  <span className="profile-interest-label">ROOMS I FOLLOW</span>
-                  {preferredCategories.map((category) => (
-                    <span className="profile-interest-chip" key={category}>{category}</span>
-                  ))}
-                </div>
-              )}
-            </article>
-
-            <aside className="profile-wallet-card route-panel">
-              <div className="profile-card-label">
-                <WalletCards size={16} /> PUBLIC WALLET SIGNAL
-              </div>
-              <strong className="profile-wallet-balance">$18,600</strong>
-              <span className="profile-wallet-caption">
-                {walletPublic ? 'PUBLIC WALLET SIGNAL IS ON' : 'WALLET SIGNAL IS PRIVATE'}
-              </span>
-              <span className={`profile-wallet-address ${walletAddress ? '' : 'is-empty'}`}>
-                <WalletCards size={13} /> {walletAddress || 'ADD A PUBLIC WALLET ADDRESS'}
-              </span>
-              <div className="profile-wallet-metrics">
-                <span>
-                  <small>ACTIVE BIDS</small>
-                  <b>04</b>
-                </span>
-                <span>
-                  <small>BEST POSITION</small>
-                  <b>#01</b>
-                </span>
-              </div>
-              <div className="profile-wallet-actions">
-                <button className="profile-secondary-action" type="button" onClick={() => setEditing(true)}>
-                  {walletAddress ? 'MANAGE WALLET' : 'ADD WALLET'} <WalletCards size={14} />
-                </button>
-                <Link className="profile-action" href="/broadcast">
-                  MAKE A BROADCAST <ArrowUpRight size={15} />
-                </Link>
-              </div>
-            </aside>
-          </section>
-
-          <section className="profile-stats-grid" aria-label="Profile performance">
-            <div className="profile-stat-card">
-              <span>BROADCASTS</span>
-              <strong>12</strong>
-              <em>PUBLIC</em>
+              </dialog>
             </div>
-            <div className="profile-stat-card">
-              <span>TOTAL VIEWS</span>
-              <strong>38.4K</strong>
-              <em>SINCE JOINING</em>
-            </div>
-            <div className="profile-stat-card">
-              <span>GLOBAL REACH</span>
-              <strong>184</strong>
-              <em>COUNTRIES</em>
-            </div>
-            <div className="profile-stat-card profile-stat-hot">
-              <span>BEST POSITION</span>
-              <strong>#01</strong>
-              <em>UNPOPULAR OPINION</em>
-            </div>
-          </section>
-
-          <section className="profile-content-grid">
-            <section className="profile-broadcasts route-panel">
-              <div className="route-panel-head">
-                <div>
-                  <span className="eyebrow">PUBLIC BROADCASTS</span>
-                  <h2>Your signal in the room.</h2>
-                </div>
-              </div>
-              <div className="profile-broadcast-list">
-                {featuredBroadcasts.map((broadcast, index) => (
-                  <article className="profile-broadcast-row" key={broadcast.title}>
-                    <span className="profile-broadcast-index">{String(index + 1).padStart(2, '0')}</span>
-                    <span className="profile-broadcast-art"><Radio size={18} /></span>
-                    <div className="profile-broadcast-copy">
-                      <strong>{broadcast.title}</strong>
-                      <span>{broadcast.category} · {broadcast.duration}</span>
-                    </div>
-                    <div className="profile-broadcast-value">
-                      <strong>{broadcast.amount}</strong>
-                      <span>{broadcast.views} VIEWS</span>
-                    </div>
-                    <ArrowUpRight className="profile-broadcast-arrow" size={15} />
-                  </article>
-                ))}
-              </div>
-            </section>
-
-            <aside className="profile-activity-card route-panel">
-              <div className="route-panel-head">
-                <div>
-                  <span className="eyebrow">RECENT ACTIVITY</span>
-                  <h2>The tape remembers.</h2>
-                </div>
-                <span className="profile-live-mark"><i /> LIVE</span>
-              </div>
-              <div className="profile-activity-list">
-                {publicActivity.map(([label, copy, time]) => (
-                  <div className="profile-activity-row" key={label}>
-                    <span className="profile-activity-dot"><ShieldCheck size={12} /></span>
-                    <div>
-                      <strong>{label}</strong>
-                      <p>{copy}</p>
-                    </div>
-                    <time>{time}</time>
-                  </div>
-                ))}
-              </div>
-              <p className="profile-privacy-note">
-                <Globe2 size={14} /> You control what the world sees on your public profile.
-              </p>
-            </aside>
-          </section>
+          )}
         </>
       )}
     </MarketPageShell>
+  );
+}
+
+export default function ProfilePage() {
+  const { session, authReady } = useBought();
+
+  useEffect(() => {
+    if (authReady && !session) window.location.replace('/');
+  }, [authReady, session]);
+
+  if (!session) return null;
+
+  return (
+    <ProfileExperience
+      metadata={session.user.user_metadata as Record<string, unknown>}
+      email={session.user.email ?? ''}
+      joinedAt={session.user.created_at}
+    />
   );
 }

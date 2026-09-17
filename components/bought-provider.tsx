@@ -11,6 +11,11 @@ import {
 } from 'react';
 import { type Session, type SupabaseClient } from '@supabase/supabase-js';
 import type { Market, PublishedEntry } from '@/lib/drop-domain';
+import {
+  createDevTestSession,
+  DEV_TEST_AUTH_STORAGE_KEY,
+  isDevAuthTestMode,
+} from '@/lib/dev-auth';
 
 type Config = {
   supabaseUrl: string | null;
@@ -58,6 +63,7 @@ export function BoughtProvider({ children }: { children: ReactNode }) {
   const [marketFresh, setMarketFresh] = useState(false);
   const [entries, setEntries] = useState<PublishedEntry[]>([]);
   const anchor = useRef({ server: 0, monotonic: 0 });
+  const publicRequest = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -85,6 +91,11 @@ export function BoughtProvider({ children }: { children: ReactNode }) {
           };
           const { data } = await supabase.auth.getSession();
           if (active) setSession(data.session);
+        } else if (
+          isDevAuthTestMode() &&
+          window.localStorage.getItem(DEV_TEST_AUTH_STORAGE_KEY) === '1'
+        ) {
+          setSession(createDevTestSession());
         }
       })
       .catch(() => {
@@ -104,76 +115,85 @@ export function BoughtProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    const sync = async () => {
-      try {
-        const response = await fetch('/api/bought/market', {
-          signal: AbortSignal.timeout(8000),
-        });
-        if (!response.ok) throw new Error('Market unavailable');
-        const next: Market = await response.json();
-        if (!active) return;
-        anchor.current = {
-          server: Date.parse(next.serverNow),
-          monotonic: performance.now(),
-        };
-        setMarket(next);
-        setServerTime(anchor.current.server);
-        setMarketFresh(true);
-      } catch {
-        if (active) setMarketFresh(false);
-      }
-    };
-    void sync();
-    const poll = window.setInterval(sync, 15000);
-    const tick = window.setInterval(() => {
-      if (!anchor.current.server) return;
-      const elapsed = performance.now() - anchor.current.monotonic;
-      setServerTime(anchor.current.server + elapsed);
-      if (elapsed > 60000) setMarketFresh(false);
-    }, 1000);
-    window.addEventListener('focus', sync);
-    return () => {
-      active = false;
-      clearInterval(poll);
-      clearInterval(tick);
-      window.removeEventListener('focus', sync);
-    };
+  const syncPublic = useCallback(async () => {
+    const requestId = ++publicRequest.current;
+    try {
+      const response = await fetch('/api/bought/snapshot', {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) throw new Error('Market unavailable');
+      const next = (await response.json()) as {
+        market: Market;
+        entries: PublishedEntry[];
+      };
+      if (
+        !next.market ||
+        !Array.isArray(next.entries) ||
+        !Number.isFinite(Date.parse(next.market.serverNow))
+      )
+        throw new Error('Market response is invalid');
+      if (requestId !== publicRequest.current) return;
+      anchor.current = {
+        server: Date.parse(next.market.serverNow),
+        monotonic: performance.now(),
+      };
+      setMarket(next.market);
+      setEntries(next.entries);
+      setServerTime(anchor.current.server);
+      setMarketFresh(true);
+    } catch (error) {
+      // A slower obsolete request cannot overwrite the result of a newer sync.
+      if (requestId === publicRequest.current) throw error;
+    }
   }, []);
 
   useEffect(() => {
     let active = true;
     const sync = async () => {
       try {
-        const response = await fetch('/api/bought/published', {
-          signal: AbortSignal.timeout(8000),
-        });
-        if (!response.ok) throw new Error('Published broadcasts unavailable');
-        const result = (await response.json()) as {
-          entries: PublishedEntry[];
-        };
-        if (active) setEntries(result.entries);
+        await syncPublic();
       } catch {
-        if (active) setEntries([]);
+        if (active) setMarketFresh(false);
       }
     };
+    const syncWhenVisible = () => {
+      if (!document.hidden && navigator.onLine) void sync();
+    };
     void sync();
-    const poll = window.setInterval(sync, 15000);
+    const poll = window.setInterval(syncWhenVisible, 15000);
+    const tick = window.setInterval(() => {
+      if (document.hidden || !anchor.current.server) return;
+      const elapsed = performance.now() - anchor.current.monotonic;
+      setServerTime(anchor.current.server + elapsed);
+      if (elapsed > 60000) setMarketFresh(false);
+    }, 1000);
+    window.addEventListener('focus', syncWhenVisible);
+    window.addEventListener('online', syncWhenVisible);
+    document.addEventListener('visibilitychange', syncWhenVisible);
+    return () => {
+      active = false;
+      publicRequest.current += 1;
+      clearInterval(poll);
+      clearInterval(tick);
+      window.removeEventListener('focus', syncWhenVisible);
+      window.removeEventListener('online', syncWhenVisible);
+      document.removeEventListener('visibilitychange', syncWhenVisible);
+    };
+  }, [syncPublic]);
+
+  useEffect(() => {
     const channel = client
       ?.channel('published-broadcasts')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bought_ladder' },
-        () => void sync(),
+        () => void syncPublic().catch(() => setMarketFresh(false)),
       )
       .subscribe();
     return () => {
-      active = false;
-      clearInterval(poll);
       if (channel) void client?.removeChannel(channel);
     };
-  }, [client]);
+  }, [client, syncPublic]);
 
   const api = useCallback(
     async <T,>(path: string, body?: unknown): Promise<T> => {

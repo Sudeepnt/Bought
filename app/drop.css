@@ -44,7 +44,9 @@
 
 .drop-capture-plan h3 {
   margin: 4px 0 0;
-  font: 600 21px var(--font-barlow), sans-serif;
+  font:
+    600 21px var(--font-barlow),
+    sans-serif;
 }
 
 .drop-workspace .drop-capture-plan > p {
@@ -82,9 +84,23 @@
   margin-top: 3px;
 }
 
-.drop-preflight-button {
-  width: 100%;
+.drop-preflight-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
   margin-top: 16px;
+}
+
+.drop-preflight-actions .drop-button {
+  width: 100%;
+}
+
+.drop-preflight-help {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .drop-screen-camera video {
@@ -118,6 +134,10 @@ html[data-theme='light'] .drop-capture-plan h3 {
 
   .drop-preflight-state {
     grid-column: 1 / -1;
+  }
+
+  .drop-preflight-actions {
+    grid-template-columns: 1fr;
   }
 
   .drop-screen-camera {
@@ -424,6 +444,11 @@ html[data-theme='light'] .drop-capture-plan h3 {
 }
 .drop-button:hover:not(:disabled) {
   background: var(--line);
+}
+.drop-button.disabled {
+  cursor: wait;
+  opacity: 0.55;
+  pointer-events: none;
 }
 .drop-button.primary {
   background: #ffffff;
@@ -783,6 +808,37 @@ html[data-theme='light'] .drop-capture-plan h3 {
   height: 100%;
   background: var(--up);
   transition: width 0.3s;
+}
+.drop-recording-guidance {
+  margin: -8px 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.drop-camera.is-recording + .drop-device-status + .drop-recording-guidance {
+  color: var(--up);
+}
+.drop-import-recording {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  background: var(--ink-soft);
+}
+.drop-import-recording strong {
+  font: 600 14px var(--mono);
+}
+.drop-import-recording p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.drop-import-recording .drop-button {
+  min-width: 170px;
 }
 .drop-recorded {
   aspect-ratio: 16/9;
@@ -1729,6 +1785,14 @@ html[data-theme='light'] .drop-receipt-note {
 
   .drop-actions {
     grid-template-columns: 1fr;
+  }
+
+  .drop-import-recording {
+    grid-template-columns: 1fr;
+  }
+
+  .drop-import-recording .drop-button {
+    width: 100%;
   }
 
   .drop-thumbnail-picker {

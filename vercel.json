@@ -66,6 +66,24 @@
           "value": "public, max-age=3600, s-maxage=31536000, stale-while-revalidate=86400"
         }
       ]
+    },
+    {
+      "source": "/magazine/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, s-maxage=31536000, stale-while-revalidate=86400"
+        }
+      ]
+    },
+    {
+      "source": "/(ananya-rao-hero.webp|leaderboard-portraits.png)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, s-maxage=31536000, stale-while-revalidate=86400"
+        }
+      ]
     }
   ]
 }

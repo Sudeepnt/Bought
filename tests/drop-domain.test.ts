@@ -4,6 +4,7 @@ import { hmac, verifyWebhook } from '../lib/webhook-signatures';
 import {
   captureModeForCategory,
   parseBid,
+  thumbnailMetadata,
   thumbnailMime,
   validMedia,
   validUuid,
@@ -132,18 +133,34 @@ void test('Razorpay verifies the exact raw body, independently of client checkou
 });
 
 void test('only genuine supported image signatures are accepted', () => {
-  assert.equal(
-    thumbnailMime(new Uint8Array([255, 216, 255, 224])),
-    'image/jpeg',
-  );
-  assert.equal(
-    thumbnailMime(new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])),
-    'image/png',
-  );
+  const jpeg = new Uint8Array([
+    0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x01, 0xe0, 0x02, 0x80, 0x03,
+    0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00,
+  ]);
+  const png = new Uint8Array(24);
+  png.set([137, 80, 78, 71, 13, 10, 26, 10]);
+  png.set([73, 72, 68, 82], 12);
+  png.set([0, 0, 2, 128, 0, 0, 1, 224], 16);
+  const webp = new Uint8Array(30);
+  webp.set(new TextEncoder().encode('RIFF'), 0);
+  webp.set(new TextEncoder().encode('WEBPVP8X'), 8);
+  webp.set([127, 2, 0, 223, 1, 0], 24);
+  assert.equal(thumbnailMime(jpeg), 'image/jpeg');
+  assert.deepEqual(thumbnailMetadata(png), {
+    mime: 'image/png',
+    width: 640,
+    height: 480,
+  });
+  assert.deepEqual(thumbnailMetadata(webp), {
+    mime: 'image/webp',
+    width: 640,
+    height: 480,
+  });
   assert.equal(
     thumbnailMime(new TextEncoder().encode('<svg onload=alert(1)>')),
     null,
   );
+  assert.equal(thumbnailMime(new Uint8Array([255, 216, 255, 224])), null);
   assert.equal(thumbnailMime(new Uint8Array()), null);
 });
 

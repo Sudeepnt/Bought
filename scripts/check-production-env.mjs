@@ -1,3 +1,5 @@
+import { createPrivateKey } from 'node:crypto';
+
 const requiredCore = [
   'APP_ORIGIN',
   'SUPABASE_URL',
@@ -43,12 +45,19 @@ for (const [provider, names] of Object.entries(providers)) {
   }
 }
 
-function requireHttps(name, { allowLocal = false } = {}) {
+function requireHttps(name, { allowLocal = false, originOnly = false } = {}) {
   if (!value(name)) return;
   try {
     const url = new URL(value(name));
     const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-    if (url.protocol !== 'https:' || (!allowLocal && local)) {
+    if (
+      url.protocol !== 'https:' ||
+      url.username ||
+      url.password ||
+      (!allowLocal && local) ||
+      (originOnly &&
+        (url.pathname !== '/' || url.search.length > 0 || url.hash.length > 0))
+    ) {
       errors.push(`${name} must be a production HTTPS URL.`);
     }
   } catch {
@@ -56,9 +65,57 @@ function requireHttps(name, { allowLocal = false } = {}) {
   }
 }
 
-requireHttps('APP_ORIGIN');
+requireHttps('APP_ORIGIN', { originOnly: true });
 requireHttps('SUPABASE_URL');
 requireHttps('UPSTASH_REDIS_REST_URL');
+
+if (
+  value('SUPABASE_SERVICE_ROLE_KEY') &&
+  value('SUPABASE_SERVICE_ROLE_KEY') === value('SUPABASE_PUBLISHABLE_KEY')
+) {
+  errors.push('Supabase server and browser keys must be different.');
+}
+if (value('SUPABASE_SERVICE_ROLE_KEY').startsWith('sb_publishable_')) {
+  errors.push('SUPABASE_SERVICE_ROLE_KEY cannot use a publishable key.');
+}
+if (value('SUPABASE_PUBLISHABLE_KEY').startsWith('sb_secret_')) {
+  errors.push('SUPABASE_PUBLISHABLE_KEY cannot use a secret key.');
+}
+if (
+  providers.Stripe.every((name) => value(name)) &&
+  !value('STRIPE_SECRET_KEY').startsWith('sk_live_')
+) {
+  errors.push('STRIPE_SECRET_KEY must be a live-mode key for production.');
+}
+if (
+  providers.Razorpay.every((name) => value(name)) &&
+  !value('RAZORPAY_KEY_ID').startsWith('rzp_live_')
+) {
+  errors.push('RAZORPAY_KEY_ID must be a live-mode key for production.');
+}
+
+function legacyJwtRole(name) {
+  const token = value(name);
+  if (token.split('.').length !== 3) return null;
+  try {
+    const payload = JSON.parse(
+      Buffer.from(token.split('.')[1], 'base64url').toString('utf8'),
+    );
+    return typeof payload.role === 'string' ? payload.role : null;
+  } catch {
+    errors.push(`${name} is not a valid Supabase key.`);
+    return null;
+  }
+}
+
+const serviceRole = legacyJwtRole('SUPABASE_SERVICE_ROLE_KEY');
+if (serviceRole && serviceRole !== 'service_role') {
+  errors.push('SUPABASE_SERVICE_ROLE_KEY must carry the service_role claim.');
+}
+const publishableRole = legacyJwtRole('SUPABASE_PUBLISHABLE_KEY');
+if (publishableRole && publishableRole !== 'anon') {
+  errors.push('SUPABASE_PUBLISHABLE_KEY must carry the anon claim.');
+}
 
 for (const name of [
   'CRON_SECRET',
@@ -71,13 +128,33 @@ for (const name of [
   }
 }
 
-if (
-  value('MUX_SIGNING_PRIVATE_KEY').length > 0 &&
-  value('MUX_SIGNING_PRIVATE_KEY').length < 200
-) {
-  errors.push(
-    'MUX_SIGNING_PRIVATE_KEY does not look like a complete signing key.',
-  );
+if (value('MUX_SIGNING_PRIVATE_KEY')) {
+  try {
+    const configured = value('MUX_SIGNING_PRIVATE_KEY').replace(/\\n/g, '\n');
+    createPrivateKey(
+      configured.includes('BEGIN')
+        ? configured
+        : Buffer.from(configured, 'base64').toString('utf8'),
+    );
+  } catch {
+    errors.push('MUX_SIGNING_PRIVATE_KEY is not a valid private key.');
+  }
+}
+
+const secrets = [
+  'CRON_SECRET',
+  'STRIPE_WEBHOOK_SECRET',
+  'RAZORPAY_WEBHOOK_SECRET',
+  'MUX_WEBHOOK_SECRET',
+]
+  .map((name) => [name, value(name)])
+  .filter(([, secret]) => secret);
+for (let i = 0; i < secrets.length; i += 1) {
+  for (let j = i + 1; j < secrets.length; j += 1) {
+    if (secrets[i][1] === secrets[j][1]) {
+      errors.push(`${secrets[i][0]} and ${secrets[j][0]} must be different.`);
+    }
+  }
 }
 
 if (errors.length > 0) {

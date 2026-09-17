@@ -5,7 +5,7 @@ import {
   MAX_THUMBNAIL_BYTES,
   MIN_BID_MINOR,
   THUMBNAIL_BUCKET,
-  thumbnailMime,
+  thumbnailMetadata,
   validUuid,
   type Drop,
 } from '../drop-domain';
@@ -16,7 +16,14 @@ import {
   required,
   setting,
 } from './config';
-import { createCheckout, mux, muxPlaybackToken } from './providers';
+import {
+  createCheckout,
+  mux,
+  muxPlaybackToken,
+  trustedStripeCheckoutUrl,
+  validMuxUploadTarget,
+  validProviderReference,
+} from './providers';
 import {
   constantEqual,
   database,
@@ -65,20 +72,6 @@ function requireJson(request: Request) {
     throw new HttpError(415, 'Send this request as JSON.');
 }
 
-function validMuxUpload(id: unknown, value: unknown) {
-  if (typeof id !== 'string' || !id || typeof value !== 'string') return false;
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === 'https:' &&
-      (url.hostname === 'storage.googleapis.com' ||
-        url.hostname.endsWith('.mux.com'))
-    );
-  } catch {
-    return false;
-  }
-}
-
 async function ownedDrop(id: string, userId: string) {
   if (!validUuid(id)) throw new HttpError(400, 'Invalid broadcast ID.');
   const { data, error } = await database()
@@ -90,8 +83,8 @@ async function ownedDrop(id: string, userId: string) {
   dbError(error);
   if (!data) throw new HttpError(404, 'Broadcast not found in your account.');
   return data as Drop & {
-    mux_upload_url: string;
-    mux_upload_expires_at: string;
+    mux_upload_url: string | null;
+    mux_upload_expires_at: string | null;
   };
 }
 
@@ -103,6 +96,59 @@ function editable(drop: Drop) {
     );
   if (!['draft', 'rejected'].includes(drop.state))
     throw new HttpError(409, 'This broadcast has already been submitted.');
+}
+
+function fallbackMarket(now = new Date()) {
+  const start = new Date(now);
+  start.setUTCHours(0, 0, 0, 0);
+  return {
+    auctionId: start.toISOString().slice(0, 10),
+    serverNow: now.toISOString(),
+    opensAt: start.toISOString(),
+    closesAt: new Date(+start + 43200000).toISOString(),
+    exposureEndsAt: new Date(+start + 86400000).toISOString(),
+    phase:
+      now.getUTCHours() < 12 ? ('bidding' as const) : ('exposure' as const),
+    configured: false,
+  };
+}
+
+async function publicSnapshot() {
+  if (!setting('SUPABASE_SERVICE_ROLE_KEY') || !setting('SUPABASE_URL'))
+    return { market: fallbackMarket(), entries: [] };
+  const db = database();
+  const { data, error } = await db.rpc('bought_snapshot');
+  const missingSnapshotFunction = ['42883', 'PGRST202'].includes(
+    error?.code ?? '',
+  );
+  if (error && !missingSnapshotFunction) dbError(error);
+  if (
+    !error &&
+    data &&
+    typeof data === 'object' &&
+    'market' in data &&
+    'entries' in data &&
+    Array.isArray(data.entries)
+  ) {
+    return data;
+  }
+  if (!missingSnapshotFunction)
+    throw new HttpError(503, 'The market snapshot is unavailable.');
+
+  // Zero-downtime migration compatibility: the old functions remain valid
+  // while the additive snapshot migration rolls out ahead of the app deploy.
+  const { data: market, error: marketError } = await db.rpc('bought_advance');
+  dbError(marketError);
+  const { data: entries, error: entriesError } = await db
+    .from('bought_ladder')
+    .select(
+      'drop_id,position,category,title,amount_minor,published_at,exposure_ends_at',
+    )
+    .eq('auction_id', market.auctionId)
+    .order('position')
+    .limit(100);
+  dbError(entriesError);
+  return { market, entries: entries ?? [] };
 }
 
 export async function handleApi(request: Request) {
@@ -147,53 +193,24 @@ export async function handleApi(request: Request) {
         },
       );
     if (exactPath(path, 'market') && method === 'GET') {
-      if (!setting('SUPABASE_SERVICE_ROLE_KEY') || !setting('SUPABASE_URL')) {
-        const now = new Date();
-        const start = new Date(now);
-        start.setUTCHours(0, 0, 0, 0);
-        return json(
-          {
-            auctionId: start.toISOString().slice(0, 10),
-            serverNow: now.toISOString(),
-            opensAt: start.toISOString(),
-            closesAt: new Date(+start + 43200000).toISOString(),
-            exposureEndsAt: new Date(+start + 86400000).toISOString(),
-            phase: now.getUTCHours() < 12 ? 'bidding' : 'exposure',
-            configured: false,
-          },
-          200,
-          {
-            'Cache-Control':
-              'public, max-age=0, s-maxage=5, stale-while-revalidate=10',
-          },
-        );
-      }
-      const { data, error } = await database().rpc('bought_advance');
-      dbError(error);
-      return json(data, 200, {
+      const snapshot = await publicSnapshot();
+      return json(snapshot.market, 200, {
         'Cache-Control':
           'public, max-age=0, s-maxage=5, stale-while-revalidate=10',
       });
     }
     if (exactPath(path, 'published') && method === 'GET') {
-      if (!setting('SUPABASE_SERVICE_ROLE_KEY') || !setting('SUPABASE_URL'))
-        return json({ entries: [] });
-      const db = database();
-      const { data: market, error: marketError } =
-        await db.rpc('bought_advance');
-      dbError(marketError);
-      const { data, error } = await db
-        .from('bought_ladder')
-        .select(
-          'drop_id,position,category,title,amount_minor,published_at,exposure_ends_at',
-        )
-        .eq('auction_id', market.auctionId)
-        .order('position')
-        .limit(100);
-      dbError(error);
-      return json({ entries: data }, 200, {
+      const snapshot = await publicSnapshot();
+      return json({ entries: snapshot.entries }, 200, {
         'Cache-Control':
           'public, max-age=0, s-maxage=10, stale-while-revalidate=30',
+      });
+    }
+    if (exactPath(path, 'snapshot') && method === 'GET') {
+      const snapshot = await publicSnapshot();
+      return json(snapshot, 200, {
+        'Cache-Control':
+          'public, max-age=0, s-maxage=5, stale-while-revalidate=10',
       });
     }
     if (path[0] === 'media' && method === 'GET' && path.length === 2) {
@@ -245,10 +262,20 @@ export async function handleApi(request: Request) {
     if (method === 'POST') {
       sameOrigin(request);
       requireJson(request);
-      await rateLimit(
-        `${user.id}:${path[0]}:${path[2] ?? 'create'}`,
-        path[2] === 'checkout' ? 5 : 30,
-      );
+      const action = path[0] === 'review' ? 'decision' : (path[2] ?? 'create');
+      const [limit, seconds] =
+        action === 'create'
+          ? [10, 3600]
+          : action === 'checkout'
+            ? [10, 600]
+            : action === 'upload'
+              ? [20, 3600]
+              : action === 'thumbnail' || action === 'submit'
+                ? [30, 3600]
+                : action === 'decision'
+                  ? [60, 60]
+                  : [30, 60];
+      await rateLimit(`${user.id}:${path[0]}:${action}`, limit, seconds);
     }
     let body: Record<string, unknown> = {};
     if (method === 'POST') {
@@ -373,19 +400,31 @@ export async function handleApi(request: Request) {
       );
       dbError(claimError);
       if (claimed) {
-        // A failed/ambiguous provider create remains locked for reconciliation, preventing a second charge.
-        const checkout = await createCheckout(drop);
+        // Read the claimed state back before provider reconciliation. Stripe
+        // retries are idempotent and Razorpay checks the unique receipt first.
+        const claimedDrop = await ownedDrop(drop.id, user.id);
+        const checkout = await createCheckout(claimedDrop);
         const { error } = await db
           .from('bought_drops')
           .update({
             payment_reference: checkout.reference,
             checkout_url: checkout.url,
             checkout_state: 'ready',
+            checkout_claimed_at: null,
           })
           .eq('id', drop.id);
         dbError(error);
       }
       const current = await ownedDrop(drop.id, user.id);
+      if (
+        !validProviderReference(current.payment_reference) ||
+        (current.provider === 'stripe' &&
+          !trustedStripeCheckoutUrl(current.checkout_url))
+      )
+        throw new HttpError(
+          503,
+          'Checkout is temporarily unavailable. Your draft is saved.',
+        );
       return json({
         provider: current.provider,
         url: current.checkout_url,
@@ -411,15 +450,16 @@ export async function handleApi(request: Request) {
             'uploads',
             {
               cors_origin: origin(),
-              timeout: 86400,
+              timeout: 7200,
               new_asset_settings: {
                 playback_policies: ['signed'],
                 passthrough: drop.id,
+                max_resolution_tier: '1080p',
                 video_quality: 'basic',
               },
             },
           );
-          if (!validMuxUpload(upload.id, upload.url))
+          if (!validMuxUploadTarget(upload.id, upload.url))
             throw new HttpError(
               502,
               'The video provider returned an invalid upload target.',
@@ -430,7 +470,7 @@ export async function handleApi(request: Request) {
               mux_upload_id: upload.id,
               mux_upload_url: upload.url,
               mux_upload_expires_at: new Date(
-                Date.now() + 86400000,
+                Date.now() + 7200000,
               ).toISOString(),
               media_state: 'waiting',
               upload_claimed_at: null,
@@ -446,6 +486,11 @@ export async function handleApi(request: Request) {
         }
       }
       const current = await ownedDrop(drop.id, user.id);
+      if (!validMuxUploadTarget(current.mux_upload_id, current.mux_upload_url))
+        throw new HttpError(
+          503,
+          'The upload target is unavailable. Try again shortly.',
+        );
       return json({
         url: current.mux_upload_url,
         uploadId: current.mux_upload_id,
@@ -459,32 +504,34 @@ export async function handleApi(request: Request) {
         )
       )
         throw new HttpError(400, 'Use a JPEG, PNG, or WebP thumbnail.');
-      const extension =
-        body.contentType === 'image/jpeg'
-          ? 'jpg'
-          : body.contentType === 'image/png'
-            ? 'png'
-            : 'webp';
-      const storagePath = `${user.id}/${drop.id}/${crypto.randomUUID()}.${extension}`;
+      const prefix = `${user.id}/${drop.id}/`;
+      const storagePath = `${prefix}thumbnail-staging`;
+      const { data: previousPath, error: claimError } = await db.rpc(
+        'bought_claim_thumbnail',
+        {
+          p_drop_id: drop.id,
+          p_path: storagePath,
+        },
+      );
+      dbError(claimError);
       const { data, error } = await db.storage
         .from(THUMBNAIL_BUCKET)
-        .createSignedUploadUrl(storagePath);
+        .createSignedUploadUrl(storagePath, { upsert: true });
       dbError(error);
       if (!data?.token)
         throw new HttpError(
           503,
           'Thumbnail upload is temporarily unavailable.',
         );
-      const { data: changed, error: updateError } = await db
-        .from('bought_drops')
-        .update({ thumbnail_path: storagePath, thumbnail_verified: false })
-        .eq('id', drop.id)
-        .eq('payment_state', 'paid')
-        .in('state', ['draft', 'rejected'])
-        .select('id');
-      dbError(updateError);
-      if (!changed?.length)
-        throw new HttpError(409, 'This broadcast has already been submitted.');
+      if (
+        typeof previousPath === 'string' &&
+        previousPath.startsWith(prefix) &&
+        previousPath !== storagePath
+      ) {
+        // Once a rejected broadcast starts a new thumbnail, its previous
+        // immutable version is no longer referenced and can be removed.
+        await db.storage.from(THUMBNAIL_BUCKET).remove([previousPath]);
+      }
       return json({ path: storagePath, token: data.token });
     }
     if (path[2] === 'submit') {
@@ -493,27 +540,71 @@ export async function handleApi(request: Request) {
       if (['draft', 'rejected'].includes(drop.state)) {
         if (!drop.thumbnail_path)
           throw new HttpError(400, 'Choose a thumbnail first.');
-        const { data: file, error: fileError } = await db.storage
-          .from(THUMBNAIL_BUCKET)
-          .download(drop.thumbnail_path);
-        dbError(fileError);
-        if (
-          !file ||
-          file.size === 0 ||
-          file.size > MAX_THUMBNAIL_BYTES ||
-          !thumbnailMime(new Uint8Array(await file.arrayBuffer()))
-        )
-          throw new HttpError(400, 'Upload a valid image under 5 MB.');
-        const { error } = await db
-          .from('bought_drops')
-          .update({ thumbnail_verified: true })
-          .eq('id', drop.id)
-          .eq('thumbnail_path', drop.thumbnail_path)
-          .in('state', ['draft', 'rejected']);
-        dbError(error);
+        if (!drop.thumbnail_verified) {
+          const stagingPath = `${user.id}/${drop.id}/thumbnail-staging`;
+          if (drop.thumbnail_path !== stagingPath)
+            throw new HttpError(409, 'Choose the thumbnail again.');
+          const { data: file, error: fileError } = await db.storage
+            .from(THUMBNAIL_BUCKET)
+            .download(stagingPath);
+          dbError(fileError);
+          if (!file || file.size === 0 || file.size > MAX_THUMBNAIL_BYTES)
+            throw new HttpError(400, 'Upload a valid image under 5 MB.');
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const thumbnail = thumbnailMetadata(bytes);
+          if (
+            !thumbnail ||
+            thumbnail.width < 240 ||
+            thumbnail.height < 240 ||
+            thumbnail.width > 1280 ||
+            thumbnail.height > 1280
+          )
+            throw new HttpError(
+              400,
+              'Upload a valid image between 240 and 1280 pixels per side.',
+            );
+          const mime = thumbnail.mime;
+          const extension =
+            mime === 'image/jpeg'
+              ? 'jpg'
+              : mime === 'image/png'
+                ? 'png'
+                : 'webp';
+          const verifiedPath = `${user.id}/${drop.id}/verified-${crypto.randomUUID()}.${extension}`;
+          const { error: verifiedUploadError } = await db.storage
+            .from(THUMBNAIL_BUCKET)
+            .upload(verifiedPath, bytes, {
+              cacheControl: '31536000',
+              contentType: mime,
+              upsert: false,
+            });
+          dbError(verifiedUploadError);
+          const { data: changed, error: updateError } = await db
+            .from('bought_drops')
+            .update({
+              thumbnail_path: verifiedPath,
+              thumbnail_verified: true,
+            })
+            .eq('id', drop.id)
+            .eq('thumbnail_path', stagingPath)
+            .eq('thumbnail_verified', false)
+            .in('state', ['draft', 'rejected'])
+            .select('id');
+          if (updateError || !changed?.length) {
+            await db.storage.from(THUMBNAIL_BUCKET).remove([verifiedPath]);
+            dbError(updateError);
+            throw new HttpError(
+              409,
+              'The thumbnail changed. Refresh and try again.',
+            );
+          }
+        }
       }
       const { error } = await db.rpc('bought_submit', { p_drop_id: drop.id });
       dbError(error);
+      await db.storage
+        .from(THUMBNAIL_BUCKET)
+        .remove([`${user.id}/${drop.id}/thumbnail-staging`]);
       return json({ submitted: true });
     }
     throw new HttpError(404, 'Not found.');
