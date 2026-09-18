@@ -84,7 +84,7 @@ a {
 
 @media (max-width: 700px) {
   .market-chrome {
-    --market-fixed-header-height: 122px;
+    --market-fixed-header-height: 80px;
   }
 }
 .scanlines {
@@ -170,7 +170,7 @@ a {
   justify-content: center;
   min-width: 0;
 }
-.mobile-navigation-toggle {
+.mobile-bottom-navigation {
   display: none;
 }
 .top-navigation-link {
@@ -6787,8 +6787,8 @@ html:not([data-theme='light'])
     display: grid;
     gap: 0 8px;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: 52px 42px;
-    height: 94px;
+    grid-template-rows: 52px;
+    height: 52px;
     padding: 0 12px;
   }
 
@@ -21624,5 +21624,83 @@ html[data-theme='light'] .watchlist-filters button.is-active {
 
   .dashboard-shell .leaderboard-movement small {
     font-size: 7px;
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard-shell {
+    padding-bottom: 76px;
+  }
+
+  .dashboard-shell .top-navigation {
+    display: none !important;
+  }
+
+  .mobile-bottom-navigation {
+    align-items: stretch;
+    backdrop-filter: blur(14px);
+    background: rgba(5, 6, 6, 0.96);
+    border-top: 1px solid #2a3335;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    height: calc(68px + env(safe-area-inset-bottom));
+    left: 50%;
+    max-width: var(--laptop-canvas-width);
+    padding: 6px 8px env(safe-area-inset-bottom);
+    position: fixed;
+    transform: translateX(-50%);
+    width: 100%;
+    z-index: 40;
+  }
+
+  .mobile-bottom-navigation-link {
+    align-items: center;
+    color: #9aa5a1;
+    display: flex;
+    flex-direction: column;
+    font-size: 11px;
+    font-weight: 600;
+    gap: 4px;
+    justify-content: center;
+    letter-spacing: 0;
+    min-width: 0;
+    padding: 4px 2px 3px;
+    text-align: center;
+  }
+
+  .mobile-bottom-navigation-link svg {
+    color: #b4bfbb;
+  }
+
+  .mobile-bottom-navigation-link.is-active {
+    color: #f4f6f3;
+  }
+
+  .mobile-bottom-navigation-link.is-active svg {
+    color: var(--hot);
+  }
+
+  html[data-theme='light'] .mobile-bottom-navigation {
+    background: rgba(247, 247, 244, 0.97);
+    border-color: #c7cdca;
+  }
+
+  html[data-theme='light'] .mobile-bottom-navigation-link {
+    color: #66736f;
+  }
+
+  html[data-theme='light'] .mobile-bottom-navigation-link svg {
+    color: #586560;
+  }
+
+  html[data-theme='light'] .mobile-bottom-navigation-link.is-active {
+    color: #111;
+  }
+}
+
+@media (max-width: 360px) {
+  .mobile-bottom-navigation-link {
+    font-size: 10px;
   }
 }

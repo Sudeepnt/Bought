@@ -11,11 +11,15 @@ import {
 import {
   ArrowDownToLine,
   Bell,
-  Menu,
+  Bookmark,
+  BookOpen,
+  Home,
+  List,
   Moon,
   Sun,
+  UserRound,
   WalletCards,
-  X,
+  type LucideIcon,
 } from 'lucide-react';
 import Link from '@/components/site-link';
 
@@ -60,6 +64,19 @@ const navigation: Array<{ key: MarketPage; label: string; href: string }> = [
   { key: 'magazine', label: 'MAGAZINE', href: '/magazine' },
   { key: 'watchlist', label: 'WATCHLIST', href: '/watchlist' },
   { key: 'rules', label: 'HOW IT WORKS', href: '/how-it-works' },
+];
+
+const mobileNavigation: Array<{
+  key: MarketPage;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+}> = [
+  { key: 'floor', label: 'Home', href: '/', icon: Home },
+  { key: 'categories', label: 'Categories', href: '/categories', icon: List },
+  { key: 'magazine', label: 'Magazine', href: '/magazine', icon: BookOpen },
+  { key: 'watchlist', label: 'Watchlist', href: '/watchlist', icon: Bookmark },
+  { key: 'profile', label: 'Profile', href: '/profile', icon: UserRound },
 ];
 
 type Theme = 'dark' | 'light';
@@ -111,7 +128,6 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
   const marqueeDuration = useMarqueeDuration(tickerTrackRef);
   const [addFundsOpen, setAddFundsOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
-  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [floatingCountdownVisible, setFloatingCountdownVisible] =
     useState(false);
   const [signInStart, setSignInStart] = useState<
@@ -186,31 +202,10 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
     ...liveActivity,
   ];
   const tickerLoop = Array.from({ length: 6 }, () => tickerItems).flat();
-  const activeNavigationItem =
-    navigation.find((item) => item.key === active) ?? navigation[0];
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
-
-  useEffect(() => {
-    if (!mobileNavigationOpen) return;
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileNavigationOpen(false);
-    };
-    const closeAbovePhoneWidth = () => {
-      if (window.innerWidth > 700) setMobileNavigationOpen(false);
-    };
-
-    window.addEventListener('keydown', closeOnEscape);
-    window.addEventListener('resize', closeAbovePhoneWidth);
-
-    return () => {
-      window.removeEventListener('keydown', closeOnEscape);
-      window.removeEventListener('resize', closeAbovePhoneWidth);
-    };
-  }, [mobileNavigationOpen]);
 
   useEffect(() => {
     let frame: number | null = null;
@@ -300,38 +295,12 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
             <BrandLogo className="brand-logo-topbar" />
           </Link>
 
-          <button
-            className="mobile-navigation-toggle"
-            type="button"
-            aria-controls="market-page-navigation"
-            aria-expanded={mobileNavigationOpen}
-            onClick={() => setMobileNavigationOpen((open) => !open)}
-          >
-            <span>
-              <small>NAVIGATION</small>
-              <strong>{activeNavigationItem.label}</strong>
-            </span>
-            <span className="mobile-navigation-toggle-action">
-              {mobileNavigationOpen ? 'CLOSE' : 'MENU'}
-              {mobileNavigationOpen ? (
-                <X size={17} aria-hidden="true" />
-              ) : (
-                <Menu size={17} aria-hidden="true" />
-              )}
-            </span>
-          </button>
-
-          <nav
-            className={`top-navigation ${mobileNavigationOpen ? 'is-open' : ''}`}
-            id="market-page-navigation"
-            aria-label="Market pages"
-          >
+          <nav className="top-navigation" aria-label="Market pages">
             {navigation.map((item, index) => (
               <Link
                 className={`top-navigation-link ${active === item.key ? 'is-active' : ''}`}
                 href={item.href}
                 key={`${item.label}-${index}`}
-                onClick={() => setMobileNavigationOpen(false)}
                 aria-current={
                   active === item.key && item.label !== 'PRICE INDEX'
                     ? 'page'
@@ -461,6 +430,25 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
           </div>
         </div>
       </div>
+      <nav className="mobile-bottom-navigation" aria-label="Mobile navigation">
+        {mobileNavigation.map((item) => {
+          const Icon = item.icon;
+          const isActive = active === item.key;
+
+          return (
+            <Link
+              className={`mobile-bottom-navigation-link ${isActive ? 'is-active' : ''}`}
+              href={item.href}
+              key={item.key}
+              aria-current={isActive ? 'page' : undefined}
+              onClick={item.key === 'profile' ? openProfile : undefined}
+            >
+              <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
       <div className="dashboard-wrap market-status-wrap">
         <MarketStatusStrip />
       </div>
