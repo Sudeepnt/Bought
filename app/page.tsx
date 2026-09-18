@@ -664,8 +664,11 @@ export default function Home() {
               >
                 <div className="dashboard-section-head">
                   <span>MAGAZINE</span>
-                  <span>
+                  <span className="homepage-magazine-open-label">
                     OPEN <ArrowUpRight size={11} />
+                  </span>
+                  <span className="homepage-magazine-view-label">
+                    VIEW ALL <ArrowUpRight size={11} />
                   </span>
                 </div>
                 <div className="homepage-magazine-feature">
@@ -683,6 +686,9 @@ export default function Home() {
                     <strong>{latestIssue.title}</strong>
                     <p>{latestIssue.person}</p>
                   </div>
+                  <p className="homepage-magazine-deck">
+                    Attention is a currency. Here&apos;s what it really costs.
+                  </p>
                 </div>
               </Link>
             </div>

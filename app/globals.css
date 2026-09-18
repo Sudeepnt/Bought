@@ -2180,6 +2180,16 @@ html[data-theme='light'] .category-pulse-icon {
   display: inline-flex;
   gap: 3px;
 }
+.homepage-magazine-dashboard .homepage-magazine-open-label,
+.homepage-magazine-dashboard .homepage-magazine-view-label {
+  align-items: center;
+  color: #aeb9b5;
+  display: inline-flex;
+  gap: 3px;
+}
+.homepage-magazine-dashboard .homepage-magazine-view-label {
+  display: none;
+}
 .homepage-magazine-feature {
   flex: 1 1 auto;
   min-height: 0;
@@ -2235,6 +2245,9 @@ html[data-theme='light'] .category-pulse-icon {
   font-size: 10px;
   letter-spacing: 0.04em;
   margin: 11px 0 0;
+}
+.homepage-magazine-deck {
+  display: none;
 }
 html[data-theme='light'] .homepage-magazine-dashboard {
   color: #ffffff;
@@ -21702,5 +21715,72 @@ html[data-theme='light'] .watchlist-filters button.is-active {
 @media (max-width: 360px) {
   .mobile-bottom-navigation-link {
     font-size: 10px;
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard-primary-lower-grid > .homepage-magazine-dashboard {
+    height: 116px;
+    min-height: 116px;
+  }
+
+  .homepage-magazine-dashboard .dashboard-section-head {
+    font-size: 10px;
+    height: 28px;
+    min-height: 28px;
+    padding-inline: 12px;
+  }
+
+  .homepage-magazine-dashboard .homepage-magazine-open-label {
+    display: none;
+  }
+
+  .homepage-magazine-dashboard .homepage-magazine-view-label {
+    display: inline-flex;
+  }
+
+  .homepage-magazine-feature {
+    min-height: 0;
+  }
+
+  .homepage-magazine-feature img {
+    object-position: 67% 32%;
+  }
+
+  .homepage-magazine-copy {
+    inset: 0 auto 0 0;
+    justify-content: center;
+    padding: 6px 12px;
+    width: 64%;
+  }
+
+  .homepage-magazine-copy > span {
+    font-size: 8px;
+  }
+
+  .homepage-magazine-copy strong {
+    font-size: 20px;
+    margin-top: 5px;
+    max-width: 180px;
+  }
+
+  .homepage-magazine-copy p {
+    font-size: 9px;
+    margin-top: 5px;
+  }
+
+  .homepage-magazine-deck {
+    color: #c4cdca;
+    display: block;
+    font-size: 10px;
+    line-height: 1.25;
+    margin: 0;
+    max-width: 94px;
+    position: absolute;
+    right: 12px;
+    text-align: left;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
   }
 }
