@@ -21718,6 +21718,130 @@ html[data-theme='light'] .watchlist-filters button.is-active {
   }
 }
 
+/* Final phone status-card fit: reserve space for the countdown so its label
+   and timer never occupy the same pixels on narrow screens. */
+@media (max-width: 700px) {
+  .dashboard-shell .dashboard-status-row {
+    column-gap: 8px;
+    grid-template-columns: minmax(106px, 0.78fr) minmax(0, 1.22fr);
+  }
+
+  .dashboard-shell .total-panel {
+    padding-inline: 9px;
+  }
+
+  .dashboard-shell .dashboard-eyebrow {
+    font-size: 7px;
+    letter-spacing: 0.045em;
+  }
+
+  .dashboard-shell .total-panel strong {
+    font-size: 19px;
+  }
+
+  .dashboard-shell .total-panel .dashboard-delta {
+    font-size: 7px;
+  }
+
+  .dashboard-shell .status-countdown {
+    column-gap: 4px;
+    grid-template-columns: 24px minmax(0, 1fr) clamp(84px, 23vw, 92px);
+    padding-inline: 8px;
+  }
+
+  .dashboard-shell .countdown-icon,
+  .dashboard-shell .countdown-icon svg {
+    height: 24px;
+    width: 24px;
+  }
+
+  .dashboard-shell .countdown-label {
+    gap: 2px;
+    overflow: hidden;
+  }
+
+  .dashboard-shell .countdown-label strong {
+    font-size: clamp(6.5px, 1.8vw, 7px);
+    letter-spacing: 0;
+    overflow: hidden;
+    text-overflow: clip;
+  }
+
+  .dashboard-shell .countdown-label span {
+    font-size: clamp(5px, 1.45vw, 5.7px);
+    letter-spacing: 0.025em;
+    overflow: hidden;
+    text-overflow: clip;
+  }
+
+  .dashboard-shell .countdown-value {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .dashboard-shell .countdown-segments,
+  .dashboard-shell .countdown-value strong {
+    font-size: clamp(14px, 3.6vw, 15px);
+  }
+
+  .dashboard-shell .countdown-segments {
+    column-gap: 1px;
+  }
+
+  .dashboard-shell .countdown-segment {
+    gap: 2px;
+  }
+
+  .dashboard-shell .countdown-segment small {
+    font-size: 5px;
+    letter-spacing: 0;
+  }
+
+  .dashboard-shell .countdown-separator {
+    margin-inline: 0.35ch;
+  }
+}
+
+@media (max-width: 360px) {
+  .dashboard-shell .status-countdown {
+    grid-template-columns: 22px minmax(0, 1fr) 82px;
+    padding-inline: 7px;
+  }
+
+  .dashboard-shell .countdown-icon,
+  .dashboard-shell .countdown-icon svg {
+    height: 22px;
+    width: 22px;
+  }
+
+  .dashboard-shell .countdown-label strong {
+    font-size: 6.2px;
+  }
+
+  .dashboard-shell .countdown-label span {
+    font-size: 5px;
+  }
+
+  .dashboard-shell .countdown-segments,
+  .dashboard-shell .countdown-value strong {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard-shell .leaderboard-movement.is-exposure small,
+  .dashboard-shell .leaderboard-movement.is-syncing small {
+    display: none;
+  }
+
+  .dashboard-shell .leaderboard-movement.is-exposure,
+  .dashboard-shell .leaderboard-movement.is-syncing {
+    gap: 0;
+    justify-content: center;
+    overflow: hidden;
+  }
+}
+
 @media (max-width: 700px) {
   .dashboard-primary-lower-grid > .homepage-magazine-dashboard {
     height: 116px;
