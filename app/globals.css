@@ -22135,6 +22135,28 @@ html[data-theme='light'] .watchlist-filters button.is-active {
   }
 }
 
+/* Desktop header guard: all six desktop destinations stay on one line.
+   This is intentionally scoped above the phone breakpoint. */
+@media (min-width: 1121px) {
+  .dashboard-shell .top-navigation {
+    gap: 0;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    width: min(100%, 560px);
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1120px) {
+  .dashboard-shell .top-navigation {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    width: min(100%, 420px);
+  }
+
+  .dashboard-shell .top-navigation-link {
+    font-size: 8px;
+    padding-inline: 2px;
+  }
+}
+
 /* Watchlist phone cards: the desktop table is too wide for a handset, so
    keep each position readable without horizontal scrolling. */
 @media (max-width: 700px) {
