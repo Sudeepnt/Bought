@@ -18,6 +18,232 @@
   --market-marquee-duration: 120s;
 }
 
+/* Watchlist phone cards: replace the wide desktop table with a readable
+   stacked layout while keeping every watchlist datum and action available. */
+@media (max-width: 700px) {
+  .route-market-shell .watchlist-panel {
+    padding: 18px 12px 0;
+  }
+
+  .route-market-shell .watchlist-heading {
+    gap: 7px;
+  }
+
+  .route-market-shell .watchlist-heading h1 {
+    font-size: 26px;
+    margin-bottom: 5px;
+  }
+
+  .route-market-shell .watchlist-heading p {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .route-market-shell .watchlist-search {
+    flex-basis: auto;
+    height: 41px;
+    width: 100%;
+  }
+
+  .route-market-shell .watchlist-toolbar {
+    align-items: stretch;
+    gap: 14px;
+    padding: 18px 0 16px;
+  }
+
+  .route-market-shell .watchlist-filters {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: none;
+    overflow: visible;
+    padding-bottom: 0;
+    width: 100%;
+  }
+
+  .route-market-shell .watchlist-filters button {
+    flex: initial;
+    min-width: 0;
+    padding-inline: 6px;
+    width: 100%;
+  }
+
+  .route-market-shell .watchlist-sort {
+    align-self: stretch;
+    gap: 8px;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .route-market-shell .watchlist-sort-select {
+    min-width: 0;
+    width: min(190px, 58%);
+  }
+
+  .route-market-shell .watchlist-sort-select select {
+    padding-left: 10px;
+    padding-right: 28px;
+  }
+
+  .route-market-shell .watchlist-table {
+    margin: 0;
+    overflow: visible;
+  }
+
+  .route-market-shell .watchlist-table-head {
+    display: none;
+  }
+
+  .route-market-shell .watchlist-row {
+    align-items: start;
+    column-gap: 9px;
+    display: grid;
+    grid-template-areas:
+      'rank identity state'
+      'rank category movement'
+      'rank bid attention'
+      'rank trend remove';
+    grid-template-columns: 23px minmax(0, 1fr) auto;
+    min-height: 0;
+    min-width: 0;
+    padding: 12px 6px;
+    row-gap: 6px;
+    width: 100%;
+  }
+
+  .route-market-shell .watch-rank {
+    align-self: stretch;
+    grid-area: rank;
+    padding-top: 3px;
+  }
+
+  .route-market-shell .watchlist-identity {
+    gap: 8px;
+    grid-area: identity;
+  }
+
+  .route-market-shell .watch-avatar {
+    flex-basis: 34px;
+    height: 34px;
+    width: 34px;
+  }
+
+  .route-market-shell .watch-player {
+    gap: 3px;
+  }
+
+  .route-market-shell .watch-player strong {
+    font-size: 12px;
+  }
+
+  .route-market-shell .watch-player small {
+    font-size: 9px;
+  }
+
+  .route-market-shell .watchlist-category {
+    align-self: center;
+    font-size: 9px;
+    grid-area: category;
+    min-width: 0;
+  }
+
+  .route-market-shell .watchlist-bid {
+    align-items: baseline;
+    flex-direction: row;
+    gap: 6px;
+    grid-area: bid;
+  }
+
+  .route-market-shell .watchlist-cell-label {
+    display: inline-block;
+    flex: 0 0 auto;
+    font-size: 8px;
+  }
+
+  .route-market-shell .watchlist-bid > strong {
+    font-size: 12px;
+  }
+
+  .route-market-shell .watchlist-movement-cell {
+    align-self: center;
+    grid-area: movement;
+    justify-self: end;
+  }
+
+  .route-market-shell .watchlist-movement {
+    gap: 5px;
+  }
+
+  .route-market-shell .watchlist-change-values {
+    gap: 2px;
+  }
+
+  .route-market-shell .watchlist-movement strong {
+    font-size: 10px;
+  }
+
+  .route-market-shell .watchlist-movement small {
+    font-size: 8px;
+  }
+
+  .route-market-shell .watchlist-attention {
+    align-self: center;
+    gap: 4px;
+    grid-area: attention;
+    justify-self: end;
+  }
+
+  .route-market-shell .watchlist-attention > span:first-child {
+    gap: 4px;
+  }
+
+  .route-market-shell .watchlist-attention strong {
+    font-size: 10px;
+  }
+
+  .route-market-shell .watchlist-trend {
+    align-self: center;
+    grid-area: trend;
+    height: 20px;
+    width: 72px;
+  }
+
+  .route-market-shell .watchlist-state {
+    align-self: center;
+    font-size: 9px;
+    grid-area: state;
+    justify-self: end;
+    min-width: 0;
+    padding: 4px 7px;
+  }
+
+  .route-market-shell .watchlist-remove {
+    align-self: center;
+    grid-area: remove;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 360px) {
+  .route-market-shell .watchlist-panel {
+    padding-inline: 10px;
+  }
+
+  .route-market-shell .watchlist-row {
+    column-gap: 7px;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    padding-inline: 4px;
+  }
+
+  .route-market-shell .watchlist-filters {
+    gap: 6px;
+  }
+
+  .route-market-shell .watchlist-filters button {
+    font-size: 11px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -21906,5 +22132,167 @@ html[data-theme='light'] .watchlist-filters button.is-active {
     top: 50%;
     transform: translateY(-50%);
     z-index: 2;
+  }
+}
+
+/* Watchlist phone cards: the desktop table is too wide for a handset, so
+   keep each position readable without horizontal scrolling. */
+@media (max-width: 700px) {
+  .route-market-shell .watchlist-table {
+    margin: 0;
+    overflow: visible;
+  }
+
+  .route-market-shell .watchlist-table-head {
+    display: none;
+  }
+
+  .route-market-shell .watchlist-row {
+    align-items: start;
+    column-gap: 9px;
+    display: grid;
+    grid-template-areas:
+      'rank identity state'
+      'rank category movement'
+      'rank bid attention'
+      'rank trend remove';
+    grid-template-columns: 23px minmax(0, 1fr) auto;
+    min-height: 0;
+    min-width: 0;
+    padding: 12px 6px;
+    row-gap: 6px;
+    width: 100%;
+  }
+
+  .route-market-shell .watch-rank {
+    align-self: stretch;
+    grid-area: rank;
+    padding-top: 3px;
+  }
+
+  .route-market-shell .watchlist-identity {
+    gap: 8px;
+    grid-area: identity;
+  }
+
+  .route-market-shell .watch-avatar {
+    flex-basis: 34px;
+    height: 34px;
+    width: 34px;
+  }
+
+  .route-market-shell .watch-player {
+    gap: 3px;
+  }
+
+  .route-market-shell .watch-player strong {
+    font-size: 12px;
+  }
+
+  .route-market-shell .watch-player small {
+    font-size: 9px;
+  }
+
+  .route-market-shell .watchlist-category {
+    align-self: center;
+    font-size: 9px;
+    grid-area: category;
+    min-width: 0;
+  }
+
+  .route-market-shell .watchlist-bid {
+    align-items: baseline;
+    flex-direction: row;
+    gap: 6px;
+    grid-area: bid;
+  }
+
+  .route-market-shell .watchlist-cell-label {
+    display: inline-block;
+    flex: 0 0 auto;
+    font-size: 8px;
+  }
+
+  .route-market-shell .watchlist-bid > strong {
+    font-size: 12px;
+  }
+
+  .route-market-shell .watchlist-movement-cell {
+    align-self: center;
+    grid-area: movement;
+    justify-self: end;
+  }
+
+  .route-market-shell .watchlist-movement {
+    gap: 5px;
+  }
+
+  .route-market-shell .watchlist-change-values {
+    gap: 2px;
+  }
+
+  .route-market-shell .watchlist-movement strong {
+    font-size: 10px;
+  }
+
+  .route-market-shell .watchlist-movement small {
+    font-size: 8px;
+  }
+
+  .route-market-shell .watchlist-attention {
+    align-self: center;
+    gap: 4px;
+    grid-area: attention;
+    justify-self: end;
+  }
+
+  .route-market-shell .watchlist-attention > span:first-child {
+    gap: 4px;
+  }
+
+  .route-market-shell .watchlist-attention strong {
+    font-size: 10px;
+  }
+
+  .route-market-shell .watchlist-trend {
+    align-self: center;
+    grid-area: trend;
+    height: 20px;
+    width: 72px;
+  }
+
+  .route-market-shell .watchlist-state {
+    align-self: center;
+    font-size: 9px;
+    grid-area: state;
+    justify-self: end;
+    min-width: 0;
+    padding: 4px 7px;
+  }
+
+  .route-market-shell .watchlist-remove {
+    align-self: center;
+    grid-area: remove;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 360px) {
+  .route-market-shell .watchlist-panel {
+    padding-inline: 10px;
+  }
+
+  .route-market-shell .watchlist-row {
+    column-gap: 7px;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    padding-inline: 4px;
+  }
+
+  .route-market-shell .watchlist-filters {
+    gap: 6px;
+  }
+
+  .route-market-shell .watchlist-filters button {
+    font-size: 11px;
   }
 }
