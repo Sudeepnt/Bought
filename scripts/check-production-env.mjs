@@ -13,6 +13,7 @@ const requiredCore = [
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
   'CRON_SECRET',
+  'OPENAI_API_KEY',
 ];
 
 const providers = {
@@ -80,6 +81,9 @@ if (value('SUPABASE_SERVICE_ROLE_KEY').startsWith('sb_publishable_')) {
 }
 if (value('SUPABASE_PUBLISHABLE_KEY').startsWith('sb_secret_')) {
   errors.push('SUPABASE_PUBLISHABLE_KEY cannot use a secret key.');
+}
+if (value('OPENAI_API_KEY') && !value('OPENAI_API_KEY').startsWith('sk-')) {
+  errors.push('OPENAI_API_KEY must be a server-side OpenAI API key.');
 }
 if (
   providers.Stripe.every((name) => value(name)) &&

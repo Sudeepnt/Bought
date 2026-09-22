@@ -1,6 +1,6 @@
 'use client';
 
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useBought } from './bought-provider';
 
 const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
@@ -11,14 +11,18 @@ export function DropPlayer({ dropId }: { dropId: string }) {
     playbackId: string;
     token: string;
     thumbnail: string;
+    captionsVtt: string | null;
   } | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
     const load = () =>
-      api<{ playbackId: string; token: string; thumbnail: string }>(
-        `media/${dropId}`,
-      )
+      api<{
+        playbackId: string;
+        token: string;
+        thumbnail: string;
+        captionsVtt: string | null;
+      }>(`media/${dropId}`)
         .then((result) => {
           if (active) {
             setMedia(result);
@@ -38,6 +42,21 @@ export function DropPlayer({ dropId }: { dropId: string }) {
       clearInterval(timer);
     };
   }, [api, dropId]);
+  const captionUrl = useMemo(
+    () =>
+      media?.captionsVtt
+        ? URL.createObjectURL(
+            new Blob([media.captionsVtt], { type: 'text/vtt' }),
+          )
+        : null,
+    [media],
+  );
+  useEffect(
+    () => () => {
+      if (captionUrl) URL.revokeObjectURL(captionUrl);
+    },
+    [captionUrl],
+  );
   if (error)
     return (
       <p className="drop-error" role="alert">
@@ -56,8 +75,19 @@ export function DropPlayer({ dropId }: { dropId: string }) {
         poster={media.thumbnail}
         accentColor="#ef2b32"
         streamType="on-demand"
+        defaultHiddenCaptions={false}
         metadata={{ video_id: dropId, video_title: 'BOUGHT broadcast' }}
-      />
+      >
+        {captionUrl && (
+          <track
+            default
+            kind="subtitles"
+            src={captionUrl}
+            srcLang="en"
+            label="English"
+          />
+        )}
+      </MuxPlayer>
     </Suspense>
   );
 }

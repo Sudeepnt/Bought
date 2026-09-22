@@ -1,11 +1,97 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { FileText, Quote, RefreshCw } from 'lucide-react';
 import { useBought } from '@/components/bought-provider';
 import { DropSignIn } from '@/components/drop-sign-in';
 import { DropPlayer } from '@/components/drop-player';
 import { MarketTopbar } from '@/components/market-topbar';
 import { money, type Drop } from '@/lib/drop-domain';
+
+function TranscriptPanel({
+  drop,
+  busy,
+  onGenerate,
+}: {
+  drop: Drop;
+  busy: boolean;
+  onGenerate: () => void;
+}) {
+  const statusLabel =
+    drop.transcription_status === 'ready'
+      ? 'READY'
+      : drop.transcription_status === 'processing'
+        ? 'TRANSLATING'
+        : drop.transcription_status === 'errored'
+          ? 'NEEDS RETRY'
+          : 'QUEUED';
+  return (
+    <section
+      className="review-transcript"
+      aria-label="English transcript and editorial notes"
+    >
+      <header>
+        <div>
+          <FileText size={17} />
+          <span>MAGAZINE TRANSCRIPT / ENGLISH</span>
+        </div>
+        <strong data-state={drop.transcription_status}>{statusLabel}</strong>
+      </header>
+      {drop.transcription_status === 'ready' && drop.transcript_english ? (
+        <>
+          <div className="review-editorial-note">
+            <span>SUGGESTED EDITORIAL ANGLE</span>
+            <h3>{drop.editorial_headline || drop.title}</h3>
+            <p>{drop.editorial_summary}</p>
+          </div>
+          {drop.editorial_quote && (
+            <blockquote>
+              <Quote size={17} aria-hidden="true" />“{drop.editorial_quote}”
+            </blockquote>
+          )}
+          {drop.editorial_keywords.length > 0 && (
+            <div
+              className="review-transcript-keywords"
+              aria-label="Editorial keywords"
+            >
+              {drop.editorial_keywords.map((keyword) => (
+                <span key={keyword}>{keyword}</span>
+              ))}
+            </div>
+          )}
+          <details>
+            <summary>READ FULL ENGLISH TRANSCRIPT</summary>
+            <p>{drop.transcript_english}</p>
+          </details>
+          <small>
+            Machine-generated translation. Check names and quotations against
+            the video before publication.
+          </small>
+        </>
+      ) : (
+        <div className="review-transcript-waiting">
+          <p>
+            {drop.transcription_status === 'processing'
+              ? 'The audio is being translated and timed for English captions.'
+              : (drop.transcription_error ??
+                'English captions will be generated from the audio-only rendition.')}
+          </p>
+          {drop.transcription_status !== 'processing' && (
+            <button
+              type="button"
+              className="drop-button"
+              disabled={busy}
+              onClick={onGenerate}
+            >
+              <RefreshCw size={14} className={busy ? 'is-spinning' : ''} />
+              {busy ? 'STARTING…' : 'GENERATE ENGLISH TRANSCRIPT'}
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
 
 export default function ReviewPage() {
   const { session, api } = useBought();
@@ -48,6 +134,21 @@ export default function ReviewPage() {
       setBusy(null);
     }
   }
+  async function transcribe(drop: Drop) {
+    const busyKey = `transcribe:${drop.id}`;
+    setBusy(busyKey);
+    setError('');
+    try {
+      await api(`review/${drop.id}/transcribe`, {});
+      await reload();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not start transcription.',
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
   return (
     <main className="market-shell dashboard-shell">
       <MarketTopbar active="review" />
@@ -82,7 +183,9 @@ export default function ReviewPage() {
               REFRESH QUEUE
             </button>
             {drops.length === 0 && !error && (
-              <p className="drop-notice">No broadcasts are waiting for review.</p>
+              <p className="drop-notice">
+                No broadcasts are waiting for review.
+              </p>
             )}
             <div className="review-grid">
               {drops.map((drop) => (
@@ -97,6 +200,11 @@ export default function ReviewPage() {
                       : 'CAMERA + MICROPHONE'}
                   </span>
                   <DropPlayer dropId={drop.id} />
+                  <TranscriptPanel
+                    drop={drop}
+                    busy={busy === `transcribe:${drop.id}`}
+                    onGenerate={() => void transcribe(drop)}
+                  />
                   <p>
                     {drop.capture_mode === 'screen'
                       ? 'Confirm that the required screen evidence remains visible, speech is audible, and the broadcast, title, and thumbnail meet BOUGHT’s content rules.'
@@ -139,7 +247,11 @@ export default function ReviewPage() {
                     </button>
                     <button
                       className="drop-button primary"
-                      disabled={!!busy || !checks[drop.id]}
+                      disabled={
+                        !!busy ||
+                        !checks[drop.id] ||
+                        drop.transcription_status !== 'ready'
+                      }
                       onClick={() => void decide(drop, true)}
                     >
                       APPROVE & PUBLISH

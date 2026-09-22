@@ -7,6 +7,7 @@ import {
   Hash,
   PanelTop,
   Radio,
+  Search,
   SearchX,
   UserRound,
 } from 'lucide-react';
@@ -37,6 +38,23 @@ function SearchResultsContent() {
       description="Search broadcasts, people, companies, and categories across the global floor."
     >
       <section className="search-results-panel route-panel">
+        <search aria-label="Search the room">
+          <form className="search-route-form" action="/search" method="get">
+            <label htmlFor="search-query">Search the room</label>
+            <div className="search-route-input-wrap">
+              <Search size={18} aria-hidden="true" />
+              <input
+                id="search-query"
+                name="q"
+                type="search"
+                defaultValue={query}
+                placeholder="Search broadcasts, people, companies, or categories"
+                autoComplete="off"
+              />
+              <button type="submit">SEARCH</button>
+            </div>
+          </form>
+        </search>
         <div className="route-panel-head">
           <div>
             <span className="eyebrow">{query ? 'MATCHES FOUND' : 'START HERE'}</span>
@@ -68,11 +86,11 @@ function SearchResultsContent() {
         ) : (
           <div className="search-empty-state">
             <SearchX size={34} strokeWidth={1.2} />
-            <h3>{query ? 'Nothing matched that search.' : 'Use the search bar above.'}</h3>
+            <h3>{query ? 'Nothing matched that search.' : 'Start with a name or idea.'}</h3>
             <p>
               {query
                 ? 'Try a person, company, category, or a few words from a broadcast title.'
-                : 'Type a few words to scan the broadcasts and people moving through BOUGHT.'}
+                : 'Search a few words to scan the broadcasts and people moving through BOUGHT.'}
             </p>
             <Link className="drop-button primary" href="/categories">
               BROWSE CATEGORIES <ArrowUpRight size={17} />

@@ -226,6 +226,14 @@ export type MuxAsset = {
   duration?: number;
   playback_ids?: { id: string; policy: string }[];
   tracks?: { type: string; max_width?: number; max_height?: number }[];
+  static_renditions?: {
+    files?: {
+      id?: string;
+      name: string;
+      status: string;
+      resolution?: string;
+    }[];
+  };
 };
 
 export async function mux<T>(path: string, body?: unknown) {

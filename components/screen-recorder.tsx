@@ -22,6 +22,11 @@ import {
   supportedRecordingMimeType,
   validRecordedTake,
 } from '@/lib/recording-capabilities';
+import {
+  openRecordingCompanion,
+  type RecordingCompanion,
+} from '@/lib/recording-companion';
+import { recordingCue } from '@/lib/recording-guidance';
 import { useBought } from './bought-provider';
 
 export function ScreenRecorder({
@@ -41,6 +46,8 @@ export function ScreenRecorder({
   const monitor = useRef<number | undefined>(undefined);
   const started = useRef(0);
   const autoStop = useRef<number | undefined>(undefined);
+  const companion = useRef<RecordingCompanion | null>(null);
+  const companionSession = useRef(0);
   const active = useRef(true);
   const [paymentReady, setPaymentReady] = useState(false);
   const [ready, setReady] = useState(false);
@@ -49,10 +56,17 @@ export function ScreenRecorder({
   const [mic, setMic] = useState(false);
   const [level, setLevel] = useState(0);
   const [seconds, setSeconds] = useState(0);
+  const [companionState, setCompanionState] = useState<
+    'idle' | 'opening' | 'open' | 'unavailable'
+  >('idle');
   const [error, setError] = useState('');
   const [settingUp, setSettingUp] = useState(false);
 
   const release = useCallback(() => {
+    companionSession.current += 1;
+    companion.current?.close();
+    companion.current = null;
+    setCompanionState('idle');
     clearInterval(monitor.current);
     clearTimeout(autoStop.current);
     monitor.current = undefined;
@@ -119,7 +133,6 @@ export function ScreenRecorder({
       if (
         !window.isSecureContext ||
         !navigator.mediaDevices?.getDisplayMedia ||
-        !navigator.mediaDevices.getUserMedia ||
         !window.MediaRecorder
       )
         throw new Error(
@@ -133,40 +146,48 @@ export function ScreenRecorder({
         },
         audio: true,
       });
-      microphone = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
+      try {
+        microphone = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+        });
+      } catch {
+        // Screen video remains useful on machines without an audio input.
+        microphone = null;
+      }
       if (!active.current) {
         display.getTracks().forEach((track) => track.stop());
-        microphone.getTracks().forEach((track) => track.stop());
+        microphone?.getTracks().forEach((track) => track.stop());
         return;
       }
       const screenTrack = display.getVideoTracks()[0];
-      const microphoneTrack = microphone.getAudioTracks()[0];
-      if (!screenTrack || !microphoneTrack)
-        throw new Error('A shared screen and microphone are both required.');
+      const microphoneTrack = microphone?.getAudioTracks()[0];
+      if (!screenTrack) throw new Error('Choose a screen source to continue.');
 
       displayStream.current = display;
       microphoneStream.current = microphone;
-      setScreenAudio(display.getAudioTracks().length > 0);
+      const displayAudioTracks = display.getAudioTracks();
+      setScreenAudio(displayAudioTracks.length > 0);
 
-      const audioContext = new AudioContext();
-      context.current = audioContext;
-      const destination = audioContext.createMediaStreamDestination();
-      const micSource = audioContext.createMediaStreamSource(microphone);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      micSource.connect(analyser);
-      micSource.connect(destination);
-      if (display.getAudioTracks().length) {
-        const screenSource = audioContext.createMediaStreamSource(display);
-        screenSource.connect(destination);
+      let analyser: AnalyserNode | null = null;
+      let recordingAudioTracks = displayAudioTracks;
+      if (microphoneTrack && microphone) {
+        const audioContext = new AudioContext();
+        context.current = audioContext;
+        const micSource = audioContext.createMediaStreamSource(microphone);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        micSource.connect(analyser);
+        if (displayAudioTracks.length) {
+          const destination = audioContext.createMediaStreamDestination();
+          micSource.connect(destination);
+          const screenSource = audioContext.createMediaStreamSource(display);
+          screenSource.connect(destination);
+          recordingAudioTracks = destination.stream.getAudioTracks();
+        } else {
+          recordingAudioTracks = [microphoneTrack];
+        }
       }
-      const mixedAudio = destination.stream.getAudioTracks()[0];
-      const combined = new MediaStream([
-        screenTrack,
-        ...(mixedAudio ? [mixedAudio] : [microphoneTrack]),
-      ]);
+      const combined = new MediaStream([screenTrack, ...recordingAudioTracks]);
       recordingStream.current = combined;
 
       const stopForLostSource = (message: string) => {
@@ -181,11 +202,13 @@ export function ScreenRecorder({
           'Screen sharing stopped. Share the screen again to record.',
         ),
       );
-      microphoneTrack.addEventListener('ended', () =>
-        stopForLostSource(
-          'Your microphone disconnected. Reconnect it before recording.',
-        ),
-      );
+      microphoneTrack?.addEventListener('ended', () => {
+        if (!active.current) return;
+        setMic(false);
+        setError(
+          'The microphone disconnected. Screen recording can continue without it.',
+        );
+      });
 
       if (preview.current) {
         preview.current.srcObject = display;
@@ -251,36 +274,43 @@ export function ScreenRecorder({
         }
       };
 
-      const values = new Uint8Array(analyser.frequencyBinCount);
+      const values = analyser
+        ? new Uint8Array(analyser.frequencyBinCount)
+        : null;
       monitor.current = window.setInterval(() => {
         if (!active.current) return;
-        const liveMic =
+        const liveMic = !!(
+          microphoneTrack &&
           microphoneTrack.readyState === 'live' &&
           microphoneTrack.enabled &&
-          !microphoneTrack.muted;
-        setMic(liveMic);
-        analyser.getByteTimeDomainData(values);
-        setLevel(
-          Math.min(
-            1,
-            Math.sqrt(
-              values.reduce(
-                (sum, value) => sum + ((value - 128) / 128) ** 2,
-                0,
-              ) / values.length,
-            ) * 5,
-          ),
+          !microphoneTrack.muted
         );
+        setMic(liveMic);
+        if (analyser && values) {
+          analyser.getByteTimeDomainData(values);
+          setLevel(
+            Math.min(
+              1,
+              Math.sqrt(
+                values.reduce(
+                  (sum, value) => sum + ((value - 128) / 128) ** 2,
+                  0,
+                ) / values.length,
+              ) * 5,
+            ),
+          );
+        } else setLevel(0);
         if (recordingDevice.state === 'recording') {
           const elapsed = Math.floor(
             (performance.now() - started.current) / 1000,
           );
           setSeconds(elapsed);
+          companion.current?.update(elapsed);
           if (elapsed >= MAX_VIDEO_SECONDS || totalBytes > MAX_VIDEO_BYTES)
             recordingDevice.stop();
         }
       }, 400);
-      setMic(true);
+      setMic(!!microphoneTrack);
       setReady(true);
     } catch (err) {
       display?.getTracks().forEach((track) => track.stop());
@@ -289,9 +319,9 @@ export function ScreenRecorder({
       if (active.current)
         setError(
           err instanceof DOMException && err.name === 'NotAllowedError'
-            ? 'Screen or microphone permission was not granted. Your payment is saved.'
+            ? 'Screen sharing permission was not granted. Your payment is saved.'
             : err instanceof DOMException && err.name === 'NotFoundError'
-              ? 'No microphone was found. Record the screen with voice on another device, then use Import Video below.'
+              ? 'No screen source was found. You can use Import Video below.'
               : err instanceof Error
                 ? err.message
                 : 'Could not prepare screen recording.',
@@ -302,7 +332,7 @@ export function ScreenRecorder({
   }
 
   function start() {
-    if (!ready || !mic || recorder.current?.state !== 'inactive') return;
+    if (!ready || recorder.current?.state !== 'inactive') return;
     setError('');
     setSeconds(0);
     void context.current?.resume();
@@ -314,10 +344,34 @@ export function ScreenRecorder({
         MAX_VIDEO_SECONDS * 1000,
       );
       setRecording(true);
+      const session = ++companionSession.current;
+      setCompanionState('opening');
+      void openRecordingCompanion({
+        durationSeconds: MAX_VIDEO_SECONDS,
+        onClosed: () => {
+          if (session !== companionSession.current) return;
+          companion.current = null;
+          setCompanionState('unavailable');
+        },
+        onStop: () => recorder.current?.stop(),
+      }).then((handle) => {
+        if (
+          session !== companionSession.current ||
+          recorder.current?.state !== 'recording'
+        ) {
+          handle?.close();
+          return;
+        }
+        companion.current = handle;
+        setCompanionState(handle ? 'open' : 'unavailable');
+      });
     } catch {
       setError('Screen recording could not start. Share the screen again.');
     }
   }
+
+  const remainingSeconds = Math.max(0, MAX_VIDEO_SECONDS - seconds);
+  const cue = recordingCue(seconds);
 
   return (
     <>
@@ -350,9 +404,30 @@ export function ScreenRecorder({
             {String(seconds % 60).padStart(2, '0')} / 02:00
           </span>
         </div>
+        {recording && companionState === 'unavailable' && (
+          <output
+            className="drop-recording-countdown"
+            aria-live="polite"
+            aria-label={`${Math.floor(remainingSeconds / 60)} minutes ${remainingSeconds % 60} seconds remaining`}
+          >
+            <span>TIME LEFT</span>
+            <strong>
+              {String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:
+              {String(remainingSeconds % 60).padStart(2, '0')}
+            </strong>
+          </output>
+        )}
+        {recording && companionState === 'unavailable' && (
+          <div className="drop-recording-prompt" aria-live="polite">
+            <strong>{cue.title}</strong>
+            <span>{cue.message}</span>
+          </div>
+        )}
         <span className="drop-camera-caption">
           {recording
-            ? 'Your screen and voice are being recorded.'
+            ? mic
+              ? 'Your screen and voice are being recorded.'
+              : 'Your screen is being recorded without microphone audio.'
             : 'Only the source you choose will be captured.'}
         </span>
       </div>
@@ -363,7 +438,7 @@ export function ScreenRecorder({
         </span>
         <span className={mic ? 'ready' : ''}>
           <Mic size={16} />
-          {mic ? 'Microphone ready' : 'Microphone waiting'}
+          {mic ? 'Microphone ready' : 'No microphone — screen only'}
           <i className="drop-mic-meter">
             <b style={{ width: `${Math.max(3, level * 100)}%` }} />
           </i>
@@ -375,7 +450,11 @@ export function ScreenRecorder({
       </div>
       <p className="drop-recording-guidance">
         {recording
-          ? 'Recording continues while you switch apps. Keep this Bought page open and use the browser sharing indicator to return.'
+          ? companionState === 'open'
+            ? 'The floating timer stays visible over other tabs and apps. It stops automatically at 02:00, or use STOP in the popup.'
+            : companionState === 'opening'
+              ? 'Opening the floating timer…'
+              : 'This browser cannot open the floating timer, so keep this page visible. Recording still stops automatically at 02:00.'
           : 'Choose Entire Screen to move between apps, or choose one window to capture only that window. Keep this page open.'}
       </p>
       {error && (
@@ -391,7 +470,7 @@ export function ScreenRecorder({
           onClick={() => void setup()}
         >
           <MonitorUp size={17} />
-          {settingUp ? 'OPENING SCREEN PICKER…' : 'SHARE SCREEN + MIC'}
+          {settingUp ? 'OPENING SCREEN PICKER…' : 'SHARE SCREEN'}
         </button>
       ) : (
         <div className="drop-actions">
@@ -406,7 +485,6 @@ export function ScreenRecorder({
           <button
             className={`drop-button ${recording ? 'recording' : 'primary'}`}
             type="button"
-            disabled={!mic}
             onClick={recording ? () => recorder.current?.stop() : start}
           >
             {recording ? (

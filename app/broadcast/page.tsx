@@ -611,7 +611,7 @@ export default function BroadcastPage() {
                   <dt>Capture</dt>
                   <dd>
                     {captureMode === 'screen'
-                      ? 'SCREEN + MICROPHONE'
+                      ? 'SCREEN + OPTIONAL AUDIO'
                       : 'CAMERA + MICROPHONE'}
                   </dd>
                 </div>

@@ -8,11 +8,11 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
-  Clock3,
   DollarSign,
   Eye,
   FileText,
   Flame,
+  Gavel,
   Megaphone,
   MessageCircle,
   Mic,
@@ -44,8 +44,10 @@ import { MarketFooter } from '@/components/market-chrome';
 import { MarketTopbar } from '@/components/market-topbar';
 import { DropPlayer } from '@/components/drop-player';
 import { ProfileAvatar } from '@/components/profile-avatar';
+import Link from '@/components/site-link';
 import { SocialPlatformIcon } from '@/components/social-brand-icons';
 import { useBought } from '@/components/bought-provider';
+import { appendDirectMessage } from '@/lib/direct-messages';
 
 type Creator = {
   name: string;
@@ -80,7 +82,6 @@ type CategoryBroadcast = Creator & {
   shares: number;
   outbidCount: number;
   takePrice: string;
-  uploadedAt: string;
   topRankedAt: string;
 };
 
@@ -376,10 +377,10 @@ function makeBroadcasts(
       0,
       3 + (categoryIndex % 3) - Math.min(index, 4),
     );
-    const uploadedMinutesAgo = 18 + categoryIndex * 11 + index * 3;
+    const broadcastAgeMinutes = 18 + categoryIndex * 11 + index * 3;
     const topRankedMinutesAgo = Math.max(
       4,
-      uploadedMinutesAgo - (5 + (index % 6)),
+      broadcastAgeMinutes - (5 + (index % 6)),
     );
 
     return {
@@ -397,7 +398,6 @@ function makeBroadcasts(
       shares,
       outbidCount,
       takePrice: formatPrice(bidValue + 100),
-      uploadedAt: formatRelativeTime(uploadedMinutesAgo),
       topRankedAt: formatRelativeTime(topRankedMinutesAgo),
     };
   });
@@ -483,15 +483,18 @@ function BroadcastVideoCard({
   dropId: string | null;
   useSharedDemoVideo?: boolean;
 }) {
+  const { session } = useBought();
   const isPlaying = playingId === broadcast.id;
   const [isWatchlisted, setIsWatchlisted] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [comments, setComments] = useState<string[]>([]);
-  const [commentDraft, setCommentDraft] = useState('');
+  const [opinions, setOpinions] = useState<string[]>([]);
+  const [opinionDraft, setOpinionDraft] = useState('');
   const [isMessageOpen, setIsMessageOpen] = useState(false);
   const [messageDraft, setMessageDraft] = useState('');
   const [messageSent, setMessageSent] = useState(false);
+  const [messageThreadId, setMessageThreadId] = useState<string | null>(null);
+  const [messageError, setMessageError] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsTimerRef = useRef<number | null>(null);
   const hasLocalDemo = useSharedDemoVideo || broadcast.rank === 1;
@@ -521,19 +524,48 @@ function BroadcastVideoCard({
     setIsMuted(nextMuted);
   }
 
-  function submitComment(event: FormEvent<HTMLFormElement>) {
+  function submitOpinion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextComment = commentDraft.trim();
-    if (!nextComment) return;
-    setComments((current) => [...current, nextComment]);
-    setCommentDraft('');
+    const nextOpinion = opinionDraft.trim();
+    if (!nextOpinion) return;
+    setOpinions((current) => [...current, nextOpinion]);
+    setOpinionDraft('');
   }
 
   function submitMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!messageDraft.trim()) return;
-    setMessageDraft('');
-    setMessageSent(true);
+    const body = messageDraft.trim();
+    if (!body) return;
+    try {
+      const thread = appendDirectMessage({
+        ownerId: session?.user.id ?? 'guest',
+        contact: {
+          id: broadcast.handle.toLowerCase(),
+          name: broadcast.name,
+          handle: broadcast.handle,
+          initials: broadcast.initials,
+          imageSrc: '/leaderboard-portraits.png',
+          imagePosition: broadcast.imagePosition,
+        },
+        context: {
+          broadcastId: broadcast.id,
+          broadcastTitle: broadcast.title,
+          categoryName: broadcast.categoryName,
+        },
+        body,
+      });
+      setMessageDraft('');
+      setMessageThreadId(thread.id);
+      setMessageSent(true);
+      setMessageError('');
+    } catch (reason) {
+      setMessageSent(false);
+      setMessageError(
+        reason instanceof Error
+          ? reason.message
+          : 'The message could not be saved.',
+      );
+    }
   }
 
   useEffect(() => {
@@ -726,8 +758,10 @@ function BroadcastVideoCard({
         <div className="category-lead-market">
           <span className="category-lead-rank">
             <b>#{broadcast.rank}</b>
-            <em>
-              <i /> LIVE
+            <em aria-label={`Live, ${broadcast.topRankedAt}`}>
+              <i />
+              <span>LIVE</span>
+              <small>{broadcast.topRankedAt}</small>
             </em>
           </span>
           <div className="category-lead-stack">
@@ -736,32 +770,37 @@ function BroadcastVideoCard({
                 <Eye size={13} aria-hidden="true" />
                 <span>
                   <strong>{broadcast.views.toLocaleString('en-US')}</strong>
-                  <small>people saw this</small>
+                  <small>saw this</small>
                 </span>
               </span>
               <span className="category-lead-stat">
                 <Share2 size={13} aria-hidden="true" />
                 <span>
                   <strong>{broadcast.shares.toLocaleString('en-US')}</strong>
-                  <small>people shared this</small>
+                  <small>shared this</small>
                 </span>
               </span>
               <span className="category-lead-stat category-lead-outbid">
                 <UsersRound size={13} aria-hidden="true" />
                 <span>
                   <strong>{broadcast.outbidCount.toLocaleString('en-US')}</strong>
-                  <small>people outbid this</small>
+                  <small>outbid this</small>
                 </span>
               </span>
             </div>
-            <div className="category-lead-value">
-              <small>CURRENT BID</small>
-              <strong>{broadcast.price}</strong>
+            <div className="category-lead-bid-panel">
+              <div className="category-lead-value">
+                <small>CURRENT BID</small>
+                <strong>{broadcast.price}</strong>
+              </div>
+              <span className="category-lead-take">
+                <span className="category-lead-take-label">
+                  <Gavel size={26} aria-hidden="true" />
+                  <strong>TAKE THIS SPOT</strong>
+                </span>
+                <b>{broadcast.takePrice}</b>
+              </span>
             </div>
-            <span className="category-lead-take">
-              <strong>TAKE THIS SPOT</strong>
-              <b>{broadcast.takePrice}</b>
-            </span>
             <div className="category-lead-author">
               <ProfileAvatar
                 initials={broadcast.initials}
@@ -773,6 +812,19 @@ function BroadcastVideoCard({
                 <strong>{broadcast.name}</strong>
                 <small>{broadcast.handle}</small>
               </span>
+              <button
+                className="category-lead-message-button category-lead-author-message"
+                type="button"
+                aria-expanded={isMessageOpen}
+                onClick={() => {
+                  setIsMessageOpen((open) => !open);
+                  setMessageSent(false);
+                  setMessageError('');
+                }}
+              >
+                <Send size={11} aria-hidden="true" />
+                {isMessageOpen ? 'CLOSE DM' : `MESSAGE ${broadcast.name.toUpperCase()}`}
+              </button>
               <span
                 className="category-lead-author-platform"
                 role="img"
@@ -791,66 +843,36 @@ function BroadcastVideoCard({
         <div className="category-lead-copy">
           <span>{broadcast.categoryName}</span>
           <h2>&ldquo;{broadcast.title}&rdquo;</h2>
-          <small className="category-lead-tagline">
-            BOLD IDEAS MOVE THINGS FORWARD.
-          </small>
-          <div
-            className="category-lead-history"
-            aria-label={`Uploaded ${broadcast.uploadedAt}; bid to number one ${broadcast.topRankedAt}`}
-          >
-            <span className="category-lead-uploaded-at">
-              UPLOADED {broadcast.uploadedAt}
-            </span>
-            <span className="category-lead-top-ranked">
-              <Clock3 size={20} strokeWidth={1.8} aria-hidden="true" />
-              <span>
-                <strong>Took #1 spot</strong>
-                <small>{broadcast.topRankedAt}</small>
-              </span>
-            </span>
-          </div>
           <div className="category-lead-engagement">
             <div className="category-lead-engagement-head">
-              <span className="category-lead-comment-count">
+              <span className="category-lead-opinion-count">
                 <MessageCircle size={12} aria-hidden="true" />
-                {comments.length} comments
+                {opinions.length} opinions
               </span>
-              <button
-                className="category-lead-message-button"
-                type="button"
-                aria-expanded={isMessageOpen}
-                onClick={() => {
-                  setIsMessageOpen((open) => !open);
-                  setMessageSent(false);
-                }}
-              >
-                <Send size={11} aria-hidden="true" />
-                {isMessageOpen ? 'CLOSE DM' : `MESSAGE ${broadcast.name.toUpperCase()}`}
-              </button>
             </div>
-            {comments.length > 0 && (
-              <div className="category-lead-comment-list" aria-label="Comments">
-                {comments.slice(-2).map((comment, index) => (
-                  <span key={`${comment}-${index}`}>{comment}</span>
+            {opinions.length > 0 && (
+              <div className="category-lead-opinion-list" aria-label="Opinions">
+                {opinions.slice(-2).map((opinion, index) => (
+                  <span key={`${opinion}-${index}`}>{opinion}</span>
                 ))}
               </div>
             )}
-            <form className="category-lead-comment-form" onSubmit={submitComment}>
-              <label className="sr-only" htmlFor={`comment-${broadcast.id}`}>
-                Comment on {broadcast.name}&apos;s broadcast
+            <form className="category-lead-opinion-form" onSubmit={submitOpinion}>
+              <label className="sr-only" htmlFor={`opinion-${broadcast.id}`}>
+                Opinion on {broadcast.name}&apos;s broadcast
               </label>
               <input
-                id={`comment-${broadcast.id}`}
+                id={`opinion-${broadcast.id}`}
                 type="text"
-                value={commentDraft}
-                onChange={(event) => setCommentDraft(event.target.value)}
-                placeholder="Add a comment..."
+                value={opinionDraft}
+                onChange={(event) => setOpinionDraft(event.target.value)}
+                placeholder="Share an opinion..."
                 maxLength={240}
               />
               <button
                 type="submit"
-                aria-label="Post comment"
-                disabled={!commentDraft.trim()}
+                aria-label="Post opinion"
+                disabled={!opinionDraft.trim()}
               >
                 <Send size={12} aria-hidden="true" />
               </button>
@@ -867,6 +889,7 @@ function BroadcastVideoCard({
                   onChange={(event) => {
                     setMessageDraft(event.target.value);
                     setMessageSent(false);
+                    setMessageError('');
                   }}
                   placeholder={`Message ${broadcast.name} directly...`}
                   maxLength={240}
@@ -877,7 +900,19 @@ function BroadcastVideoCard({
               </form>
             )}
             {messageSent && (
-              <small className="category-lead-message-status">MESSAGE SENT</small>
+              <small className="category-lead-message-status">
+                MESSAGE SENT
+                {messageThreadId && (
+                  <Link href={`/chat?thread=${encodeURIComponent(messageThreadId)}`}>
+                    OPEN CHAT
+                  </Link>
+                )}
+              </small>
+            )}
+            {messageError && (
+              <small className="category-lead-message-error" role="alert">
+                {messageError}
+              </small>
             )}
           </div>
         </div>

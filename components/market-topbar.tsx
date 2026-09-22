@@ -15,6 +15,7 @@ import {
   BookOpen,
   Home,
   List,
+  MessageCircle,
   Moon,
   Sun,
   UserRound,
@@ -23,7 +24,6 @@ import {
 } from 'lucide-react';
 import Link from '@/components/site-link';
 
-import { ProfileAvatar } from '@/components/profile-avatar';
 import { BrandLogo } from '@/components/brand-logo';
 import { AddFundsModal } from '@/components/add-funds-modal';
 import { SignInModal } from '@/components/sign-in-modal';
@@ -53,6 +53,7 @@ export type MarketPage =
   | 'magazine'
   | 'rules'
   | 'categories'
+  | 'chat'
   | 'broadcast'
   | 'review'
   | 'profile'
@@ -62,8 +63,10 @@ const navigation: Array<{ key: MarketPage; label: string; href: string }> = [
   { key: 'floor', label: 'TODAY', href: '/' },
   { key: 'categories', label: 'CATEGORIES', href: '/categories' },
   { key: 'magazine', label: 'MAGAZINE', href: '/magazine' },
+  { key: 'chat', label: 'MESSAGES', href: '/chat' },
   { key: 'watchlist', label: 'WATCHLIST', href: '/watchlist' },
   { key: 'rules', label: 'HOW IT WORKS', href: '/how-it-works' },
+  { key: 'profile', label: 'PROFILE', href: '/profile' },
 ];
 
 const mobileNavigation: Array<{
@@ -391,23 +394,15 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
               >
                 <Bell size={15} strokeWidth={1.8} />
               </button>
+              <Link
+                className={`topbar-icon-button topbar-message-link ${active === 'chat' ? 'is-active' : ''}`}
+                href="/chat"
+                aria-label="Open messages"
+                aria-current={active === 'chat' ? 'page' : undefined}
+              >
+                <MessageCircle size={15} strokeWidth={1.8} aria-hidden="true" />
+              </Link>
             </div>
-
-            <Link
-              className="header-profile-link"
-              href="/profile"
-              aria-label={
-                session ? 'Open your profile' : 'Sign in to your profile'
-              }
-              onClick={openProfile}
-            >
-              <ProfileAvatar
-                initials={
-                  session?.user.email?.slice(0, 2).toUpperCase() ?? 'BT'
-                }
-                className="header-avatar"
-              />
-            </Link>
           </div>
         </header>
 

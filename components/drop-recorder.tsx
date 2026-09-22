@@ -39,6 +39,11 @@ import {
   supportedRecordingMimeType,
   validRecordedTake,
 } from '@/lib/recording-capabilities';
+import {
+  openRecordingCompanion,
+  type RecordingCompanion,
+} from '@/lib/recording-companion';
+import { recordingCue } from '@/lib/recording-guidance';
 import { useBought } from './bought-provider';
 import { ScreenRecorder } from './screen-recorder';
 
@@ -57,15 +62,27 @@ function CameraRecorder({
   const context = useRef<AudioContext | null>(null);
   const started = useRef(0);
   const autoStop = useRef<number | undefined>(undefined);
+  const companion = useRef<RecordingCompanion | null>(null);
+  const companionSession = useRef(0);
   const facePresent = useRef(false);
   const [face, setFace] = useState(false);
   const [mic, setMic] = useState(false);
   const [level, setLevel] = useState(0);
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [companionState, setCompanionState] = useState<
+    'idle' | 'opening' | 'open' | 'unavailable'
+  >('idle');
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+
+  function closeCompanion() {
+    companionSession.current += 1;
+    companion.current?.close();
+    companion.current = null;
+    setCompanionState('idle');
+  }
 
   useEffect(() => {
     let active = true;
@@ -188,6 +205,7 @@ function CameraRecorder({
                 (performance.now() - started.current) / 1000,
               );
               setSeconds(elapsed);
+              companion.current?.update(elapsed);
               if (elapsed >= MAX_VIDEO_SECONDS || totalBytes > MAX_VIDEO_BYTES)
                 stop();
             }
@@ -227,6 +245,7 @@ function CameraRecorder({
           stop();
         };
         recordingDevice.onstop = async () => {
+          closeCompanion();
           clearTimeout(autoStop.current);
           autoStop.current = undefined;
           const blob = new Blob(chunks, { type: recordingDevice.mimeType });
@@ -276,6 +295,7 @@ function CameraRecorder({
     void connect();
     return () => {
       active = false;
+      closeCompanion();
       clearTimeout(autoStop.current);
       stop();
       clearInterval(monitor);
@@ -314,10 +334,34 @@ function CameraRecorder({
         MAX_VIDEO_SECONDS * 1000,
       );
       setRecording(true);
+      const session = ++companionSession.current;
+      setCompanionState('opening');
+      void openRecordingCompanion({
+        durationSeconds: MAX_VIDEO_SECONDS,
+        onClosed: () => {
+          if (session !== companionSession.current) return;
+          companion.current = null;
+          setCompanionState('unavailable');
+        },
+        onStop: () => recorder.current?.stop(),
+      }).then((handle) => {
+        if (
+          session !== companionSession.current ||
+          recorder.current?.state !== 'recording'
+        ) {
+          handle?.close();
+          return;
+        }
+        companion.current = handle;
+        setCompanionState(handle ? 'open' : 'unavailable');
+      });
     } catch {
       setError('Recording could not start. Reconnect your camera.');
     }
   }
+
+  const remainingSeconds = Math.max(0, MAX_VIDEO_SECONDS - seconds);
+  const cue = recordingCue(seconds);
 
   return (
     <>
@@ -349,6 +393,25 @@ function CameraRecorder({
             {String(seconds % 60).padStart(2, '0')} / 02:00
           </span>
         </div>
+        {recording && companionState === 'unavailable' && (
+          <output
+            className="drop-recording-countdown"
+            aria-live="polite"
+            aria-label={`${Math.floor(remainingSeconds / 60)} minutes ${remainingSeconds % 60} seconds remaining`}
+          >
+            <span>TIME LEFT</span>
+            <strong>
+              {String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:
+              {String(remainingSeconds % 60).padStart(2, '0')}
+            </strong>
+          </output>
+        )}
+        {recording && companionState === 'unavailable' && (
+          <div className="drop-recording-prompt" aria-live="polite">
+            <strong>{cue.title}</strong>
+            <span>{cue.message}</span>
+          </div>
+        )}
         {ready && <div className="drop-face-guide" aria-hidden="true" />}
         <span className="drop-camera-caption">
           {recording
@@ -373,7 +436,11 @@ function CameraRecorder({
       </div>
       <p className="drop-recording-guidance">
         {recording
-          ? 'Recording continues if you switch tabs or apps. Keep this Bought page open.'
+          ? companionState === 'open'
+            ? 'The floating timer stays visible over other tabs and apps. It stops automatically at 02:00, or use STOP in the popup.'
+            : companionState === 'opening'
+              ? 'Opening the floating timer…'
+              : 'This browser cannot open the floating timer, so keep this page visible. Recording still stops automatically at 02:00.'
           : 'You may switch tabs or apps after recording starts. Do not close or reload this page.'}
       </p>
       {error && (

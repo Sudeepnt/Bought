@@ -28,6 +28,7 @@ const validEnvironment = {
   UPSTASH_REDIS_REST_URL: 'https://redis.example',
   UPSTASH_REDIS_REST_TOKEN: 'redis-token',
   CRON_SECRET: 'cron_1234567890123456789012345678',
+  OPENAI_API_KEY: 'sk-project-example-transcription-key',
 };
 
 function preflight(overrides: Record<string, string> = {}) {

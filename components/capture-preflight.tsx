@@ -31,18 +31,21 @@ export function CapturePreflight({
   const [supported, setSupported] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       const media = navigator.mediaDevices;
+      const recordingSupported =
+        window.isSecureContext && !!window.MediaRecorder && recorderSupported();
       setSupported(
-        window.isSecureContext &&
-          !!media?.getUserMedia &&
-          !!window.MediaRecorder &&
-          recorderSupported() &&
-          (mode === 'camera' || !!media.getDisplayMedia),
+        !!recordingSupported &&
+          (mode === 'screen'
+            ? !!media?.getDisplayMedia
+            : !!media?.getUserMedia),
       );
       setError('');
+      setNotice('');
     });
     return () => cancelAnimationFrame(frame);
   }, [mode]);
@@ -51,6 +54,7 @@ export function CapturePreflight({
     if (checking || !supported) return;
     setChecking(true);
     setError('');
+    setNotice('');
     const streams: MediaStream[] = [];
     try {
       if (mode === 'screen') {
@@ -63,12 +67,18 @@ export function CapturePreflight({
           throw new Error(
             'Choose a screen, window, or browser tab to continue.',
           );
-        const microphone = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true },
-        });
-        streams.push(microphone);
-        if (!microphone.getAudioTracks().length)
-          throw new Error('A microphone is required for this broadcast.');
+        try {
+          const microphone = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true },
+          });
+          streams.push(microphone);
+          if (!microphone.getAudioTracks().length)
+            throw new Error('No microphone track was returned.');
+        } catch {
+          setNotice(
+            'Screen sharing works. No microphone was found, so this device can make a screen-only recording. Use another recorder if the broadcast needs narration.',
+          );
+        }
       } else {
         const camera = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user' },
@@ -106,7 +116,9 @@ export function CapturePreflight({
         </span>
         <div>
           <span className="drop-eyebrow">
-            {mode === 'screen' ? 'SCREEN + MICROPHONE' : 'CAMERA + MICROPHONE'}
+            {mode === 'screen'
+              ? 'SCREEN + OPTIONAL AUDIO'
+              : 'CAMERA + MICROPHONE'}
           </span>
           <h3 id="capture-plan-title">
             {mode === 'screen'
@@ -121,7 +133,7 @@ export function CapturePreflight({
       </div>
       <p>
         {mode === 'screen'
-          ? 'This category needs visible proof. Test screen sharing here, or record with another screen recorder and import the finished video after checkout.'
+          ? 'This category needs visible proof. Test screen sharing here; microphone or shared-tab audio will be included when available. You can also import a finished video after checkout.'
           : 'Test your camera here. If this computer has no camera, record on your phone or another device and import the finished video after checkout.'}
       </p>
       {supported === false && (
@@ -137,6 +149,7 @@ export function CapturePreflight({
           <AlertTriangle size={16} /> {error}
         </p>
       )}
+      {notice && <p className="drop-notice">{notice}</p>}
       <div className="drop-preflight-actions">
         <button
           className="drop-button drop-preflight-button"
@@ -149,7 +162,7 @@ export function CapturePreflight({
             : checking
               ? 'CHECKING…'
               : mode === 'screen'
-                ? 'TEST SCREEN + MIC'
+                ? 'TEST SCREEN + OPTIONAL MIC'
                 : 'TEST CAMERA + MIC'}
           {passed && <Check size={16} />}
         </button>

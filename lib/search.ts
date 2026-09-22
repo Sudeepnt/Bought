@@ -133,6 +133,7 @@ const categories: SearchResult[] = CATEGORIES.map((category) => ({
 const sitePages: SearchResult[] = [
   ['today', 'TODAY', 'MARKET PAGE', 'Live global market', '/'],
   ['categories', 'CATEGORIES', 'MARKET PAGE', 'Browse market rooms', '/categories'],
+  ['chat', 'MESSAGES', 'ACCOUNT', 'Your direct messages', '/chat'],
   ['watchlist', 'WATCHLIST', 'MARKET PAGE', 'Tracked positions', '/watchlist'],
   ['magazine', 'MAGAZINE', 'MARKET PAGE', 'BOUGHT Review', '/magazine'],
   ['how-it-works', 'HOW IT WORKS', 'MARKET PAGE', 'Auction rules', '/how-it-works'],

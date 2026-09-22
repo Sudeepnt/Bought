@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, Eye, Search, Trash2 } from 'lucide-react';
+import { Eye, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { MarketPageShell } from '@/components/market-page-shell';
@@ -181,9 +181,6 @@ const watchlist: WatchPosition[] = [
   },
 ];
 
-type WatchlistFilter = 'ALL' | 'RISING' | 'HOT' | 'SAVED' | 'ALERTS';
-type WatchlistSort = 'attention' | 'bid' | 'change';
-
 function Movement({ position }: { position: WatchPosition }) {
   const glyph =
     position.direction === 'up'
@@ -235,23 +232,13 @@ export default function WatchlistPage() {
 
 function WatchlistDesk() {
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<WatchlistFilter>('ALL');
-  const [sortBy, setSortBy] = useState<WatchlistSort>('attention');
   const [removedPositions, setRemovedPositions] = useState<Set<string>>(
     () => new Set(),
-  );
-  const [savedPositions] = useState(
-    () =>
-      new Set(
-        watchlist
-          .filter((position) => position.saved)
-          .map((position) => position.name),
-      ),
   );
 
   const visibleWatchlist = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    const filtered = watchlist.filter((position) => {
+    return watchlist.filter((position) => {
       if (!position.biddingToday || removedPositions.has(position.name)) {
         return false;
       }
@@ -262,27 +249,9 @@ function WatchlistDesk() {
           .toLowerCase()
           .includes(normalizedQuery);
 
-      if (!matchesQuery) return false;
-      if (filter === 'RISING') return position.direction === 'up';
-      if (filter === 'HOT') return position.status === 'HOT';
-      if (filter === 'SAVED') return savedPositions.has(position.name);
-      if (filter === 'ALERTS')
-        return position.direction === 'down' || position.status === 'HOT';
-      return true;
+      return matchesQuery;
     });
-
-    if (sortBy === 'bid') {
-      return [...filtered].sort(
-        (a, b) =>
-          Number(b.bid.replace(/[$,]/g, '')) -
-          Number(a.bid.replace(/[$,]/g, '')),
-      );
-    }
-    if (sortBy === 'change') {
-      return [...filtered].sort((a, b) => b.movementValue - a.movementValue);
-    }
-    return filtered;
-  }, [filter, query, removedPositions, savedPositions, sortBy]);
+  }, [query, removedPositions]);
 
   function removePosition(name: string) {
     setRemovedPositions((current) => {
@@ -297,8 +266,7 @@ function WatchlistDesk() {
       <div className="route-panel watchlist-panel">
         <header className="watchlist-heading">
           <div>
-            <h1>My Watchlist</h1>
-            <p>Track the people, opinions, and markets you&apos;re watching.</p>
+            <h3>My Watchlist</h3>
           </div>
           <label className="watchlist-search">
             <Search size={20} aria-hidden="true" />
@@ -311,40 +279,6 @@ function WatchlistDesk() {
             />
           </label>
         </header>
-
-        <div className="watchlist-toolbar">
-          <div className="watchlist-filters" aria-label="Watchlist filters">
-            {(['ALL', 'RISING', 'HOT', 'SAVED', 'ALERTS'] as const).map(
-              (option) => (
-                <button
-                  className={filter === option ? 'is-active' : undefined}
-                  key={option}
-                  type="button"
-                  onClick={() => setFilter(option)}
-                  aria-pressed={filter === option}
-                >
-                  {option[0] + option.slice(1).toLowerCase()}
-                </button>
-              ),
-            )}
-          </div>
-          <label className="watchlist-sort">
-            <span>Sort by</span>
-            <span className="watchlist-sort-select">
-              <select
-                value={sortBy}
-                onChange={(event) =>
-                  setSortBy(event.target.value as WatchlistSort)
-                }
-              >
-                <option value="attention">Attention</option>
-                <option value="bid">Current bid</option>
-                <option value="change">24h change</option>
-              </select>
-              <ChevronDown size={16} aria-hidden="true" />
-            </span>
-          </label>
-        </div>
 
         <div className="watchlist-table" aria-label="My watchlist positions">
           <div className="watchlist-table-head">

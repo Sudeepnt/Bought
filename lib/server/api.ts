@@ -34,11 +34,12 @@ import {
   sameOrigin,
 } from './security';
 import { webhook } from './webhooks';
+import { requestTranscription } from './transcription';
 
 const ownerDropFields =
-  'id,category,capture_mode,title,amount_minor,currency,provider,payment_state,checkout_state,payment_reference,checkout_url,paid_at,state,mux_upload_id,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,created_at';
+  'id,category,capture_mode,title,amount_minor,currency,provider,payment_state,checkout_state,payment_reference,checkout_url,paid_at,state,mux_upload_id,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,transcription_status,transcribed_at,created_at';
 const reviewDropFields =
-  'id,category,capture_mode,title,amount_minor,currency,payment_state,paid_at,state,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,created_at';
+  'id,category,capture_mode,title,amount_minor,currency,payment_state,paid_at,state,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,transcription_status,transcript_english,editorial_summary,editorial_headline,editorial_quote,editorial_keywords,transcription_error,transcribed_at,created_at';
 
 function json(data: unknown, status = 200, extraHeaders?: HeadersInit) {
   const headers = new Headers({
@@ -252,6 +253,8 @@ export async function handleApi(request: Request) {
           isPublic ? drop.exposure_ends_at : null,
         ),
         thumbnail: thumbnail?.signedUrl,
+        captionsVtt:
+          drop.transcription_status === 'ready' ? drop.captions_vtt : null,
       });
     }
 
@@ -262,7 +265,12 @@ export async function handleApi(request: Request) {
     if (method === 'POST') {
       sameOrigin(request);
       requireJson(request);
-      const action = path[0] === 'review' ? 'decision' : (path[2] ?? 'create');
+      const action =
+        path[0] === 'review'
+          ? path[2] === 'transcribe'
+            ? 'transcribe'
+            : 'decision'
+          : (path[2] ?? 'create');
       const [limit, seconds] =
         action === 'create'
           ? [10, 3600]
@@ -302,6 +310,27 @@ export async function handleApi(request: Request) {
         return json({ drops: data });
       }
       if (
+        method === 'POST' &&
+        path.length === 3 &&
+        path[2] === 'transcribe' &&
+        validUuid(path[1])
+      ) {
+        const { data: drop, error } = await db
+          .from('bought_drops')
+          .select(
+            'id,title,category,mux_asset_id,mux_playback_id,media_state,state',
+          )
+          .eq('id', path[1])
+          .maybeSingle();
+        dbError(error);
+        if (!drop || !['review', 'published'].includes(drop.state))
+          throw new HttpError(404, 'Broadcast not found in the review queue.');
+        if (drop.media_state !== 'ready')
+          throw new HttpError(409, 'The broadcast media is still processing.');
+        const result = await requestTranscription(drop);
+        return json(result);
+      }
+      if (
         method !== 'POST' ||
         path.length !== 2 ||
         !validUuid(path[1]) ||
@@ -309,6 +338,23 @@ export async function handleApi(request: Request) {
         typeof body.approve !== 'boolean'
       )
         throw new HttpError(400, 'Choose a valid review decision.');
+      if (body.approve) {
+        const { data: transcript, error } = await db
+          .from('bought_drops')
+          .select('mux_asset_id,transcription_asset_id,transcription_status')
+          .eq('id', path[1])
+          .maybeSingle();
+        dbError(error);
+        if (
+          !transcript ||
+          transcript.transcription_status !== 'ready' ||
+          transcript.transcription_asset_id !== transcript.mux_asset_id
+        )
+          throw new HttpError(
+            409,
+            'Generate and review the English transcript before publishing.',
+          );
+      }
       const { error } = await db.rpc('bought_review', {
         p_drop_id: path[1],
         p_asset_id: body.assetId,
@@ -455,7 +501,13 @@ export async function handleApi(request: Request) {
                 playback_policies: ['signed'],
                 passthrough: drop.id,
                 max_resolution_tier: '1080p',
+                // Keep initial on-demand broadcasts on Mux's lowest-cost
+                // encoding tier. This can be raised for a specific future
+                // live or premium-media workflow.
                 video_quality: 'basic',
+                static_renditions: [
+                  { resolution: 'audio-only', passthrough: drop.id },
+                ],
               },
             },
           );
@@ -474,6 +526,18 @@ export async function handleApi(request: Request) {
               ).toISOString(),
               media_state: 'waiting',
               upload_claimed_at: null,
+              transcription_status: 'pending',
+              transcription_asset_id: null,
+              transcript_english: null,
+              captions_vtt: null,
+              editorial_summary: null,
+              editorial_headline: null,
+              editorial_quote: null,
+              editorial_keywords: [],
+              transcription_error: null,
+              transcription_claimed_at: null,
+              transcribed_at: null,
+              transcription_attempts: 0,
             })
             .eq('id', drop.id);
           dbError(error);

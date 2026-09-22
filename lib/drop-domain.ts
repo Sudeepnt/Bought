@@ -63,6 +63,14 @@ export type Drop = {
   auction_id: string | null;
   exposure_starts_at: string | null;
   exposure_ends_at: string | null;
+  transcription_status: 'pending' | 'processing' | 'ready' | 'errored';
+  transcript_english: string | null;
+  editorial_summary: string | null;
+  editorial_headline: string | null;
+  editorial_quote: string | null;
+  editorial_keywords: string[];
+  transcription_error: string | null;
+  transcribed_at: string | null;
   created_at: string;
 };
 export type Market = {

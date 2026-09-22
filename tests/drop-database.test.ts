@@ -48,6 +48,18 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
       .replaceAll('clock_timestamp()', 'public.test_now()')
       .replace(/\bnow\(\)/g, 'public.test_now()'),
   );
+  const transcriptionSql = await readFile(
+    new URL(
+      '../supabase/migrations/20260920102000_add_english_transcription.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  await db.exec(
+    transcriptionSql
+      .replaceAll('clock_timestamp()', 'public.test_now()')
+      .replace(/\bnow\(\)/g, 'public.test_now()'),
+  );
   const owner = '10000000-0000-4000-8000-000000000001';
   const stranger = '10000000-0000-4000-8000-000000000002';
   const moderator = '10000000-0000-4000-8000-000000000003';
@@ -219,6 +231,13 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
           ]),
           /permission denied/,
         );
+        await assert.rejects(
+          db.query('select public.bought_claim_transcription($1,$2)', [
+            one,
+            `asset_${one}`,
+          ]),
+          /permission denied/,
+        );
         await db.exec('reset role');
       },
     );
@@ -303,6 +322,55 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
             moderator,
           ]),
           /not ready/,
+        );
+      },
+    );
+    await t.test(
+      'English transcription claims are private, idempotent, and bound to the current recording',
+      async () => {
+        const first = await db.query<{ claimed: boolean }>(
+          'select public.bought_claim_transcription($1,$2) claimed',
+          [one, `asset_${one}`],
+        );
+        const concurrentRetry = await db.query<{ claimed: boolean }>(
+          'select public.bought_claim_transcription($1,$2) claimed',
+          [one, `asset_${one}`],
+        );
+        assert.equal(first.rows[0].claimed, true);
+        assert.equal(concurrentRetry.rows[0].claimed, false);
+
+        await db.query(
+          'select public.bought_finish_transcription($1,$2,$3,$4,$5,$6,$7,$8)',
+          [
+            one,
+            `asset_${one}`,
+            'This is the English transcript.',
+            'WEBVTT\n\n1\n00:00:00.000 --> 00:00:02.000\nThis is the English transcript.\n',
+            'A short editorial summary.',
+            'An accurate headline',
+            'This is the English transcript.',
+            ['launch', 'founder'],
+          ],
+        );
+        const saved = await row();
+        assert.equal(saved.transcription_status, 'ready');
+        assert.equal(
+          saved.transcript_english,
+          'This is the English transcript.',
+        );
+        assert.deepEqual(saved.editorial_keywords, ['launch', 'founder']);
+
+        const finishedRetry = await db.query<{ claimed: boolean }>(
+          'select public.bought_claim_transcription($1,$2) claimed',
+          [one, `asset_${one}`],
+        );
+        assert.equal(finishedRetry.rows[0].claimed, false);
+        await assert.rejects(
+          db.query('select public.bought_claim_transcription($1,$2)', [
+            one,
+            'stale-asset',
+          ]),
+          /not ready for transcription/,
         );
       },
     );

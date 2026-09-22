@@ -760,6 +760,59 @@ html[data-theme='light'] .drop-capture-plan h3 {
   background: #ef2b32;
   animation: record-pulse 1s infinite;
 }
+.drop-recording-countdown {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 132px;
+  padding: 12px 18px 13px;
+  border: 1px solid #ef2b32aa;
+  background: #050805e8;
+  box-shadow: 0 10px 32px #00000066;
+  color: white;
+  text-align: center;
+  pointer-events: none;
+}
+.drop-recording-countdown span {
+  color: #ff9195;
+  font: 10px var(--mono);
+  letter-spacing: 0.12em;
+}
+.drop-recording-countdown strong {
+  color: white;
+  font: 700 30px var(--mono);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.drop-recording-prompt {
+  position: absolute;
+  z-index: 2;
+  right: 14px;
+  bottom: 42px;
+  left: 14px;
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-left: 2px solid #ef2b32;
+  background: #050805d9;
+  color: white;
+  pointer-events: none;
+}
+.drop-recording-prompt strong {
+  color: #ff9195;
+  font: 600 11px var(--mono);
+  letter-spacing: 0.1em;
+}
+.drop-recording-prompt span {
+  font-size: 12px;
+  line-height: 1.35;
+}
 .drop-face-guide {
   position: absolute;
   border: 1px dashed #ffffff44;
@@ -1851,4 +1904,150 @@ html[data-theme='light'] .drop-receipt-note {
 
 .drop-receipt-amount {
   font-size: 38px;
+}
+
+/* English captions and editorial notes turn each approved broadcast into a
+   reviewable magazine source without leaving the moderation workspace. */
+.review-transcript {
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--ink) 92%, var(--hot) 8%);
+}
+
+.review-transcript > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.review-transcript > header div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text);
+  font: 600 12px/1 var(--mono);
+  letter-spacing: 0.06em;
+}
+
+.review-transcript > header strong {
+  border: 1px solid var(--line-strong);
+  padding: 6px 8px;
+  color: var(--muted);
+  font: 600 11px/1 var(--mono);
+  letter-spacing: 0.06em;
+}
+
+.review-transcript > header strong[data-state='ready'] {
+  border-color: var(--up);
+  color: var(--up);
+}
+
+.review-transcript > header strong[data-state='errored'] {
+  border-color: var(--hot);
+  color: var(--hot);
+}
+
+.review-editorial-note,
+.review-transcript-waiting {
+  padding: 18px;
+}
+
+.review-editorial-note > span {
+  color: var(--hot);
+  font: 600 11px/1 var(--mono);
+  letter-spacing: 0.07em;
+}
+
+.review-editorial-note h3 {
+  margin: 8px 0 10px;
+  font: 700 26px/1.04 var(--font-barlow), sans-serif;
+  text-transform: uppercase;
+}
+
+.review-transcript .review-editorial-note p,
+.review-transcript-waiting p,
+.review-transcript details p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.review-transcript blockquote {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  margin: 0;
+  padding: 16px 18px;
+  border-block: 1px solid var(--line-strong);
+  color: var(--text);
+  font: 500 18px/1.45 var(--font-barlow), sans-serif;
+}
+
+.review-transcript blockquote svg {
+  margin-top: 3px;
+  color: var(--hot);
+}
+
+.review-transcript-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.review-transcript-keywords span {
+  border: 1px solid var(--line-strong);
+  padding: 6px 8px;
+  color: var(--muted);
+  font: 11px/1 var(--mono);
+  text-transform: uppercase;
+}
+
+.review-transcript details {
+  padding: 0 18px;
+}
+
+.review-transcript summary {
+  padding: 14px 0;
+  cursor: pointer;
+  color: var(--text);
+  font: 600 12px/1 var(--mono);
+  letter-spacing: 0.04em;
+}
+
+.review-transcript details p {
+  max-height: 300px;
+  overflow: auto;
+  padding: 0 0 18px;
+  white-space: pre-wrap;
+}
+
+.review-transcript > small {
+  display: block;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.review-transcript-waiting .drop-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.review-transcript .is-spinning {
+  animation: transcript-spin 0.9s linear infinite;
+}
+
+@keyframes transcript-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
