@@ -22876,6 +22876,128 @@ html[data-theme='light'] .chat-date-divider::after {
   }
 }
 
+@media (min-width: 381px) and (max-width: 700px) {
+  .dashboard-shell .dashboard-status-row {
+    grid-template-columns: minmax(118px, 0.72fr) minmax(0, 1.28fr);
+  }
+
+  .dashboard-shell .status-countdown {
+    column-gap: 5px;
+    grid-template-columns: 24px minmax(0, 1fr) clamp(96px, 26vw, 104px);
+    padding-inline: 9px;
+  }
+
+  .dashboard-shell .countdown-icon,
+  .dashboard-shell .countdown-icon svg {
+    height: 24px;
+    width: 24px;
+  }
+
+  .dashboard-shell .countdown-label strong {
+    font-size: clamp(7.5px, 2vw, 9px);
+  }
+
+  .dashboard-shell .countdown-label span {
+    font-size: clamp(6px, 1.6vw, 7px);
+    letter-spacing: 0;
+  }
+
+  .dashboard-shell .countdown-segments,
+  .dashboard-shell .countdown-value strong {
+    font-size: clamp(15px, 4.1vw, 17px);
+  }
+
+  .dashboard-shell .countdown-segment small {
+    font-size: clamp(6px, 1.7vw, 7px);
+  }
+}
+
+@media (max-width: 380px) {
+  .dashboard-shell .dashboard-status-row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 6px;
+  }
+
+  .dashboard-shell .total-panel {
+    align-items: center;
+    flex-direction: row;
+    height: 56px;
+    justify-content: space-between;
+    min-height: 56px;
+    padding: 6px 12px;
+  }
+
+  .dashboard-shell .total-panel > div:first-child {
+    align-items: flex-start;
+    gap: 3px;
+  }
+
+  .dashboard-shell .total-panel strong {
+    font-size: 19px;
+  }
+
+  .dashboard-shell .total-panel .dashboard-delta {
+    font-size: 7px;
+    white-space: nowrap;
+  }
+
+  .dashboard-shell .status-countdown {
+    column-gap: 8px;
+    grid-template-columns: 26px minmax(0, 1fr) minmax(108px, max-content);
+    height: 66px;
+    min-height: 66px;
+    padding: 7px 12px;
+  }
+
+  .dashboard-shell .countdown-icon,
+  .dashboard-shell .countdown-icon svg {
+    height: 24px;
+    width: 24px;
+  }
+
+  .dashboard-shell .countdown-label {
+    gap: 4px;
+  }
+
+  .dashboard-shell .countdown-label strong {
+    font-size: 9px;
+  }
+
+  .dashboard-shell .countdown-label span {
+    font-size: 7px;
+    letter-spacing: 0;
+  }
+
+  .dashboard-shell .countdown-segments,
+  .dashboard-shell .countdown-value strong {
+    font-size: clamp(18px, 5.8vw, 20px);
+  }
+
+  .dashboard-shell .countdown-segments {
+    column-gap: 1px;
+  }
+
+  .dashboard-shell .countdown-segment {
+    gap: 3px;
+  }
+
+  .dashboard-shell .countdown-segment small {
+    font-size: 6px;
+  }
+}
+
+@media (max-width: 380px) {
+  .dashboard-shell .market-status-wrap .dashboard-status-row > .total-panel.dashboard-panel {
+    height: 56px;
+    min-height: 56px;
+  }
+
+  .dashboard-shell .market-status-wrap .dashboard-status-row > .status-countdown.dashboard-panel {
+    height: 66px;
+    min-height: 66px;
+  }
+}
+
 @media (max-width: 700px) {
   .dashboard-shell .leaderboard-movement.is-exposure small,
   .dashboard-shell .leaderboard-movement.is-syncing small {
