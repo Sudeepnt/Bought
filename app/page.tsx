@@ -13,7 +13,6 @@ import {
   Flame,
   Megaphone,
   MessageCircle,
-  Play,
   Radio,
   Store,
   Undo2,
@@ -26,10 +25,13 @@ import Link from '@/components/site-link';
 
 import { MarketFooter } from '@/components/market-chrome';
 import { MarketTopbar } from '@/components/market-topbar';
-import { DropPlayer } from '@/components/drop-player';
 import { useBought } from '@/components/bought-provider';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { latestIssue } from '@/lib/magazine';
+import {
+  BroadcastVideoCard,
+  type CategoryBroadcast,
+} from '@/app/categories/page';
 
 type LeaderboardRow = [string, string, string, string, string, string];
 
@@ -91,6 +93,48 @@ type LeaderboardSelection = {
   initials: string;
   tone: string;
   dropId: string | null;
+};
+
+const leaderboardPortraitPositions: Record<string, string> = {
+  AR: '25% 0%',
+  AS: '0% 0%',
+  PM: '75% 0%',
+  RK: '100% 0%',
+  KV: '50% 0%',
+  MK: '0% 100%',
+  DP: '25% 100%',
+  SN: '50% 100%',
+  KJ: '75% 100%',
+  AT: '100% 100%',
+};
+
+function getTakePrice(price: string) {
+  const amount = Number(price.replace(/[^0-9]/g, ''));
+  return Number.isFinite(amount)
+    ? `$${(amount + 100).toLocaleString('en-US')}`
+    : price;
+}
+
+const globalLeadBroadcast: CategoryBroadcast = {
+  id: 'GLOBAL-LEADER-1',
+  name: 'Ananya R.',
+  handle: '@ananyabuilds',
+  initials: 'AR',
+  duration: '8:17',
+  imagePosition: leaderboardPortraitPositions.AR,
+  socialPlatform: 'LinkedIn',
+  profileType: 'Creator',
+  location: 'Bengaluru, India',
+  categoryName: 'UNPOPULAR OPINION',
+  rank: 1,
+  title: 'Your design system is productivity theatre.',
+  price: '$11,400',
+  change: -6,
+  views: 14201,
+  shares: 327,
+  outbidCount: 6,
+  takePrice: '$11,500',
+  topRankedAt: 'LIVE',
 };
 
 const homeCategories = [
@@ -273,10 +317,6 @@ const trending = [
   ],
 ];
 
-function Money({ value }: { value: string }) {
-  return <span className="dashboard-money">{value}</span>;
-}
-
 function Avatar({
   initials,
   tone = 'coral',
@@ -320,15 +360,6 @@ function Avatar({
           aria-label="Current leader"
         />
       )}
-    </span>
-  );
-}
-
-function Delta({ value, down = false }: { value: string; down?: boolean }) {
-  return (
-    <span className={`dashboard-delta ${down ? 'is-down' : ''}`}>
-      {down ? <ArrowDownRight size={13} /> : <ArrowUpRight size={13} />}
-      {value}
     </span>
   );
 }
@@ -406,7 +437,9 @@ function PulseSparkline({
 
 export default function Home() {
   const { entries, market, marketFresh } = useBought();
-  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [playingBroadcastId, setPlayingBroadcastId] = useState<string | null>(
+    null,
+  );
   const [selectedLeaderboard, setSelectedLeaderboard] =
     useState<LeaderboardSelection | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -423,6 +456,27 @@ export default function Home() {
         : 'syncing';
   const displayedLeaderboard =
     categoryLeaderboards[activeCategory] ?? categoryLeaderboards.ALL;
+  const leadBroadcast: CategoryBroadcast = selectedLeaderboard
+    ? {
+        ...globalLeadBroadcast,
+        id: `GLOBAL-LEADER-${selectedLeaderboard.rank}-${selectedLeaderboard.category}`,
+        name: selectedLeaderboard.name,
+        handle: selectedLeaderboard.handle,
+        initials: selectedLeaderboard.initials,
+        categoryName: selectedLeaderboard.category,
+        rank: selectedLeaderboard.rank,
+        price: selectedLeaderboard.price,
+        takePrice: getTakePrice(selectedLeaderboard.price),
+        imagePosition:
+          leaderboardPortraitPositions[selectedLeaderboard.initials] ??
+          globalLeadBroadcast.imagePosition,
+        title: `Position #${selectedLeaderboard.rank} from today's leaderboard.`,
+        views: Math.max(1200, 14201 - selectedLeaderboard.rank * 640),
+        shares: Math.max(80, 327 - selectedLeaderboard.rank * 18),
+        outbidCount: Math.max(1, 7 - selectedLeaderboard.rank),
+        topRankedAt: 'LIVE',
+      }
+    : globalLeadBroadcast;
 
   useEffect(() => {
     if (!leaderboardAuctionActive) return;
@@ -469,6 +523,7 @@ export default function Home() {
       tone,
       dropId: publishedEntry?.drop_id ?? null,
     });
+    setPlayingBroadcastId(null);
   }
 
   function submitReview(event: SyntheticEvent<HTMLFormElement>) {
@@ -486,7 +541,7 @@ export default function Home() {
       <div className="dashboard-wrap homepage-content-wrap">
         <section className="dashboard-main-grid">
           <div className="dashboard-primary-stack">
-            <article className="leader-spot dashboard-panel">
+            <article className="leader-spot dashboard-panel homepage-broadcast-panel">
               <div className="dashboard-section-head">
                 <span>
                   {selectedLeaderboard
@@ -504,124 +559,17 @@ export default function Home() {
                   </button>
                 )}
               </div>
-              <div
-                className={`leader-visual ${selectedLeaderboard ? 'has-selected-broadcast' : ''}`}
-              >
-                {selectedLeaderboard?.dropId ? (
-                  <div className="leader-portrait leader-video">
-                    <DropPlayer dropId={selectedLeaderboard.dropId} />
-                  </div>
-                ) : selectedLeaderboard ? (
-                  <div className="leader-portrait leader-video-placeholder">
-                    <Avatar
-                      initials={selectedLeaderboard.initials}
-                      tone={selectedLeaderboard.tone}
-                    />
-                    <span className="leader-inline-preview-badge">
-                      <Play size={15} fill="currentColor" /> BROADCAST PREVIEW
-                    </span>
-                  </div>
-                ) : (
-                  <div className="leader-portrait">
-                    <Image
-                      src="/ananya-rao-hero.webp"
-                      alt="Ananya Rao, current leader"
-                      width="1672"
-                      height="941"
-                      fetchPriority="high"
-                      priority
-                    />
-                  </div>
-                )}
-                <div className="leader-overlay">
-                  <strong className="leader-rank">
-                    #{selectedLeaderboard?.rank ?? 1}
-                  </strong>
-                  <span className="leader-category">
-                    {selectedLeaderboard?.category ?? 'UNPOPULAR OPINION'}
-                  </span>
-                  <Money value={selectedLeaderboard?.price ?? '$11,400'} />
-                  <div className="leader-metrics">
-                    <span>
-                      {selectedLeaderboard
-                        ? 'LEADERBOARD BROADCAST'
-                        : '14,201 VIEWS'}
-                    </span>
-                    {selectedLeaderboard ? (
-                      <span className="leader-selected-status">
-                        {selectedLeaderboard.dropId ? 'PLAYING NOW' : 'PREVIEW'}
-                      </span>
-                    ) : (
-                      <Delta value="6 OUTBID" />
-                    )}
-                  </div>
-                  <p>
-                    {selectedLeaderboard ? (
-                      <>
-                        POSITION #{selectedLeaderboard.rank}
-                        <br />
-                        FROM TODAY&apos;S
-                        <br />
-                        LEADERBOARD.
-                      </>
-                    ) : (
-                      <>
-                        “Your design
-                        <br />
-                        system is a<br />
-                        productivity
-                        <br />
-                        theatre.”
-                      </>
-                    )}
-                  </p>
-                  <div className="leader-person">
-                    <strong>
-                      {(selectedLeaderboard?.name ?? 'Ananya R.').toUpperCase()}
-                    </strong>
-                    <span>
-                      {selectedLeaderboard?.handle ?? '@ananyabuilds'}
-                    </span>
-                    <small>
-                      {selectedLeaderboard
-                        ? "Today's leaderboard"
-                        : 'Founder · DesignOps'}
-                    </small>
-                  </div>
-                  {!selectedLeaderboard && (
-                    <button
-                      className="hero-play"
-                      type="button"
-                      onClick={() => setVideoPlaying((value) => !value)}
-                      aria-label={
-                        videoPlaying ? 'Pause broadcast' : 'Play broadcast'
-                      }
-                    >
-                      {videoPlaying ? (
-                        'Ⅱ'
-                      ) : (
-                        <Play size={22} fill="currentColor" />
-                      )}
-                    </button>
-                  )}
-                  <Link
-                    className="leader-cta"
-                    href={`/broadcast?category=${encodeURIComponent(selectedLeaderboard?.category ?? 'UNPOPULAR OPINION')}`}
-                    aria-label={
-                      selectedLeaderboard
-                        ? `Make a broadcast in ${selectedLeaderboard.category}`
-                        : 'Take this spot for $11,500'
-                    }
-                  >
-                    <span>
-                      {selectedLeaderboard
-                        ? 'MAKE A BROADCAST'
-                        : 'TAKE THIS SPOT'}
-                    </span>
-                    <strong>{selectedLeaderboard ? 'OPEN' : '$11,500'}</strong>
-                  </Link>
-                </div>
-              </div>
+              <BroadcastVideoCard
+                broadcast={leadBroadcast}
+                playingId={playingBroadcastId}
+                onPlay={(id) =>
+                  setPlayingBroadcastId((current) =>
+                    current === id ? null : id,
+                  )
+                }
+                loadThumbnail
+                dropId={selectedLeaderboard?.dropId ?? null}
+              />
             </article>
 
             <div className="dashboard-primary-lower-grid">

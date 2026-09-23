@@ -71,7 +71,7 @@ type CategoryDefinition = {
   icon: LucideIcon;
 };
 
-type CategoryBroadcast = Creator & {
+export type CategoryBroadcast = Creator & {
   id: string;
   categoryName: string;
   rank: number;
@@ -468,7 +468,7 @@ function VideoThumbnail({
   );
 }
 
-function BroadcastVideoCard({
+export function BroadcastVideoCard({
   broadcast,
   playingId,
   onPlay,

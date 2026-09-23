@@ -6845,6 +6845,19 @@ html:not([data-theme='light'])
   height: 313px;
   min-height: 313px;
 }
+
+/* The homepage lead uses the same broadcast surface as Categories. Let the
+ * shared 16:9 card determine the panel height instead of clipping it to the
+ * old overlay-card height. */
+.dashboard-primary-stack > .homepage-broadcast-panel {
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dashboard-primary-stack > .homepage-broadcast-panel > .category-broadcast-video {
+  border-bottom: 0;
+}
 .dashboard-primary-lower-grid {
   display: grid;
   gap: 10px;
@@ -21921,6 +21934,59 @@ html[data-theme='light'] .watchlist-remove {
   }
 }
 
+/* Final phone navigation finish: quiet chrome with one clear BOUGHT accent. */
+@media (max-width: 700px) {
+  .mobile-bottom-navigation {
+    background: rgba(7, 10, 10, 0.98);
+    border-top-color: #263235;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.32);
+    padding-inline: 8px;
+  }
+
+  .mobile-bottom-navigation-link {
+    border-radius: 6px;
+    gap: 4px;
+    position: relative;
+    transition:
+      background 140ms ease,
+      color 140ms ease;
+  }
+
+  .mobile-bottom-navigation-link::before {
+    background: var(--hot);
+    border-radius: 99px;
+    bottom: 3px;
+    content: '';
+    height: 2px;
+    left: 50%;
+    opacity: 0;
+    position: absolute;
+    transform: translateX(-50%);
+    transition: opacity 140ms ease;
+    width: 20px;
+  }
+
+  .mobile-bottom-navigation-link.is-active {
+    background: rgba(239, 43, 50, 0.09);
+    color: #f5f7f4;
+  }
+
+  .mobile-bottom-navigation-link.is-active::before {
+    opacity: 1;
+  }
+
+  .mobile-bottom-navigation-link.is-active svg {
+    color: var(--hot);
+    filter: none;
+  }
+
+  html[data-theme='light'] .mobile-bottom-navigation {
+    background: rgba(247, 248, 245, 0.98);
+    border-top-color: #c4ceca;
+    box-shadow: 0 -8px 22px rgba(31, 45, 40, 0.12);
+  }
+}
+
 /* Direct messages */
 .route-market-shell .chat-workspace {
   background: #090d0e;
@@ -22605,6 +22671,22 @@ html[data-theme='light'] .chat-date-divider::after {
     gap: 0;
     justify-content: center;
     overflow: hidden;
+  }
+}
+
+/* Keep the category tabs available beneath the fixed mobile market chrome.
+   The status cards and live feed remain normal-flow content and scroll away. */
+@media (max-width: 700px) {
+  .category-carousel-page .category-carousel-filter-wrap {
+    background: var(--ink);
+    padding-bottom: 8px;
+    position: sticky;
+    top: 80px;
+    z-index: 25;
+  }
+
+  .category-carousel-page .homepage-category-selector {
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
   }
 }
 

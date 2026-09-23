@@ -12,13 +12,13 @@ import {
   ArrowDownToLine,
   Bell,
   Bookmark,
-  BookOpen,
-  Home,
-  List,
+  CircleUser,
+  LayoutGrid,
   MessageCircle,
   Moon,
+  Newspaper,
+  Podium,
   Sun,
-  UserRound,
   WalletCards,
   type LucideIcon,
 } from 'lucide-react';
@@ -75,11 +75,11 @@ const mobileNavigation: Array<{
   href: string;
   icon: LucideIcon;
 }> = [
-  { key: 'floor', label: 'Home', href: '/', icon: Home },
-  { key: 'categories', label: 'Categories', href: '/categories', icon: List },
-  { key: 'magazine', label: 'Magazine', href: '/magazine', icon: BookOpen },
+  { key: 'floor', label: 'Today', href: '/', icon: Podium },
+  { key: 'categories', label: 'Categories', href: '/categories', icon: LayoutGrid },
+  { key: 'magazine', label: 'Magazine', href: '/magazine', icon: Newspaper },
   { key: 'watchlist', label: 'Watchlist', href: '/watchlist', icon: Bookmark },
-  { key: 'profile', label: 'Profile', href: '/profile', icon: UserRound },
+  { key: 'profile', label: 'Profile', href: '/profile', icon: CircleUser },
 ];
 
 type Theme = 'dark' | 'light';
@@ -433,6 +433,7 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
           return (
             <Link
               className={`mobile-bottom-navigation-link ${isActive ? 'is-active' : ''}`}
+              data-nav-key={item.key}
               href={item.href}
               key={item.key}
               aria-current={isActive ? 'page' : undefined}
