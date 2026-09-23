@@ -15399,6 +15399,10 @@ html[data-theme='light'] .category-carousel-arrow {
   width: 100%;
 }
 
+.category-broadcast-video:not(.is-playing) .category-local-player {
+  visibility: hidden;
+}
+
 .category-local-player::after {
   content: '';
   inset: 0;
