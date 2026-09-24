@@ -16,6 +16,8 @@ import {
   Megaphone,
   MessageCircle,
   Mic,
+  Pause,
+  Play,
   Radio,
   RotateCcw,
   Send,
@@ -32,13 +34,15 @@ import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
-  type FormEvent,
   type KeyboardEvent,
+  type SyntheticEvent,
 } from 'react';
 import Image from 'next/image';
+import { createPortal } from 'react-dom';
 
 import { MarketFooter } from '@/components/market-chrome';
 import { MarketTopbar } from '@/components/market-topbar';
@@ -475,6 +479,7 @@ export function BroadcastVideoCard({
   loadThumbnail,
   dropId,
   useSharedDemoVideo = false,
+  accentColor,
 }: {
   broadcast: CategoryBroadcast;
   playingId: string | null;
@@ -482,12 +487,15 @@ export function BroadcastVideoCard({
   loadThumbnail: boolean;
   dropId: string | null;
   useSharedDemoVideo?: boolean;
+  accentColor?: string;
 }) {
   const { session } = useBought();
   const isPlaying = playingId === broadcast.id;
   const [isWatchlisted, setIsWatchlisted] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [mediaPlaying, setMediaPlaying] = useState(false);
+  const [isDocked, setIsDocked] = useState(false);
   const [opinions, setOpinions] = useState<string[]>([]);
   const [opinionDraft, setOpinionDraft] = useState('');
   const [isMessageOpen, setIsMessageOpen] = useState(false);
@@ -496,9 +504,77 @@ export function BroadcastVideoCard({
   const [messageThreadId, setMessageThreadId] = useState<string | null>(null);
   const [messageError, setMessageError] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
+  const placeholderRef = useRef<HTMLDivElement>(null);
+  const floatingRef = useRef<HTMLElement>(null);
   const controlsTimerRef = useRef<number | null>(null);
   const hasLocalDemo = useSharedDemoVideo || broadcast.rank === 1;
   const canPlay = hasLocalDemo || Boolean(dropId);
+  const showFloatingPlayer = isPlaying && mediaPlaying && isDocked;
+
+  const pauseBroadcast = () => {
+    if (hasLocalDemo) {
+      videoRef.current?.pause();
+    } else {
+      const muxPlayer = floatingRef.current?.querySelector('mux-player') as
+        | (HTMLElement & { pause?: () => void })
+        | null;
+      muxPlayer?.pause?.();
+    }
+    setMediaPlaying(false);
+  };
+
+  const resumeBroadcast = () => {
+    const player = hasLocalDemo
+      ? videoRef.current
+      : (floatingRef.current?.querySelector('mux-player') as
+          | (HTMLElement & { play?: () => Promise<void> })
+          | null);
+    void player?.play?.()?.catch((error: unknown) => {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        console.error('Unable to resume the broadcast.', error);
+      }
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!isPlaying) return;
+
+    const placeholder = placeholderRef.current;
+    const floatingCard = floatingRef.current;
+    if (!placeholder || !floatingCard) return;
+
+    let frame: number | null = null;
+    const updatePosition = () => {
+      const rect = placeholder.getBoundingClientRect();
+      floatingCard.style.setProperty('--broadcast-source-top', `${rect.top}px`);
+      floatingCard.style.setProperty('--broadcast-source-left', `${rect.left}px`);
+      floatingCard.style.setProperty('--broadcast-source-width', `${rect.width}px`);
+      floatingCard.style.setProperty('--broadcast-source-height', `${rect.height}px`);
+      setIsDocked(mediaPlaying && rect.bottom <= 0);
+    };
+    const schedulePosition = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        updatePosition();
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', schedulePosition, { passive: true });
+    document.addEventListener('scroll', schedulePosition, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener('resize', schedulePosition);
+
+    return () => {
+      window.removeEventListener('scroll', schedulePosition);
+      document.removeEventListener('scroll', schedulePosition, true);
+      window.removeEventListener('resize', schedulePosition);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, [isPlaying, mediaPlaying]);
 
   function seekVideo(seconds: number) {
     const video = videoRef.current;
@@ -524,7 +600,7 @@ export function BroadcastVideoCard({
     setIsMuted(nextMuted);
   }
 
-  function submitOpinion(event: FormEvent<HTMLFormElement>) {
+  function submitOpinion(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextOpinion = opinionDraft.trim();
     if (!nextOpinion) return;
@@ -532,7 +608,7 @@ export function BroadcastVideoCard({
     setOpinionDraft('');
   }
 
-  function submitMessage(event: FormEvent<HTMLFormElement>) {
+  function submitMessage(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const body = messageDraft.trim();
     if (!body) return;
@@ -591,12 +667,14 @@ export function BroadcastVideoCard({
   useEffect(() => {
     if (!isPlaying) {
       clearControlsTimer();
-      setControlsVisible(true);
       return;
     }
 
-    revealControls();
-    return clearControlsTimer;
+    const frame = window.requestAnimationFrame(revealControls);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      clearControlsTimer();
+    };
   }, [clearControlsTimer, isPlaying, revealControls]);
 
   useEffect(() => {
@@ -619,11 +697,17 @@ export function BroadcastVideoCard({
     videoRef.current.pause();
   }, [hasLocalDemo, isPlaying]);
 
-  return (
+  const card = (
     <section
-      className={`category-lead-card category-broadcast-video ${isPlaying ? 'is-playing' : ''} ${isPlaying && !controlsVisible ? 'controls-hidden' : ''}`}
+      ref={floatingRef}
+      className={`category-lead-card category-broadcast-video ${isPlaying ? 'is-playing is-player-portaled' : ''} ${isPlaying && !controlsVisible ? 'controls-hidden' : ''} ${showFloatingPlayer ? 'is-docked' : ''}`}
+      style={accentColor ? ({ '--category-accent': accentColor } as CSSProperties) : undefined}
     >
-      <div className="category-lead-media" onClick={revealControls}>
+      <div
+        className="category-lead-media"
+        onPointerDown={revealControls}
+        onPointerMove={revealControls}
+      >
         <VideoThumbnail
           broadcast={broadcast}
           prominent
@@ -639,7 +723,13 @@ export function BroadcastVideoCard({
               playsInline
               preload="metadata"
               aria-label={`${broadcast.name}'s one-minute featured broadcast`}
-              onEnded={() => onPlay(broadcast.id)}
+              onPlaying={() => setMediaPlaying(true)}
+              onPause={() => setMediaPlaying(false)}
+              onEnded={() => {
+                setMediaPlaying(false);
+                setIsDocked(false);
+                onPlay(broadcast.id);
+              }}
               onVolumeChange={() => setIsMuted(videoRef.current?.muted ?? false)}
             >
               <track
@@ -654,7 +744,7 @@ export function BroadcastVideoCard({
         )}
         {isPlaying && !hasLocalDemo && dropId && (
           <div className="category-on-demand-player">
-            <DropPlayer dropId={dropId} />
+            <DropPlayer dropId={dropId} onPlayingChange={setMediaPlaying} />
           </div>
         )}
         <span className="category-lead-shade" aria-hidden="true" />
@@ -664,15 +754,22 @@ export function BroadcastVideoCard({
           disabled={!canPlay}
           tabIndex={isPlaying && !controlsVisible ? -1 : 0}
           onClick={() => {
-            if (canPlay) onPlay(broadcast.id);
+            if (!canPlay) return;
+            if (!isPlaying) onPlay(broadcast.id);
+            else if (mediaPlaying) pauseBroadcast();
+            else resumeBroadcast();
           }}
           aria-label={
             canPlay
-              ? `${isPlaying ? 'Pause' : 'Play'} ${broadcast.name}'s broadcast`
+              ? `${isPlaying && mediaPlaying ? 'Pause' : 'Play'} ${broadcast.name}'s broadcast`
               : `${broadcast.name}'s broadcast is not ready to play`
           }
         >
-          <Mic size={25} strokeWidth={1.8} aria-hidden="true" />
+          {isPlaying ? (
+            mediaPlaying ? <Pause size={25} aria-hidden="true" /> : <Play size={25} aria-hidden="true" />
+          ) : (
+            <Mic size={25} strokeWidth={1.8} aria-hidden="true" />
+          )}
         </button>
         {isPlaying && hasLocalDemo && (
           <div className="category-video-seek-controls" aria-label="Seek video">
@@ -708,6 +805,17 @@ export function BroadcastVideoCard({
             <small>LIVE TO THE WORLD</small>
           </span>
         </div>
+        {showFloatingPlayer && (
+          <button
+            className="category-floating-pause"
+            type="button"
+            onClick={pauseBroadcast}
+            aria-label="Pause floating broadcast"
+          >
+            <Pause size={16} fill="currentColor" aria-hidden="true" />
+            Pause
+          </button>
+        )}
         <div className="category-lead-media-actions">
           <button
             className={`category-lead-control category-lead-watchlist ${isWatchlisted ? 'is-saved' : ''}`}
@@ -827,14 +935,13 @@ export function BroadcastVideoCard({
               </button>
               <span
                 className="category-lead-author-platform"
-                role="img"
-                aria-label={`${broadcast.socialPlatform} profile`}
                 title={broadcast.socialPlatform}
               >
                 <SocialPlatformIcon
                   platform={broadcast.socialPlatform}
                   size={16}
-                  aria-hidden="true"
+                  aria-label={`${broadcast.socialPlatform} profile`}
+                  aria-hidden={false}
                 />
               </span>
             </div>
@@ -918,6 +1025,25 @@ export function BroadcastVideoCard({
         </div>
       </div>
     </section>
+  );
+
+  if (!isPlaying) return card;
+
+  return (
+    <>
+      <div
+        ref={placeholderRef}
+        className="category-lead-placeholder"
+        aria-hidden="true"
+      />
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <div className="market-shell dashboard-shell broadcast-floating-root">
+            {card}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -1013,6 +1139,7 @@ const CategoryPanel = memo(function CategoryPanel({
                     loadThumbnail
                     dropId={dropIdsByRank[broadcast.rank] ?? null}
                     useSharedDemoVideo
+                    accentColor={category.accent}
                   />
                 </div>
               );

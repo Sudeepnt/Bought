@@ -187,6 +187,105 @@
 
 }
 
+/* A playing broadcast keeps one live player while its place in the page
+   remains reserved. The player can then clear clipped carousels and chrome. */
+.category-lead-placeholder {
+  aspect-ratio: 16 / 9;
+  background: #060a0c;
+  min-height: 0;
+  width: 100%;
+}
+
+.broadcast-floating-root.market-shell.dashboard-shell {
+  --category-accent: #ef2b32;
+  background: transparent;
+  height: 0;
+  left: 0;
+  min-height: 0;
+  overflow: visible;
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  width: 0;
+  z-index: 80;
+}
+
+.broadcast-floating-root .category-lead-card.is-player-portaled {
+  aspect-ratio: auto;
+  height: var(--broadcast-source-height, 0px);
+  left: var(--broadcast-source-left, 0px);
+  overflow: hidden;
+  pointer-events: auto;
+  position: fixed;
+  top: var(--broadcast-source-top, 0px);
+  width: var(--broadcast-source-width, 0px);
+}
+
+.broadcast-floating-root .category-lead-card.is-player-portaled.is-docked {
+  aspect-ratio: 16 / 9;
+  border: 1px solid #394044;
+  border-radius: 0;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
+  height: auto;
+  left: auto;
+  overflow: visible;
+  right: 14px;
+  top: 0;
+  width: min(380px, calc(100vw - 28px));
+}
+
+.broadcast-floating-root .category-lead-card.is-docked .category-lead-media {
+  background: #000;
+  border-radius: 0;
+}
+
+.broadcast-floating-root .category-lead-card.is-docked .category-on-demand-player,
+.broadcast-floating-root .category-lead-card.is-docked .category-on-demand-player video {
+  border-radius: 0;
+}
+
+.broadcast-floating-root .category-lead-card.is-docked .category-on-demand-player video {
+  object-fit: contain;
+}
+
+.category-floating-pause {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 4px;
+  bottom: 12px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+  left: 12px;
+  min-height: 36px;
+  padding: 0 10px;
+  position: absolute;
+  z-index: 8;
+}
+
+.category-floating-pause:hover,
+.category-floating-pause:focus-visible {
+  background: #d82831;
+  border-color: #d82831;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+@media (max-width: 700px) {
+  .broadcast-floating-root .category-lead-card.is-player-portaled.is-docked {
+    border-left: 0;
+    border-right: 0;
+    left: 0;
+    right: 0;
+    width: 100vw;
+  }
+
+}
+
 * {
   box-sizing: border-box;
 }
@@ -15399,10 +15498,6 @@ html[data-theme='light'] .category-carousel-arrow {
   width: 100%;
 }
 
-.category-broadcast-video:not(.is-playing) .category-local-player {
-  visibility: hidden;
-}
-
 .category-local-player::after {
   content: '';
   inset: 0;
@@ -21991,218 +22086,6 @@ html[data-theme='light'] .watchlist-remove {
   }
 }
 
-/* Phone broadcast cards: keep the video visible and give every market control
-   its own space below the frame. This applies to Today and Categories. */
-@media (max-width: 700px) {
-  .homepage-broadcast-panel {
-    --category-accent: #ef2b32;
-  }
-
-  .category-lead-card.category-broadcast-video {
-    aspect-ratio: auto;
-    display: flex;
-    flex-direction: column;
-    height: auto;
-    min-height: 0;
-  }
-
-  .category-broadcast-video .category-lead-media {
-    aspect-ratio: 16 / 9;
-    flex: 0 0 auto;
-    height: auto;
-    inset: auto;
-    position: relative;
-    width: 100%;
-  }
-
-  .category-broadcast-video .category-lead-mic {
-    background: rgba(5, 9, 10, 0.52);
-    height: 52px;
-    width: 52px;
-  }
-
-  .category-broadcast-video .category-lead-content,
-  .category-broadcast-video.is-playing .category-lead-content {
-    background: #0b0f10;
-    display: grid;
-    gap: 11px 8px;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto;
-    height: auto;
-    inset: auto;
-    opacity: 1;
-    padding: 14px 14px 16px;
-    pointer-events: auto;
-    position: relative;
-    transform: none;
-  }
-
-  .category-broadcast-video .category-lead-market,
-  .category-broadcast-video .category-lead-stack,
-  .category-broadcast-video .category-lead-copy {
-    display: contents;
-  }
-
-  .category-broadcast-video.is-playing
-    :is(
-      .category-lead-rank,
-      .category-lead-copy,
-      .category-lead-value,
-      .category-lead-author
-    ) {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .category-broadcast-video .category-lead-rank {
-    align-self: center;
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .category-broadcast-video .category-lead-rank b {
-    font-size: 23px;
-  }
-
-  .category-broadcast-video .category-lead-rank em small {
-    display: none;
-  }
-
-  .category-broadcast-video .category-lead-copy > span {
-    align-self: center;
-    border-color: var(--category-accent, #ef2b32);
-    color: var(--category-accent, #ef2b32);
-    font-size: 8px;
-    grid-column: 2;
-    grid-row: 1;
-    margin: 0;
-    max-width: 170px;
-  }
-
-  .category-broadcast-video .category-lead-copy h2 {
-    font-size: clamp(17px, 4.6vw, 21px);
-    grid-column: 1 / -1;
-    grid-row: 2;
-    line-height: 1.25;
-    margin: 0;
-    text-align: left;
-    text-shadow: none;
-  }
-
-  .category-broadcast-video .category-lead-proof {
-    border-bottom: 1px solid #273033;
-    border-top: 1px solid #273033;
-    gap: 6px;
-    grid-column: 1 / -1;
-    grid-row: 3;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding: 10px 0;
-  }
-
-  .category-broadcast-video .category-lead-stat {
-    column-gap: 6px;
-    grid-template-columns: 16px minmax(0, 1fr);
-    height: auto;
-  }
-
-  .category-broadcast-video .category-lead-stat::before {
-    display: none;
-  }
-
-  .category-broadcast-video .category-lead-stat > svg {
-    height: 15px;
-    width: 15px;
-  }
-
-  .category-broadcast-video .category-lead-stat > span {
-    gap: 3px;
-    grid-column: 2;
-  }
-
-  .category-broadcast-video .category-lead-stat strong {
-    font-size: 12px;
-  }
-
-  .category-broadcast-video .category-lead-stat small {
-    font-size: 8px;
-  }
-
-  .category-broadcast-video .category-lead-bid-panel {
-    background: #111819;
-    border-color: #303b3e;
-    border-radius: 9px;
-    gap: 9px;
-    grid-column: 1 / -1;
-    grid-row: 4;
-    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-    padding: 8px;
-    width: 100%;
-  }
-
-  .category-broadcast-video .category-lead-bid-panel .category-lead-value {
-    padding-left: 3px;
-  }
-
-  .category-broadcast-video .category-lead-bid-panel .category-lead-value strong {
-    font-size: clamp(21px, 6vw, 26px);
-  }
-
-  .category-broadcast-video .category-lead-bid-panel .category-lead-take {
-    min-height: 44px;
-    padding: 0 8px;
-  }
-
-  .category-broadcast-video .category-lead-take-label {
-    gap: 5px;
-  }
-
-  .category-broadcast-video .category-lead-take-label svg {
-    height: 16px;
-    width: 16px;
-  }
-
-  .category-broadcast-video .category-lead-take strong {
-    font-size: 10px;
-  }
-
-  .category-broadcast-video .category-lead-take b {
-    font-size: 11px;
-    margin-left: 5px;
-    min-height: 30px;
-    padding-left: 6px;
-  }
-
-  .category-broadcast-video .category-lead-author {
-    grid-column: 1 / -1;
-    grid-row: 5;
-    min-width: 0;
-  }
-
-  .category-broadcast-video .category-lead-author-message {
-    margin-left: auto;
-  }
-
-  .category-broadcast-video .category-lead-engagement {
-    grid-column: 1 / -1;
-    grid-row: 6;
-    width: 100%;
-  }
-
-  .category-broadcast-video .category-lead-opinion-form input {
-    min-height: 34px;
-  }
-}
-
-@media (max-width: 360px) {
-  .category-broadcast-video .category-lead-bid-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .category-broadcast-video .category-lead-bid-panel .category-lead-take {
-    min-height: 38px;
-  }
-}
-
 /* Direct messages */
 .route-market-shell .chat-workspace {
   background: #090d0e;
@@ -22876,6 +22759,128 @@ html[data-theme='light'] .chat-date-divider::after {
   }
 }
 
+@media (min-width: 381px) and (max-width: 700px) {
+  .dashboard-shell .dashboard-status-row {
+    grid-template-columns: minmax(118px, 0.72fr) minmax(0, 1.28fr);
+  }
+
+  .dashboard-shell .status-countdown {
+    column-gap: 5px;
+    grid-template-columns: 24px minmax(0, 1fr) clamp(96px, 26vw, 104px);
+    padding-inline: 9px;
+  }
+
+  .dashboard-shell .countdown-icon,
+  .dashboard-shell .countdown-icon svg {
+    height: 24px;
+    width: 24px;
+  }
+
+  .dashboard-shell .countdown-label strong {
+    font-size: clamp(7.5px, 2vw, 9px);
+  }
+
+  .dashboard-shell .countdown-label span {
+    font-size: clamp(6px, 1.6vw, 7px);
+    letter-spacing: 0;
+  }
+
+  .dashboard-shell .countdown-segments,
+  .dashboard-shell .countdown-value strong {
+    font-size: clamp(15px, 4.1vw, 17px);
+  }
+
+  .dashboard-shell .countdown-segment small {
+    font-size: clamp(6px, 1.7vw, 7px);
+  }
+}
+
+@media (max-width: 380px) {
+  .dashboard-shell .dashboard-status-row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 6px;
+  }
+
+  .dashboard-shell .total-panel {
+    align-items: center;
+    flex-direction: row;
+    height: 56px;
+    justify-content: space-between;
+    min-height: 56px;
+    padding: 6px 12px;
+  }
+
+  .dashboard-shell .total-panel > div:first-child {
+    align-items: flex-start;
+    gap: 3px;
+  }
+
+  .dashboard-shell .total-panel strong {
+    font-size: 19px;
+  }
+
+  .dashboard-shell .total-panel .dashboard-delta {
+    font-size: 7px;
+    white-space: nowrap;
+  }
+
+  .dashboard-shell .status-countdown {
+    column-gap: 8px;
+    grid-template-columns: 26px minmax(0, 1fr) minmax(108px, max-content);
+    height: 66px;
+    min-height: 66px;
+    padding: 7px 12px;
+  }
+
+  .dashboard-shell .countdown-icon,
+  .dashboard-shell .countdown-icon svg {
+    height: 24px;
+    width: 24px;
+  }
+
+  .dashboard-shell .countdown-label {
+    gap: 4px;
+  }
+
+  .dashboard-shell .countdown-label strong {
+    font-size: 9px;
+  }
+
+  .dashboard-shell .countdown-label span {
+    font-size: 7px;
+    letter-spacing: 0;
+  }
+
+  .dashboard-shell .countdown-segments,
+  .dashboard-shell .countdown-value strong {
+    font-size: clamp(18px, 5.8vw, 20px);
+  }
+
+  .dashboard-shell .countdown-segments {
+    column-gap: 1px;
+  }
+
+  .dashboard-shell .countdown-segment {
+    gap: 3px;
+  }
+
+  .dashboard-shell .countdown-segment small {
+    font-size: 6px;
+  }
+}
+
+@media (max-width: 380px) {
+  .dashboard-shell .market-status-wrap .dashboard-status-row > .total-panel.dashboard-panel {
+    height: 56px;
+    min-height: 56px;
+  }
+
+  .dashboard-shell .market-status-wrap .dashboard-status-row > .status-countdown.dashboard-panel {
+    height: 66px;
+    min-height: 66px;
+  }
+}
+
 @media (max-width: 700px) {
   .dashboard-shell .leaderboard-movement.is-exposure small,
   .dashboard-shell .leaderboard-movement.is-syncing small {
@@ -22895,7 +22900,7 @@ html[data-theme='light'] .chat-date-divider::after {
 @media (max-width: 700px) {
   .category-carousel-page .category-carousel-filter-wrap {
     background: var(--ink);
-    padding-bottom: 8px;
+    padding-bottom: 4px;
     position: sticky;
     top: 80px;
     z-index: 25;
@@ -22903,6 +22908,44 @@ html[data-theme='light'] .chat-date-divider::after {
 
   .category-carousel-page .homepage-category-selector {
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  }
+
+  .category-carousel-page .floating-market-countdown {
+    align-items: center;
+    border-radius: 4px;
+    box-shadow: none;
+    display: flex;
+    gap: 5px;
+    height: 26px;
+    padding: 3px 6px;
+    right: 8px;
+    top: 52px;
+  }
+
+  .category-carousel-page .floating-market-countdown-icon svg {
+    height: 16px;
+    width: 16px;
+  }
+
+  .category-carousel-page .floating-market-countdown-time {
+    gap: 0;
+  }
+
+  .category-carousel-page .floating-market-countdown-time strong {
+    font-size: 14px;
+    letter-spacing: 0;
+  }
+
+  .category-carousel-page .floating-market-countdown-time small {
+    display: none;
+  }
+
+  .category-carousel-page .category-carousel-wrap {
+    padding-top: 6px;
+  }
+
+  .category-carousel-page .category-carousel-stage {
+    --category-card-width: 100%;
   }
 }
 
@@ -22993,6 +23036,69 @@ html[data-theme='light'] .chat-date-divider::after {
     font-size: 8px;
     padding-inline: 2px;
   }
+}
+
+/* Tighter phone layout: halve the shared section rhythm and page gutters. */
+@media (max-width: 700px) {
+  :root {
+    --page-section-gap: 5px;
+  }
+
+  .dashboard-shell:not(.route-market-shell) .dashboard-wrap,
+  .route-market-shell .dashboard-wrap {
+    padding-inline: 5px;
+  }
+
+  .dashboard-shell:not(.route-market-shell) .homepage-content-wrap {
+    padding-inline: 5px;
+  }
+
+  .dashboard-shell .status-countdown .countdown-icon {
+    flex: none;
+    overflow: visible;
+  }
+
+  .dashboard-shell .status-countdown .countdown-icon svg {
+    display: block;
+    flex: none;
+    overflow: visible;
+  }
+
+  .dashboard-shell .countdown-value {
+    overflow: visible;
+  }
+
+  .dashboard-shell .dashboard-status-panel > .status-countdown.dashboard-panel {
+    border-radius: 0;
+  }
+
+  .dashboard-shell .status-countdown .countdown-label,
+  .dashboard-shell .status-countdown .countdown-label strong,
+  .dashboard-shell .status-countdown .countdown-label span {
+    border-radius: 0;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 380px) {
+  .dashboard-shell .status-countdown {
+    grid-template-columns: 26px minmax(0, 1fr) max-content;
+  }
+
+  .dashboard-shell .countdown-value {
+    min-width: max-content;
+  }
+
+  .dashboard-shell .countdown-segments {
+    grid-template-columns: repeat(5, max-content);
+    width: max-content;
+  }
+
+  .dashboard-shell .countdown-segment {
+    min-width: 0;
+    width: max-content;
+  }
+
 }
 
 /* Watchlist phone cards: the desktop table is too wide for a handset, so

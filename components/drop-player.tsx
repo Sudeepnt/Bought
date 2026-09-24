@@ -5,7 +5,13 @@ import { useBought } from './bought-provider';
 
 const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
 
-export function DropPlayer({ dropId }: { dropId: string }) {
+export function DropPlayer({
+  dropId,
+  onPlayingChange,
+}: {
+  dropId: string;
+  onPlayingChange?: (playing: boolean) => void;
+}) {
   const { api } = useBought();
   const [media, setMedia] = useState<{
     playbackId: string;
@@ -75,6 +81,9 @@ export function DropPlayer({ dropId }: { dropId: string }) {
         poster={media.thumbnail}
         accentColor="#ef2b32"
         streamType="on-demand"
+        onPlaying={() => onPlayingChange?.(true)}
+        onPause={() => onPlayingChange?.(false)}
+        onEnded={() => onPlayingChange?.(false)}
         defaultHiddenCaptions={false}
         metadata={{ video_id: dropId, video_title: 'BOUGHT broadcast' }}
       >
