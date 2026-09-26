@@ -12,11 +12,8 @@ import {
 
 void test('categories select the correct recording surface', () => {
   for (const category of [
-    'BEEF',
-    'CHAOS',
     'UNPOPULAR OPINION',
     'I WAS WRONG',
-    'THE RANT',
     'CONFESSIONS',
   ])
     assert.equal(captureModeForCategory(category), 'camera');
@@ -25,10 +22,7 @@ void test('categories select the correct recording surface', () => {
     'MONEY I SET ON FIRE',
     'THE PITCH THAT GOT REJECTED',
     'BUILDING',
-    'THE ASK',
-    'HIRING',
-    'AGENCY ROW',
-    'INDIAN D2C',
+    'PRODUCT LAUNCH',
   ])
     assert.equal(captureModeForCategory(category), 'screen');
 });

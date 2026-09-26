@@ -4,20 +4,15 @@ import { useEffect, useState, type SyntheticEvent } from 'react';
 import {
   ArrowDownRight,
   ArrowUpRight,
-  Briefcase,
   Building2,
-  CircleHelp,
   Crown,
   DollarSign,
   FileText,
   Flame,
-  Megaphone,
   MessageCircle,
   Radio,
-  Store,
+  Rocket,
   Undo2,
-  UsersRound,
-  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import Image from 'next/image';
@@ -38,11 +33,18 @@ type LeaderboardRow = [string, string, string, string, string, string];
 const leaderboard: LeaderboardRow[] = [
   ['Ananya R.', '@ananyabuilds', 'UNPOPULAR OPINION', '$11,400', 'AR', 'coral'],
   ['Arjun S.', '@arjunsays', 'BUILDING', '$8,900', 'AS', 'green'],
-  ['Priya M.', '@priyamakes', 'MONEY', '$6,200', 'PM', 'orange'],
-  ['Rahul K.', '@rahulbuilds', 'BEEF', '$6,200', 'RK', 'blue'],
+  [
+    'Priya M.',
+    '@priyamakes',
+    'MONEY I SET ON FIRE',
+    '$6,200',
+    'PM',
+    'orange',
+  ],
+  ['Rahul K.', '@rahulbuilds', 'PRODUCT LAUNCH', '$6,200', 'RK', 'blue'],
   ['Karan V.', '@karanv', 'UNPOPULAR OPINION', '$4,800', 'KV', 'purple'],
-  ['Maya K.', '@mayaknowsthis', 'THE RANT', '$4,200', 'MK', 'green'],
-  ['Dev P.', '@devpicks', 'THE ASK', '$3,900', 'DP', 'blue'],
+  ['Maya K.', '@mayaknowsthis', 'I WAS WRONG', '$4,200', 'MK', 'green'],
+  ['Dev P.', '@devpicks', 'THE PITCH THAT GOT REJECTED', '$3,900', 'DP', 'blue'],
   [
     'Simran N.',
     '@simrannotes',
@@ -139,68 +141,44 @@ const globalLeadBroadcast: CategoryBroadcast = {
 
 const homeCategories = [
   ['ALL', '1,155'],
-  ['BEEF', '184'],
-  ['CHAOS', '28'],
   ['UNPOPULAR OPINION', '162'],
   ['I WAS WRONG', '141'],
-  ['THE RANT', '118'],
   ['CONFESSIONS', '96'],
   ['MONEY I SET ON FIRE', '88'],
   ['THE PITCH THAT GOT REJECTED', '74'],
   ['BUILDING', '69'],
-  ['THE ASK', '61'],
-  ['HIRING', '54'],
-  ['AGENCY ROW', '43'],
-  ['INDIAN D2C', '37'],
+  ['PRODUCT LAUNCH', '42'],
 ] as const;
 
 const homeCategoryIcons: Record<string, LucideIcon> = {
   ALL: Flame,
-  BEEF: MessageCircle,
-  CHAOS: Zap,
   'UNPOPULAR OPINION': Radio,
   'I WAS WRONG': Undo2,
-  'THE RANT': Megaphone,
   CONFESSIONS: MessageCircle,
   'MONEY I SET ON FIRE': DollarSign,
   'THE PITCH THAT GOT REJECTED': FileText,
   BUILDING: Building2,
-  'THE ASK': CircleHelp,
-  HIRING: Briefcase,
-  'AGENCY ROW': UsersRound,
-  'INDIAN D2C': Store,
+  'PRODUCT LAUNCH': Rocket,
 };
 
 const categoryLeaderBidCaps: Record<string, number> = {
-  BEEF: 9_800,
-  CHAOS: 7_600,
   'UNPOPULAR OPINION': 11_400,
   'I WAS WRONG': 8_700,
-  'THE RANT': 8_100,
   CONFESSIONS: 6_800,
   'MONEY I SET ON FIRE': 9_200,
   'THE PITCH THAT GOT REJECTED': 7_400,
   BUILDING: 8_900,
-  'THE ASK': 6_500,
-  HIRING: 6_200,
-  'AGENCY ROW': 5_800,
-  'INDIAN D2C': 7_100,
+  'PRODUCT LAUNCH': 7_800,
 };
 
 const categoryLeaderOffsets: Record<string, number> = {
-  BEEF: 3,
-  CHAOS: 5,
   'UNPOPULAR OPINION': 0,
   'I WAS WRONG': 6,
-  'THE RANT': 1,
   CONFESSIONS: 9,
   'MONEY I SET ON FIRE': 2,
   'THE PITCH THAT GOT REJECTED': 4,
   BUILDING: 1,
-  'THE ASK': 6,
-  HIRING: 7,
-  'AGENCY ROW': 8,
-  'INDIAN D2C': 5,
+  'PRODUCT LAUNCH': 3,
 };
 
 const categoryLeaderboards: Record<string, LeaderboardRow[]> =
@@ -251,18 +229,11 @@ const categoryPulse = [
     path: 'M2 15 C8 12 7 14 12 11 S18 12 21 8 S27 9 34 6',
   },
   {
-    name: 'The Ask',
-    key: 'THE ASK',
-    bids: '620',
-    positive: false,
-    path: 'M2 7 C8 9 9 13 14 10 S19 12 22 16 S28 13 34 17',
-  },
-  {
-    name: 'Hiring',
-    key: 'HIRING',
-    bids: '540',
+    name: 'Product Launch',
+    key: 'PRODUCT LAUNCH',
+    bids: '420',
     positive: true,
-    path: 'M2 16 C8 12 9 15 13 12 S18 13 22 10 S28 11 34 8',
+    path: 'M2 16 C8 13 9 14 13 10 S18 12 22 8 S28 9 34 5',
   },
 ] as const;
 

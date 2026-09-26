@@ -1,27 +1,18 @@
 export const CATEGORIES = [
-  'BEEF',
-  'CHAOS',
   'UNPOPULAR OPINION',
   'I WAS WRONG',
-  'THE RANT',
   'CONFESSIONS',
   'MONEY I SET ON FIRE',
   'THE PITCH THAT GOT REJECTED',
   'BUILDING',
-  'THE ASK',
-  'HIRING',
-  'AGENCY ROW',
-  'INDIAN D2C',
+  'PRODUCT LAUNCH',
 ] as const;
 
 export type CaptureMode = 'camera' | 'screen';
 
 export const TALK_ONLY_CATEGORIES = [
-  'BEEF',
-  'CHAOS',
   'UNPOPULAR OPINION',
   'I WAS WRONG',
-  'THE RANT',
   'CONFESSIONS',
 ] as const satisfies readonly (typeof CATEGORIES)[number][];
 

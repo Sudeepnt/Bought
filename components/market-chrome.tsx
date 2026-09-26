@@ -119,19 +119,19 @@ export function useMarqueeDuration(trackRef: RefObject<HTMLElement | null>) {
 
 export const fallbackFeedItems: FeedItem[] = [
   ['Ananya R.', 'took #1 in', 'UNPOPULAR OPINION', '$11,400', 'now'],
-  ['Rahul K.', 'raised a bid in', 'BEEF', '$6,200', '8s ago'],
+  ['Rahul K.', 'raised a bid in', 'PRODUCT LAUNCH', '$6,200', '8s ago'],
   ['Priya M.', 'shared an opinion on', 'MONEY', '', '14s ago'],
   ['Arjun S.', 'claimed #2 in', 'BUILDING', '$8,900', '21s ago'],
   ['Karan V.', 'was outbid in', 'UNPOPULAR OPINION', '$11,500', '29s ago'],
-  ['Maya K.', 'published a broadcast in', 'THE RANT', '$4,200', '36s ago'],
-  ['Dev P.', 'joined the bidding in', 'THE ASK', '$3,900', '43s ago'],
+  ['Maya K.', 'published a broadcast in', 'I WAS WRONG', '$4,200', '36s ago'],
+  ['Dev P.', 'joined the bidding in', 'THE PITCH THAT GOT REJECTED', '$3,900', '43s ago'],
   ['Simran N.', 'shared an opinion on', 'MONEY I SET ON FIRE', '', '51s ago'],
   ['Kabir J.', 'climbed to #3 in', 'BUILDING', '$3,200', '1m ago'],
   ['Aisha T.', 'placed a bid in', 'CONFESSIONS', '$2,900', '1m ago'],
-  ['Nia P.', 'took the lead in', 'CHAOS', '$5,700', '2m ago'],
-  ['Jon B.', 'had a broadcast approved in', 'HIRING', '$2,600', '2m ago'],
-  ['Rhea D.', 'replied to a broadcast in', 'BEEF', '', '3m ago'],
-  ['Leo M.', 'moved into the top five in', 'THE ASK', '$2,300', '3m ago'],
+  ['Nia P.', 'took the lead in', 'CONFESSIONS', '$5,700', '2m ago'],
+  ['Jon B.', 'had a broadcast approved in', 'BUILDING', '$2,600', '2m ago'],
+  ['Rhea D.', 'replied to a broadcast in', 'MONEY I SET ON FIRE', '', '3m ago'],
+  ['Leo M.', 'moved into the top five in', 'PRODUCT LAUNCH', '$2,300', '3m ago'],
 ];
 
 export function MarketStatusStrip({

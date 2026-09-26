@@ -10,10 +10,12 @@ export function DropPlayer({
   dropId,
   onPlayingChange,
   onAspectRatioChange,
+  onProgressChange,
 }: {
   dropId: string;
   onPlayingChange?: (playing: boolean) => void;
   onAspectRatioChange?: (width: number, height: number) => void;
+  onProgressChange?: (current: number, duration: number) => void;
 }) {
   const { api } = useBought();
   const [media, setMedia] = useState<{
@@ -87,10 +89,20 @@ export function DropPlayer({
         onPlaying={() => onPlayingChange?.(true)}
         onPause={() => onPlayingChange?.(false)}
         onEnded={() => onPlayingChange?.(false)}
+        onTimeUpdate={(event) => {
+          const player = event.currentTarget as MuxPlayerElement;
+          onProgressChange?.(player.currentTime, player.duration);
+        }}
+        onDurationChange={(event) => {
+          const player = event.currentTarget as MuxPlayerElement;
+          onProgressChange?.(player.currentTime, player.duration);
+        }}
         onLoadedMetadata={(event) => {
           const player = event.currentTarget as MuxPlayerElement | null;
-          if (player)
+          if (player) {
             onAspectRatioChange?.(player.videoWidth, player.videoHeight);
+            onProgressChange?.(player.currentTime, player.duration);
+          }
         }}
         defaultHiddenCaptions={false}
         metadata={{ video_id: dropId, video_title: 'BOUGHT broadcast' }}

@@ -3,18 +3,14 @@
 import {
   ArrowLeft,
   ArrowRight,
-  BriefcaseBusiness,
   Building2,
   Check,
-  Lightbulb,
   MessageCircle,
   Radio,
-  Sparkles,
-  Sprout,
+  Rocket,
   Target,
   TrendingUp,
   UserRound,
-  UsersRound,
   type LucideIcon,
 } from 'lucide-react';
 import { useState, type SyntheticEvent } from 'react';
@@ -25,14 +21,11 @@ const CATEGORY_DETAILS: Record<
   (typeof CATEGORIES)[number],
   { description: string; icon: LucideIcon }
 > = {
-  BEEF: { description: 'Call-outs. Responses. Receipts.', icon: MessageCircle },
-  CHAOS: { description: 'Unexpected turns and wild stories.', icon: Sparkles },
   'UNPOPULAR OPINION': {
     description: "Say what others won't.",
     icon: MessageCircle,
   },
   'I WAS WRONG': { description: 'Change your mind.', icon: ArrowLeft },
-  'THE RANT': { description: 'Let it out.', icon: Radio },
   CONFESSIONS: { description: 'True stories.', icon: UserRound },
   'MONEY I SET ON FIRE': {
     description: 'Expensive lessons.',
@@ -43,10 +36,10 @@ const CATEGORY_DETAILS: Record<
     icon: Target,
   },
   BUILDING: { description: 'Products in public.', icon: Building2 },
-  'THE ASK': { description: 'Questions worth answering.', icon: Lightbulb },
-  HIRING: { description: 'Roles, teams, talent.', icon: BriefcaseBusiness },
-  'AGENCY ROW': { description: 'Brands, agencies, truth.', icon: UsersRound },
-  'INDIAN D2C': { description: 'Operators building for India.', icon: Sprout },
+  'PRODUCT LAUNCH': {
+    description: 'Launches, first customers, and what happens next.',
+    icon: Rocket,
+  },
 };
 
 export function SignInCategoryStep({

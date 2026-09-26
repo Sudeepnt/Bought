@@ -4,32 +4,27 @@ import {
   ArrowDown,
   ArrowUp,
   Bookmark,
-  Briefcase,
   Building2,
-  ChevronLeft,
-  ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Check,
-  CircleHelp,
   Copy,
   DollarSign,
   Eye,
   FileText,
   Flame,
   Gavel,
-  Megaphone,
   MessageCircle,
   Mic,
+  Maximize,
+  Minimize,
   Radio,
-  RotateCcw,
+  Rocket,
   Send,
   Share2,
-  Store,
   Undo2,
   UsersRound,
-  Volume2,
-  VolumeX,
   X,
-  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -37,6 +32,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -218,26 +214,6 @@ const categories: CategoryDefinition[] = [
     icon: Flame,
   },
   {
-    name: 'BEEF',
-    description: 'Call-outs, disagreements, and public receipts.',
-    liveCount: '184',
-    accent: '#ff3b45',
-    topBid: 9800,
-    leaderOffset: 3,
-    leadTitle: 'This founder is faking it. Here is proof.',
-    icon: MessageCircle,
-  },
-  {
-    name: 'CHAOS',
-    description: 'Messy launches, hard pivots, and close calls.',
-    liveCount: '28',
-    accent: '#f19132',
-    topBid: 7600,
-    leaderOffset: 5,
-    leadTitle: 'Nobody knows what happens after this launch.',
-    icon: Zap,
-  },
-  {
     name: 'UNPOPULAR OPINION',
     description: 'The take nobody wants to say in the room.',
     liveCount: '162',
@@ -256,16 +232,6 @@ const categories: CategoryDefinition[] = [
     leaderOffset: 6,
     leadTitle: 'I defended this strategy. I was completely wrong.',
     icon: Undo2,
-  },
-  {
-    name: 'THE RANT',
-    description: 'Unfiltered arguments with nothing softened.',
-    liveCount: '118',
-    accent: '#f05a73',
-    topBid: 8100,
-    leaderOffset: 1,
-    leadTitle: 'Stop shipping features nobody asked for.',
-    icon: Megaphone,
   },
   {
     name: 'CONFESSIONS',
@@ -308,45 +274,26 @@ const categories: CategoryDefinition[] = [
     icon: Building2,
   },
   {
-    name: 'THE ASK',
-    description: 'Specific questions for people who know the work.',
-    liveCount: '61',
-    accent: '#b970ff',
-    topBid: 6500,
-    leaderOffset: 6,
-    leadTitle: 'Tell me exactly why this pricing is broken.',
-    icon: CircleHelp,
+    name: 'PRODUCT LAUNCH',
+    description: 'Launches, first customers, and what happens next.',
+    liveCount: '42',
+    accent: '#f19132',
+    topBid: 7800,
+    leaderOffset: 3,
+    leadTitle: 'The launch plan we rewrote after our first customers.',
+    icon: Rocket,
   },
-  {
-    name: 'HIRING',
-    description: 'Teams, talent, interviews, and painful tradeoffs.',
-    liveCount: '54',
-    accent: '#ff8a3d',
-    topBid: 6200,
-    leaderOffset: 7,
-    leadTitle: 'Your first ten hires should not look like this.',
-    icon: Briefcase,
-  },
-  {
-    name: 'AGENCY ROW',
-    description: 'The client work everyone complains about privately.',
-    liveCount: '43',
-    accent: '#49c5b6',
-    topBid: 5800,
-    leaderOffset: 8,
-    leadTitle: 'The retainer model nobody admits is failing.',
-    icon: UsersRound,
-  },
-  {
-    name: 'INDIAN D2C',
-    description: 'Growth, margins, distribution, and the ground truth.',
-    liveCount: '37',
-    accent: '#ff9d4d',
-    topBid: 7100,
-    leaderOffset: 5,
-    leadTitle: 'The CAC math behind our biggest mistake.',
-    icon: Store,
-  },
+];
+
+const trendingCategoryIndex = categories.findIndex(
+  (category) => category.name === 'PRODUCT LAUNCH',
+);
+const categoryTabIndices = [
+  0,
+  trendingCategoryIndex,
+  ...categories
+    .map((_, index) => index)
+    .filter((index) => index > 0 && index !== trendingCategoryIndex),
 ];
 
 function formatPrice(value: number) {
@@ -442,7 +389,11 @@ function VideoThumbnail({
   prominent?: boolean;
   shouldLoad?: boolean;
 }) {
-  const prominentImage = prominent ? '/category-feature-poster.jpg' : null;
+  const prominentImage = prominent
+    ? broadcast.rank === 2
+      ? '/category-feature-portrait-poster.jpg'
+      : '/category-feature-poster.jpg'
+    : null;
   const style = shouldLoad
     ? prominentImage
       ? undefined
@@ -465,6 +416,7 @@ function VideoThumbnail({
           src={prominentImage}
           alt=""
           fill
+          style={{ objectFit: 'contain' }}
           sizes="(max-width: 680px) 100vw, 48vw"
         />
       )}
@@ -482,13 +434,96 @@ function VideoThumbnail({
   );
 }
 
+function videoClock(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '--:--';
+  const wholeSeconds = Math.floor(seconds);
+  return `${Math.floor(wholeSeconds / 60)}:${String(wholeSeconds % 60).padStart(2, '0')}`;
+}
+
+function broadcastShareUrl(broadcast: CategoryBroadcast) {
+  const url = new URL('/categories', window.location.origin);
+  url.searchParams.set('category', broadcast.id.startsWith('ALL-') ? 'ALL' : broadcast.categoryName);
+  url.searchParams.set('broadcast', broadcast.id);
+  return url.toString();
+}
+
+function SpreadPositionDialog({ broadcast, onClose }: {
+  broadcast: CategoryBroadcast;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
+  const url = broadcastShareUrl(broadcast);
+
+  useEffect(() => {
+    function closeOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setError('');
+    } catch {
+      setError('Could not copy automatically. Select the link below to copy it.');
+    }
+  }
+
+  async function shareLink() {
+    try {
+      await navigator.share({ title: broadcast.title, url });
+      setError('');
+    } catch (reason) {
+      if (!(reason instanceof DOMException && reason.name === 'AbortError')) {
+        setError('Could not open sharing. Copy the link instead.');
+      }
+    }
+  }
+
+  return createPortal(
+    <div className="category-action-backdrop">
+      <dialog open className="category-action-dialog" aria-modal="true" aria-labelledby={`spread-title-${broadcast.id}`}>
+        <div className="category-action-head">
+          <div>
+            <small>SPREAD THIS BROADCAST</small>
+            <h2 id={`spread-title-${broadcast.id}`}>Spread this position</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close spread dialog"><X size={18} /></button>
+        </div>
+        <p className="category-action-description">Send a direct link to {broadcast.name}&apos;s video.</p>
+        <div className="category-action-copy">
+          <input readOnly aria-label="Broadcast link" value={url} onFocus={(event) => event.currentTarget.select()} />
+          <button type="button" onClick={copyLink}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? 'Copied' : 'Copy link'}</button>
+        </div>
+        {typeof navigator.share === 'function' && (
+          <button className="category-action-primary category-action-share" type="button" onClick={() => { void shareLink(); }}>
+            <Share2 size={15} aria-hidden="true" /> Share link
+          </button>
+        )}
+        {error && <p className="category-action-error" role="alert">{error}</p>}
+      </dialog>
+    </div>,
+    document.body,
+  );
+}
+
 export function BroadcastVideoCard({
-  broadcast,
+  broadcast: selectedBroadcast,
   playingId,
   onPlay,
   loadThumbnail,
   dropId,
+  reelBroadcasts,
+  onReelExit,
+  initialPlaybackTime = 0,
   useSharedDemoVideo = false,
+  thumbnailPreview = false,
+  onPreviewSpread,
+  onPreviewSelect,
   accentColor,
 }: {
   broadcast: CategoryBroadcast;
@@ -496,43 +531,131 @@ export function BroadcastVideoCard({
   onPlay: (id: string) => void;
   loadThumbnail: boolean;
   dropId: string | null;
+  reelBroadcasts?: CategoryBroadcast[];
+  onReelExit?: (broadcast: CategoryBroadcast, resume: boolean, time: number) => void;
+  initialPlaybackTime?: number;
   useSharedDemoVideo?: boolean;
+  thumbnailPreview?: boolean;
+  onPreviewSpread?: (broadcast: CategoryBroadcast) => void;
+  onPreviewSelect?: (broadcast: CategoryBroadcast) => void;
   accentColor?: string;
 }) {
   const { session } = useBought();
-  const isPlaying = playingId === broadcast.id;
   const [isWatchlisted, setIsWatchlisted] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [mediaPlaying, setMediaPlaying] = useState(false);
   const [isDocked, setIsDocked] = useState(false);
-  const [mediaAspectRatio, setMediaAspectRatio] = useState<number | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [reelIndex, setReelIndex] = useState<number | null>(null);
+  const [reelPlaybackActive, setReelPlaybackActive] = useState(false);
+  const [playIntent, setPlayIntent] = useState(playingId === selectedBroadcast.id);
+  const [nextCountdown, setNextCountdown] = useState<number | null>(null);
+  const [reelSlideToken, setReelSlideToken] = useState(0);
+  const [measuredAspectRatio, setMeasuredAspectRatio] = useState<number | null>(null);
+  const [videoPosition, setVideoPosition] = useState({ current: 0, duration: 0 });
   const [opinions, setOpinions] = useState<Array<{ text: string; stance: 'agree' | 'disagree' }>>([]);
   const [opinionStep, setOpinionStep] = useState(0);
   const [opinionDraft, setOpinionDraft] = useState('');
   const [isMessageOpen, setIsMessageOpen] = useState(false);
   const [isSpreadOpen, setIsSpreadOpen] = useState(false);
-  const [spreadCopied, setSpreadCopied] = useState(false);
-  const [spreadError, setSpreadError] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
   const [messageError, setMessageError] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const placeholderRef = useRef<HTMLDivElement>(null);
   const floatingRef = useRef<HTMLElement>(null);
   const controlsTimerRef = useRef<number | null>(null);
+  const lastReelMoveRef = useRef(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const initialTimeAppliedRef = useRef(false);
+  const videoPositionRef = useRef({ current: 0, duration: 0 });
+  const reelItems = useMemo(
+    () => (reelBroadcasts?.length ? reelBroadcasts : [selectedBroadcast]),
+    [reelBroadcasts, selectedBroadcast],
+  );
+  const selectedIndex = Math.max(0, reelItems.findIndex(({ id }) => id === selectedBroadcast.id));
+  const activeReelIndex = reelIndex ?? selectedIndex;
+  const broadcast = isFullscreen ? reelItems[activeReelIndex] ?? selectedBroadcast : selectedBroadcast;
+  const nextBroadcast = reelItems[activeReelIndex + 1];
+  const isPlaying = isFullscreen ? reelPlaybackActive : playingId === selectedBroadcast.id;
   const hasLocalDemo = useSharedDemoVideo || broadcast.rank === 1;
+  const isPortraitDemo = hasLocalDemo && broadcast.rank === 2;
+  const mediaAspectRatio = measuredAspectRatio ?? (isPortraitDemo && !thumbnailPreview ? 9 / 16 : null);
+  const demoSource = isPortraitDemo
+    ? '/video/category-feature-portrait.mp4'
+    : '/video/category-feature.mp4';
+  const demoPoster = isPortraitDemo
+    ? '/category-feature-portrait-poster.jpg'
+    : '/category-feature-poster.jpg';
   const canPlay = hasLocalDemo || Boolean(dropId);
-  const showFloatingPlayer = isPlaying && mediaPlaying && isDocked;
+  const showFloatingPlayer = isPlaying && (mediaPlaying || nextCountdown !== null) && isDocked && !isFullscreen;
   const handleMediaAspectChange = useCallback((width: number, height: number) => {
     const nextRatio = portraitVideoAspectRatio(width, height);
-    setMediaAspectRatio((current) =>
+    setMeasuredAspectRatio((current) =>
       nextRatio !== null && current !== null && Math.abs(current - nextRatio) < 0.001
         ? current
         : nextRatio,
     );
   }, []);
 
+  const changeReel = useCallback((direction: -1 | 1, fromGesture = false) => {
+    if (!isFullscreen) return;
+    const nextIndex = activeReelIndex + direction;
+    if (nextIndex < 0 || nextIndex >= reelItems.length) return;
+    const now = Date.now();
+    if (fromGesture && now - lastReelMoveRef.current < 650) return;
+    lastReelMoveRef.current = now;
+    setNextCountdown(null);
+    setReelIndex(nextIndex);
+    setReelSlideToken((token) => token + 1);
+    setReelPlaybackActive(playIntent);
+    setMediaPlaying(false);
+    setMeasuredAspectRatio(null);
+    const nextPosition = { current: 0, duration: useSharedDemoVideo ? 60 : 0 };
+    videoPositionRef.current = nextPosition;
+    setVideoPosition(nextPosition);
+  }, [activeReelIndex, isFullscreen, playIntent, reelItems.length, useSharedDemoVideo]);
+
+  useEffect(() => {
+    if (nextCountdown === null) return;
+    const timer = window.setTimeout(() => {
+      if (nextCountdown > 1) {
+        setNextCountdown(nextCountdown - 1);
+        return;
+      }
+      setNextCountdown(null);
+      if (!nextBroadcast) return;
+      if (isFullscreen) changeReel(1);
+      else onReelExit?.(nextBroadcast, true, 0);
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [changeReel, isFullscreen, nextBroadcast, nextCountdown, onReelExit]);
+
+  const finishFullscreen = useCallback(() => {
+    const activeBroadcast = reelItems[activeReelIndex] ?? selectedBroadcast;
+    const resume = reelPlaybackActive && playIntent;
+    const time = videoRef.current?.currentTime ?? videoPositionRef.current.current;
+    setIsFullscreen(false);
+    setReelIndex(null);
+    setReelPlaybackActive(false);
+    if (
+      onReelExit &&
+      (activeBroadcast.id !== selectedBroadcast.id || (resume && playingId !== selectedBroadcast.id))
+    ) {
+      onReelExit(activeBroadcast, resume, time);
+    }
+  }, [activeReelIndex, onReelExit, playIntent, playingId, reelItems, reelPlaybackActive, selectedBroadcast]);
+
+  function updateVideoPosition(current: number, duration: number) {
+    const next = {
+      current: Number.isFinite(current) ? current : 0,
+      duration: Number.isFinite(duration) ? duration : 0,
+    };
+    videoPositionRef.current = next;
+    setVideoPosition(next);
+  }
+
   const pauseBroadcast = () => {
+    setPlayIntent(false);
     if (hasLocalDemo) {
       videoRef.current?.pause();
     } else {
@@ -545,6 +668,8 @@ export function BroadcastVideoCard({
   };
 
   const resumeBroadcast = () => {
+    setPlayIntent(true);
+    if (videoRef.current?.ended) videoRef.current.currentTime = 0;
     const player = hasLocalDemo
       ? videoRef.current
       : (floatingRef.current?.querySelector('mux-player') as
@@ -558,7 +683,7 @@ export function BroadcastVideoCard({
   };
 
   useLayoutEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || isFullscreen) return;
 
     const placeholder = placeholderRef.current;
     const floatingCard = floatingRef.current;
@@ -571,7 +696,7 @@ export function BroadcastVideoCard({
       floatingCard.style.setProperty('--broadcast-source-left', `${rect.left}px`);
       floatingCard.style.setProperty('--broadcast-source-width', `${rect.width}px`);
       floatingCard.style.setProperty('--broadcast-source-height', `${rect.height}px`);
-      setIsDocked(mediaPlaying && rect.bottom <= 0);
+      setIsDocked((mediaPlaying || nextCountdown !== null) && rect.bottom <= 0);
     };
     const schedulePosition = () => {
       if (frame !== null) return;
@@ -595,30 +720,68 @@ export function BroadcastVideoCard({
       window.removeEventListener('resize', schedulePosition);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
-  }, [isPlaying, mediaAspectRatio, mediaPlaying]);
+  }, [isPlaying, isFullscreen, mediaAspectRatio, mediaPlaying, nextCountdown]);
 
-  function seekVideo(seconds: number) {
-    const video = videoRef.current;
-    if (!video) return;
+  useEffect(() => {
+    if (!isFullscreen) return;
 
-    const duration = Number.isFinite(video.duration) ? video.duration : Infinity;
-    video.currentTime = Math.min(
-      Math.max(video.currentTime + seconds, 0),
-      duration,
-    );
-  }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape' && document.fullscreenElement !== floatingRef.current) {
+        finishFullscreen();
+      }
+      if (
+        (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
+        !(event.target instanceof HTMLInputElement)
+      ) {
+        event.preventDefault();
+        changeReel(event.key === 'ArrowDown' ? 1 : -1, true);
+      }
+    };
+    const onFullscreenChange = () => {
+      if (document.fullscreenElement !== floatingRef.current) finishFullscreen();
+    };
+    document.addEventListener('keydown', onEscape);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onEscape);
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+    };
+  }, [changeReel, finishFullscreen, isFullscreen]);
 
-  function startOver() {
-    const video = videoRef.current;
-    if (!video) return;
-    video.currentTime = 0;
-  }
+  async function toggleFullscreen() {
+    clearControlsTimer();
+    setControlsVisible(true);
+    if (isFullscreen) {
+      if (document.fullscreenElement === floatingRef.current) {
+        try {
+          await document.exitFullscreen();
+        } catch {
+          finishFullscreen();
+        }
+      } else {
+        finishFullscreen();
+      }
+      return;
+    }
 
-  function toggleMute() {
-    const video = videoRef.current;
-    const nextMuted = video ? !video.muted : !isMuted;
-    if (video) video.muted = nextMuted;
-    setIsMuted(nextMuted);
+    // Keep a CSS fullscreen fallback for iPhone Safari and other browsers
+    // without element fullscreen support.
+    setReelIndex(selectedIndex);
+    setReelPlaybackActive(playingId === selectedBroadcast.id);
+    if (hasLocalDemo && !videoPositionRef.current.duration) {
+      updateVideoPosition(0, 60);
+    }
+    setIsFullscreen(true);
+    if (isPlaying && floatingRef.current?.requestFullscreen) {
+      try {
+        await floatingRef.current.requestFullscreen();
+      } catch {
+        // The fixed viewport player remains available when native fullscreen is denied.
+      }
+    }
   }
 
   function submitOpinion(event: SyntheticEvent<HTMLFormElement>) {
@@ -637,23 +800,6 @@ export function BroadcastVideoCard({
     const timer = window.setInterval(() => setOpinionStep((step) => step + 1), 3000);
     return () => window.clearInterval(timer);
   }, [opinions.length]);
-
-  const spreadUrl = () => {
-    const url = new URL('/categories', window.location.origin);
-    url.searchParams.set('category', broadcast.id.startsWith('ALL-') ? 'ALL' : broadcast.categoryName);
-    url.searchParams.set('broadcast', broadcast.id);
-    return url.toString();
-  };
-
-  async function copySpreadLink() {
-    try {
-      await navigator.clipboard.writeText(spreadUrl());
-      setSpreadCopied(true);
-      setSpreadError('');
-    } catch {
-      setSpreadError('Could not copy automatically. Select the link below to copy it.');
-    }
-  }
 
   function submitMessage(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -690,20 +836,15 @@ export function BroadcastVideoCard({
   }
 
   useEffect(() => {
-    if (videoRef.current) videoRef.current.muted = isMuted;
-  }, [isMuted]);
-
-  useEffect(() => {
-    if (!isMessageOpen && !isSpreadOpen) return;
+    if (!isMessageOpen) return;
     function closeOnEscape(event: globalThis.KeyboardEvent) {
       if (event.key === 'Escape') {
         setIsMessageOpen(false);
-        setIsSpreadOpen(false);
       }
     }
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [isMessageOpen, isSpreadOpen]);
+  }, [isMessageOpen]);
 
   const clearControlsTimer = useCallback(() => {
     if (controlsTimerRef.current === null) return;
@@ -714,12 +855,12 @@ export function BroadcastVideoCard({
   const revealControls = useCallback(() => {
     setControlsVisible(true);
     clearControlsTimer();
-    if (isPlaying)
+    if (isPlaying && !isFullscreen)
       controlsTimerRef.current = window.setTimeout(
         () => setControlsVisible(false),
         2400,
       );
-  }, [clearControlsTimer, isPlaying]);
+  }, [clearControlsTimer, isPlaying, isFullscreen]);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -737,7 +878,7 @@ export function BroadcastVideoCard({
   useEffect(() => {
     if (!hasLocalDemo || !videoRef.current) return;
 
-    if (isPlaying) {
+    if (isPlaying && playIntent) {
       const playRequest = videoRef.current.play();
       void playRequest.catch((error: unknown) => {
         // Rapid play/pause changes intentionally cancel the pending request.
@@ -752,7 +893,7 @@ export function BroadcastVideoCard({
     }
 
     videoRef.current.pause();
-  }, [hasLocalDemo, isPlaying]);
+  }, [broadcast.id, hasLocalDemo, isPlaying, playIntent]);
 
   const mediaAspectStyle = mediaAspectRatio
     ? ({ '--category-video-aspect-ratio': mediaAspectRatio } as CSSProperties)
@@ -768,11 +909,32 @@ export function BroadcastVideoCard({
   const card = (
     <section
       ref={floatingRef}
-      className={`category-lead-card category-broadcast-video ${mediaAspectRatio ? 'is-portrait-video' : ''} ${isPlaying ? 'is-playing is-player-portaled' : ''} ${mediaPlaying ? 'is-media-playing' : ''} ${mediaPlaying && !controlsVisible ? 'controls-hidden' : ''} ${showFloatingPlayer ? 'is-docked' : ''}`}
+      className={`category-lead-card category-broadcast-video ${mediaAspectRatio ? 'is-portrait-video' : ''} ${isPlaying ? 'is-playing' : ''} ${isPlaying || isFullscreen ? 'is-player-portaled' : ''} ${isFullscreen ? 'is-video-fullscreen' : ''} ${mediaPlaying ? 'is-media-playing' : ''} ${mediaPlaying && !controlsVisible ? 'controls-hidden' : ''} ${showFloatingPlayer ? 'is-docked' : ''}`}
       style={cardStyle}
+      onWheel={(event) => {
+        if (!isFullscreen || Math.abs(event.deltaY) < 12) return;
+        changeReel(event.deltaY > 0 ? 1 : -1, true);
+      }}
+      onTouchStart={(event) => {
+        if (!isFullscreen) return;
+        touchStartRef.current = {
+          x: event.touches[0].clientX,
+          y: event.touches[0].clientY,
+        };
+      }}
+      onTouchEnd={(event) => {
+        const start = touchStartRef.current;
+        touchStartRef.current = null;
+        if (!isFullscreen || !start) return;
+        const deltaX = event.changedTouches[0].clientX - start.x;
+        const deltaY = event.changedTouches[0].clientY - start.y;
+        if (Math.abs(deltaY) < 60 || Math.abs(deltaY) < Math.abs(deltaX) * 1.3) return;
+        changeReel(deltaY < 0 ? 1 : -1, true);
+      }}
     >
       <div
-        className="category-lead-media"
+        key={reelSlideToken}
+        className={`category-lead-media ${isFullscreen && reelSlideToken > 0 ? 'is-reel-rising' : ''}`}
         onPointerDown={revealControls}
         onPointerMove={revealControls}
       >
@@ -781,30 +943,52 @@ export function BroadcastVideoCard({
           prominent
           shouldLoad={loadThumbnail}
         />
-        {hasLocalDemo && (
+        {hasLocalDemo && isPlaying && (
           <div className="category-on-demand-player category-local-player">
             <video
+              key={broadcast.id}
               ref={videoRef}
-              src="/video/category-feature.mp4"
-              poster="/category-feature-poster.jpg"
-              muted={isMuted}
+              src={demoSource}
+              poster={demoPoster}
               playsInline
               preload="metadata"
               aria-label={`${broadcast.name}'s one-minute featured broadcast`}
-              onLoadedMetadata={(event) =>
+              onLoadedMetadata={(event) => {
                 handleMediaAspectChange(
                   event.currentTarget.videoWidth,
                   event.currentTarget.videoHeight,
-                )
+                );
+                if (
+                  !initialTimeAppliedRef.current &&
+                  initialPlaybackTime > 0 &&
+                  broadcast.id === selectedBroadcast.id
+                ) {
+                  event.currentTarget.currentTime = Math.min(
+                    initialPlaybackTime,
+                    event.currentTarget.duration,
+                  );
+                  initialTimeAppliedRef.current = true;
+                }
+                updateVideoPosition(event.currentTarget.currentTime, event.currentTarget.duration);
+              }}
+              onTimeUpdate={(event) =>
+                updateVideoPosition(event.currentTarget.currentTime, event.currentTarget.duration)
+              }
+              onDurationChange={(event) =>
+                updateVideoPosition(event.currentTarget.currentTime, event.currentTarget.duration)
               }
               onPlaying={() => setMediaPlaying(true)}
               onPause={() => setMediaPlaying(false)}
               onEnded={() => {
                 setMediaPlaying(false);
-                setIsDocked(false);
-                onPlay(broadcast.id);
+                clearControlsTimer();
+                setControlsVisible(true);
+                if (playIntent && nextBroadcast && (isFullscreen || onReelExit)) {
+                  setNextCountdown(10);
+                } else {
+                  setPlayIntent(false);
+                }
               }}
-              onVolumeChange={() => setIsMuted(videoRef.current?.muted ?? false)}
             >
               <track
                 kind="captions"
@@ -819,56 +1003,63 @@ export function BroadcastVideoCard({
         {isPlaying && !hasLocalDemo && dropId && (
           <div className="category-on-demand-player">
             <DropPlayer
+              key={broadcast.id}
               dropId={dropId}
               onPlayingChange={setMediaPlaying}
               onAspectRatioChange={handleMediaAspectChange}
+              onProgressChange={updateVideoPosition}
             />
           </div>
         )}
         <span className="category-lead-shade" aria-hidden="true" />
+        {thumbnailPreview && (
+          <button
+            className="category-position-preview-open"
+            type="button"
+            aria-label={`Open position #${broadcast.rank}`}
+            onClick={() => onPreviewSelect?.(broadcast)}
+          />
+        )}
         <button
-          className="category-lead-mic"
+          className={`category-lead-mic ${nextCountdown !== null ? 'is-next-countdown' : ''}`}
           type="button"
           disabled={!canPlay}
           tabIndex={mediaPlaying && !controlsVisible ? -1 : 0}
+          title={nextCountdown !== null ? 'Click to stop the next video' : undefined}
           onClick={() => {
             if (!canPlay) return;
-            if (!isPlaying) onPlay(broadcast.id);
+            if (nextCountdown !== null) {
+              setNextCountdown(null);
+              setPlayIntent(false);
+              return;
+            }
+            if (!isPlaying) {
+              if (thumbnailPreview) {
+                onPlay(selectedBroadcast.id);
+                return;
+              }
+              setPlayIntent(true);
+              if (isFullscreen) setReelPlaybackActive(true);
+              else onPlay(selectedBroadcast.id);
+            }
             else if (mediaPlaying) pauseBroadcast();
             else resumeBroadcast();
           }}
           aria-label={
-            canPlay
+            nextCountdown !== null
+              ? `Next video in ${nextCountdown} seconds. Click to stop.`
+              : canPlay
               ? `${isPlaying && mediaPlaying ? 'Pause' : 'Play'} ${broadcast.name}'s broadcast`
               : `${broadcast.name}'s broadcast is not ready to play`
           }
+          style={nextCountdown !== null ? { '--next-progress': `${(10 - nextCountdown) * 10}%` } as CSSProperties : undefined}
         >
-          <Mic size={25} strokeWidth={1.8} aria-hidden="true" />
+          {nextCountdown !== null ? (
+            <span className="category-next-countdown-label"><strong>{nextCountdown}</strong><small>NEXT</small></span>
+          ) : (
+            <Mic size={25} strokeWidth={1.8} aria-hidden="true" />
+          )}
         </button>
-        {mediaPlaying && hasLocalDemo && (
-          <div className="category-video-seek-controls" aria-label="Seek video">
-            <button
-              className="category-video-seek-control"
-              type="button"
-              onClick={() => seekVideo(-10)}
-              tabIndex={controlsVisible ? 0 : -1}
-              aria-label="Back 10 seconds"
-            >
-              <ChevronLeft size={18} aria-hidden="true" />
-              <span>10</span>
-            </button>
-            <button
-              className="category-video-seek-control"
-              type="button"
-              onClick={() => seekVideo(10)}
-              tabIndex={controlsVisible ? 0 : -1}
-              aria-label="Forward 10 seconds"
-            >
-              <span>10</span>
-              <ChevronRight size={18} aria-hidden="true" />
-            </button>
-          </div>
-        )}
         <div
           className={`category-stage-status ${mediaPlaying ? 'is-visible' : ''}`}
           aria-hidden={!mediaPlaying}
@@ -891,6 +1082,26 @@ export function BroadcastVideoCard({
         )}
         <div className="category-lead-media-actions">
           <button
+            className="category-lead-control category-lead-spread-action"
+            type="button"
+            tabIndex={!mediaPlaying || controlsVisible ? 0 : -1}
+            aria-label={`Spread ${broadcast.name}'s broadcast`}
+            onClick={() => onPreviewSpread ? onPreviewSpread(broadcast) : setIsSpreadOpen(true)}
+          >
+            <Share2 size={15} aria-hidden="true" />
+            <span>SPREAD IT</span>
+          </button>
+          <button
+            className="category-lead-control category-lead-fullscreen"
+            type="button"
+            tabIndex={!mediaPlaying || controlsVisible ? 0 : -1}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            aria-pressed={isFullscreen}
+            onClick={() => { void toggleFullscreen(); }}
+          >
+            {isFullscreen ? <Minimize size={15} aria-hidden="true" /> : <Maximize size={15} aria-hidden="true" />}
+          </button>
+          <button
             className={`category-lead-control category-lead-watchlist ${isWatchlisted ? 'is-saved' : ''}`}
             type="button"
             tabIndex={!mediaPlaying || controlsVisible ? 0 : -1}
@@ -904,38 +1115,35 @@ export function BroadcastVideoCard({
               aria-hidden="true"
             />
           </button>
-          {mediaPlaying && (
-            <>
-              <button
-                className="category-lead-control category-lead-startover"
-                type="button"
-                disabled={!hasLocalDemo}
-                tabIndex={controlsVisible ? 0 : -1}
-                onClick={startOver}
-                aria-label="Start broadcast over"
-              >
-                <RotateCcw size={15} aria-hidden="true" />
-              </button>
-              <button
-                className="category-lead-control category-lead-sound"
-                type="button"
-                disabled={!hasLocalDemo}
-                tabIndex={controlsVisible ? 0 : -1}
-                aria-pressed={isMuted}
-                onClick={toggleMute}
-                aria-label={isMuted ? 'Turn on video sound' : 'Mute video'}
-              >
-                {isMuted ? (
-                  <VolumeX size={16} aria-hidden="true" />
-                ) : (
-                  <Volume2 size={16} aria-hidden="true" />
-                )}
-              </button>
-            </>
-          )}
         </div>
+        {isFullscreen && reelItems.length > 1 && (
+          <nav className="category-reel-navigation" aria-label="Fullscreen videos">
+            <button
+              type="button"
+              disabled={activeReelIndex === 0}
+              onClick={() => changeReel(-1)}
+              aria-label="Previous video"
+            >
+              <ChevronUp size={20} aria-hidden="true" />
+            </button>
+            <span aria-live="polite">{activeReelIndex + 1} / {reelItems.length}</span>
+            <button
+              type="button"
+              disabled={activeReelIndex === reelItems.length - 1}
+              onClick={() => changeReel(1)}
+              aria-label="Next video"
+            >
+              <ChevronDown size={20} aria-hidden="true" />
+            </button>
+          </nav>
+        )}
+        {isFullscreen && (
+          <time className="category-video-elapsed" aria-label={`Elapsed video time ${videoClock(videoPosition.current)}`}>
+            {videoClock(videoPosition.current)}
+          </time>
+        )}
       </div>
-      <div className="category-lead-content">
+      <div key={reelSlideToken} className={`category-lead-content ${isFullscreen && reelSlideToken > 0 ? 'is-reel-rising' : ''}`}>
         <div className="category-lead-market">
           <span className="category-lead-rank">
             <b>#{broadcast.rank}</b>
@@ -970,7 +1178,7 @@ export function BroadcastVideoCard({
               <button
                 className="category-lead-stat category-lead-spread"
                 type="button"
-                onClick={() => { setIsSpreadOpen(true); setSpreadCopied(false); setSpreadError(''); }}
+                onClick={() => onPreviewSpread ? onPreviewSpread(broadcast) : setIsSpreadOpen(true)}
                 aria-label={`Spread ${broadcast.name}'s broadcast`}
               >
                 <Share2 size={13} aria-hidden="true" />
@@ -1078,57 +1286,44 @@ export function BroadcastVideoCard({
     </section>
   );
 
-  const dialogs = typeof document !== 'undefined' && (isMessageOpen || isSpreadOpen)
+  const dialogs = typeof document !== 'undefined' && isMessageOpen
     ? createPortal(
         <div className="category-action-backdrop">
-          {isMessageOpen ? (
-            <dialog open className="category-action-dialog" aria-modal="true" aria-labelledby={`dm-title-${broadcast.id}`}>
+          <dialog open className="category-action-dialog" aria-modal="true" aria-labelledby={`dm-title-${broadcast.id}`}>
               <div className="category-action-head">
                 <div>
                   <small>DIRECT MESSAGE</small>
-                  <h2 id={`dm-title-${broadcast.id}`}>Say something to {broadcast.name}</h2>
+                  <h2 id={`dm-title-${broadcast.id}`}>Connect with {broadcast.name}</h2>
+                  <p>Start a conversation about their take or share what resonated.</p>
                 </div>
                 <button type="button" onClick={() => setIsMessageOpen(false)} aria-label="Close message dialog"><X size={18} /></button>
               </div>
               <form className="category-action-form" onSubmit={submitMessage}>
-                <label htmlFor={`message-${broadcast.id}`}>Your message</label>
+                <label htmlFor={`message-${broadcast.id}`}>Your opening message</label>
                 <textarea
                   id={`message-${broadcast.id}`}
                   autoFocus
                   value={messageDraft}
                   onChange={(event) => { setMessageDraft(event.target.value); setMessageError(''); }}
-                  placeholder={`Message ${broadcast.name} directly...`}
+                  placeholder={`What would you like to talk about with ${broadcast.name}?`}
                   maxLength={240}
                   rows={4}
                 />
-                <small>Opens in your DM page after sending.</small>
+                <small>Your conversation opens in Direct Messages after sending.</small>
                 {messageError && <p className="category-action-error" role="alert">{messageError}</p>}
-                <button className="category-action-primary" type="submit" disabled={!messageDraft.trim()}><Send size={15} /> Send message</button>
+                <button className="category-action-primary" type="submit" disabled={!messageDraft.trim()}><Send size={15} /> Start conversation</button>
               </form>
-            </dialog>
-          ) : (
-            <dialog open className="category-action-dialog" aria-modal="true" aria-labelledby={`spread-title-${broadcast.id}`}>
-              <div className="category-action-head">
-                <div>
-                  <small>SPREAD THIS BROADCAST</small>
-                  <h2 id={`spread-title-${broadcast.id}`}>Spread this position</h2>
-                </div>
-                <button type="button" onClick={() => setIsSpreadOpen(false)} aria-label="Close spread dialog"><X size={18} /></button>
-              </div>
-              <p className="category-action-description">Send a direct link to {broadcast.name}&apos;s position.</p>
-              <div className="category-action-copy">
-                <input readOnly aria-label="Broadcast link" value={spreadUrl()} onFocus={(event) => event.currentTarget.select()} />
-                <button type="button" onClick={copySpreadLink}>{spreadCopied ? <Check size={16} /> : <Copy size={16} />}{spreadCopied ? 'Copied' : 'Copy link'}</button>
-              </div>
-              {spreadError && <p className="category-action-error" role="alert">{spreadError}</p>}
-            </dialog>
-          )}
+          </dialog>
         </div>,
         document.body,
       )
     : null;
 
-  if (!isPlaying) return <>{card}{dialogs}</>;
+  const spreadDialog = isSpreadOpen && typeof document !== 'undefined'
+    ? <SpreadPositionDialog broadcast={broadcast} onClose={() => setIsSpreadOpen(false)} />
+    : null;
+
+  if (!isPlaying && !isFullscreen) return <>{card}{dialogs}{spreadDialog}</>;
 
   return (
     <>
@@ -1188,12 +1383,13 @@ export function BroadcastVideoCard({
       )}
       {typeof document !== 'undefined' &&
         createPortal(
-          <div className={`market-shell dashboard-shell broadcast-floating-root ${showFloatingPlayer ? 'is-docked' : ''}`}>
+          <div className={`market-shell dashboard-shell broadcast-floating-root ${showFloatingPlayer ? 'is-docked' : ''} ${isFullscreen ? 'is-fullscreen' : ''}`}>
             {card}
           </div>,
           document.body,
         )}
       {dialogs}
+      {spreadDialog}
     </>
   );
 }
@@ -1205,6 +1401,8 @@ const CategoryPanel = memo(function CategoryPanel({
   onPlay,
   selectedBroadcastId,
   onSelectBroadcast,
+  onReelExit,
+  reelResume,
   visibleCount,
   onLoadMore,
   dropIdsByRank,
@@ -1215,6 +1413,8 @@ const CategoryPanel = memo(function CategoryPanel({
   onPlay: (id: string) => void;
   selectedBroadcastId: string | null;
   onSelectBroadcast: (id: string) => void;
+  onReelExit: (broadcast: CategoryBroadcast, resume: boolean, time: number) => void;
+  reelResume: { id: string; time: number } | null;
   visibleCount: number;
   onLoadMore: (categoryName: string) => void;
   dropIdsByRank: Record<number, string>;
@@ -1225,6 +1425,8 @@ const CategoryPanel = memo(function CategoryPanel({
     broadcasts.find(({ id }) => id === selectedBroadcastId) ?? leader;
   const loadedCount = Math.min(visibleCount, broadcasts.length);
   const hasMore = loadedCount < broadcasts.length;
+  const [spreadBroadcast, setSpreadBroadcast] = useState<CategoryBroadcast | null>(null);
+  const [hoveredBroadcastId, setHoveredBroadcastId] = useState<string | null>(null);
   const loadMarkerRef = useRef<HTMLDivElement>(null);
   const expandedBroadcastRef = useRef<HTMLDivElement>(null);
   const categoryStyle = {
@@ -1289,6 +1491,9 @@ const CategoryPanel = memo(function CategoryPanel({
                     onPlay={onPlay}
                     loadThumbnail
                     dropId={dropIdsByRank[broadcast.rank] ?? null}
+                    reelBroadcasts={broadcasts}
+                    onReelExit={onReelExit}
+                    initialPlaybackTime={reelResume?.id === broadcast.id ? reelResume.time : 0}
                     useSharedDemoVideo
                     accentColor={category.accent}
                   />
@@ -1297,42 +1502,86 @@ const CategoryPanel = memo(function CategoryPanel({
             }
 
             return (
-              <button
-                className="category-position-row"
+              <div
+                className="category-position-item"
                 key={broadcast.id}
-                type="button"
-                aria-label={`Open and play position #${broadcast.rank}, ${broadcast.price}, ${broadcast.title}`}
-                onClick={() => onSelectBroadcast(broadcast.id)}
+                onPointerEnter={(event) => {
+                  if (event.pointerType === 'mouse' && window.innerWidth > 680) {
+                    setHoveredBroadcastId(broadcast.id);
+                  }
+                }}
+                onPointerLeave={() => {
+                  if (!document.querySelector('.category-action-dialog[aria-labelledby^="dm-title"], .category-lead-card.is-video-fullscreen')) {
+                    setHoveredBroadcastId(null);
+                  }
+                }}
               >
-                <span className="category-position-rank">#{broadcast.rank}</span>
-                <ProfileAvatar
-                  initials={broadcast.initials}
-                  imageSrc="/leaderboard-portraits.png"
-                  imagePosition={broadcast.imagePosition}
-                  className="category-position-avatar"
-                  alt={broadcast.name}
-                />
-                <span className="category-position-copy">
-                  <strong>{broadcast.title}</strong>
-                  <small>
-                    {broadcast.name} · {broadcast.handle}
-                  </small>
-                </span>
-                <span className="category-position-bid">
-                  <small>CURRENT BID</small>
-                  <strong>{broadcast.price}</strong>
-                </span>
-                <span
-                  className={`category-position-change ${broadcast.change > 0 ? 'is-up' : 'is-down'}`}
+                {hoveredBroadcastId === broadcast.id ? (
+                  <div className="category-position-preview">
+                    <BroadcastVideoCard
+                      broadcast={broadcast}
+                      playingId={null}
+                      onPlay={(id) => { onSelectBroadcast(id); onPlay(id); }}
+                      loadThumbnail
+                      dropId={dropIdsByRank[broadcast.rank] ?? null}
+                      reelBroadcasts={broadcasts}
+                      onReelExit={onReelExit}
+                      useSharedDemoVideo
+                      thumbnailPreview
+                      onPreviewSpread={setSpreadBroadcast}
+                      onPreviewSelect={(preview) => onSelectBroadcast(preview.id)}
+                      accentColor={category.accent}
+                    />
+                  </div>
+                ) : (
+                  <>
+                <button
+                  className="category-position-row"
+                  type="button"
+                  aria-label={`Open and play position #${broadcast.rank}, ${broadcast.price}, ${broadcast.title}`}
+                  onClick={() => onSelectBroadcast(broadcast.id)}
                 >
-                  {broadcast.change > 0 ? '+' : ''}
-                  {broadcast.change}%
-                </span>
-                <span className="category-position-next">
-                  <small>TAKE THIS SPOT</small>
-                  <strong>{broadcast.takePrice}</strong>
-                </span>
-              </button>
+                  <span className="category-position-rank">#{broadcast.rank}</span>
+                  <ProfileAvatar
+                    initials={broadcast.initials}
+                    imageSrc="/leaderboard-portraits.png"
+                    imagePosition={broadcast.imagePosition}
+                    className="category-position-avatar"
+                    alt={broadcast.name}
+                  />
+                  <span className="category-position-copy">
+                    <strong>{broadcast.title}</strong>
+                    <small>
+                      {broadcast.name} · {broadcast.handle}
+                    </small>
+                  </span>
+                  <span className="category-position-bid">
+                    <small>CURRENT BID</small>
+                    <strong>{broadcast.price}</strong>
+                  </span>
+                  <span
+                    className={`category-position-change ${broadcast.change > 0 ? 'is-up' : 'is-down'}`}
+                  >
+                    {broadcast.change > 0 ? '+' : ''}
+                    {broadcast.change}%
+                  </span>
+                  <span className="category-position-next">
+                    <small>TAKE THIS SPOT</small>
+                    <strong>{broadcast.takePrice}</strong>
+                  </span>
+                </button>
+                <button
+                  className="category-position-spread"
+                  type="button"
+                  aria-label={`Spread position #${broadcast.rank}: ${broadcast.title}`}
+                  onClick={() => setSpreadBroadcast(broadcast)}
+                >
+                  <Share2 size={15} aria-hidden="true" />
+                  <span>SPREAD IT</span>
+                </button>
+                  </>
+                )}
+              </div>
             );
           })}
         </div>
@@ -1342,6 +1591,12 @@ const CategoryPanel = memo(function CategoryPanel({
             ref={loadMarkerRef}
             className="category-market-view-more"
             aria-hidden="true"
+          />
+        )}
+        {spreadBroadcast && (
+          <SpreadPositionDialog
+            broadcast={spreadBroadcast}
+            onClose={() => { setSpreadBroadcast(null); setHoveredBroadcastId(null); }}
           />
         )}
       </div>
@@ -1358,6 +1613,7 @@ export default function CategoriesPage() {
     null,
   );
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [reelResume, setReelResume] = useState<{ id: string; time: number } | null>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>(
     {},
@@ -1407,7 +1663,7 @@ export default function CategoriesPage() {
   }, [scrollToCategory]);
 
   useEffect(() => {
-    tabRefs.current[activeIndex]?.scrollIntoView({
+    tabRefs.current[categoryTabIndices.indexOf(activeIndex)]?.scrollIntoView({
       behavior: 'auto',
       block: 'nearest',
       inline: 'center',
@@ -1454,6 +1710,7 @@ export default function CategoriesPage() {
     setActiveIndex(nextIndex);
     setFeaturedBroadcastId(null);
     setPlayingId(null);
+    setReelResume(null);
     scrollToCategory(nextIndex, 'auto');
   }
 
@@ -1464,6 +1721,18 @@ export default function CategoriesPage() {
   const selectBroadcast = useCallback((id: string) => {
     setFeaturedBroadcastId(id);
     setPlayingId(null);
+    setReelResume(null);
+  }, []);
+
+  const exitReel = useCallback((broadcast: CategoryBroadcast, resume: boolean, time: number) => {
+    setFeaturedBroadcastId(broadcast.id);
+    setPlayingId(resume ? broadcast.id : null);
+    setReelResume(resume ? { id: broadcast.id, time } : null);
+    const categoryName = categories[activeIndexRef.current].name;
+    setVisibleCounts((current) => ({
+      ...current,
+      [categoryName]: Math.max(current[categoryName] ?? initialBroadcastCount, broadcast.rank),
+    }));
   }, []);
 
   const scrollToTop = useCallback(() => {
@@ -1486,14 +1755,13 @@ export default function CategoriesPage() {
   }, []);
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      selectCategory(activeIndexRef.current - 1);
-    }
-    if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      selectCategory(activeIndexRef.current + 1);
-    }
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const currentTabIndex = categoryTabIndices.indexOf(activeIndexRef.current);
+    const nextTabIndex =
+      currentTabIndex + (event.key === 'ArrowRight' ? 1 : -1);
+    if (nextTabIndex < 0 || nextTabIndex >= categoryTabIndices.length) return;
+    selectCategory(categoryTabIndices[nextTabIndex]);
   }
 
   function handleScroll() {
@@ -1522,6 +1790,7 @@ export default function CategoriesPage() {
       setActiveIndex(nearestIndex);
       setFeaturedBroadcastId(null);
       setPlayingId(null);
+      setReelResume(null);
     });
   }
 
@@ -1561,21 +1830,21 @@ export default function CategoriesPage() {
               <strong>{allCategory.name}</strong>
               <span>{allCategory.liveCount} bids</span>
             </button>
-            {categories.slice(1).map((category, index) => {
-              const categoryIndex = index + 1;
-              const Icon = category.icon;
-              const isTrending = category.name === 'BEEF';
+            {categoryTabIndices.slice(1).map((categoryIndex, tabIndex) => {
+              const category = categories[categoryIndex];
+              const isTrending = categoryIndex === trendingCategoryIndex;
+              const Icon = isTrending ? Flame : category.icon;
               return (
                 <button
                   ref={(element) => {
-                    tabRefs.current[categoryIndex] = element;
+                    tabRefs.current[tabIndex + 1] = element;
                   }}
                   className={`homepage-category-option ${activeIndex === categoryIndex ? 'is-active' : ''} ${isTrending ? 'is-trending' : ''}`}
                   key={category.name}
                   type="button"
                   role="tab"
                   aria-selected={activeIndex === categoryIndex}
-                  aria-label={`${category.name}, ${category.liveCount} bids${isTrending ? ', trending today' : ''}`}
+                  aria-label={`${isTrending ? 'Trending category ' : ''}${category.name}, ${category.liveCount} bids`}
                   onClick={() => selectCategory(categoryIndex)}
                   onKeyDown={handleKeyDown}
                 >
@@ -1589,7 +1858,7 @@ export default function CategoriesPage() {
                   <span>{category.liveCount} bids</span>
                   {isTrending && (
                     <span className="homepage-category-trending">
-                      <Flame size={11} /> TRENDING TODAY
+                      TRENDING
                     </span>
                   )}
                 </button>
@@ -1632,6 +1901,8 @@ export default function CategoriesPage() {
                     onPlay={toggleBroadcast}
                     selectedBroadcastId={featuredBroadcastId}
                     onSelectBroadcast={selectBroadcast}
+                    onReelExit={exitReel}
+                    reelResume={reelResume}
                     visibleCount={
                       visibleCounts[category.name] ?? initialBroadcastCount
                     }
