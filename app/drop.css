@@ -922,7 +922,7 @@ html[data-theme='light'] .drop-capture-plan h3 {
 }
 .drop-thumbnail-picker {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-columns: minmax(0, 1fr) 280px;
   gap: 20px;
 }
 .drop-thumbnail-picker > img,
@@ -935,10 +935,45 @@ html[data-theme='light'] .drop-capture-plan h3 {
   display: grid;
   place-items: center;
 }
-.drop-thumbnail-picker > div:last-child {
+.drop-thumbnail-actions {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.drop-thumbnail-option {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: rgb(255 255 255 / 2%);
+}
+.drop-thumbnail-option.is-selected {
+  border-color: var(--hot);
+  box-shadow: inset 3px 0 0 var(--hot);
+}
+.drop-thumbnail-option > span {
+  color: var(--hot);
+  font: 600 10px var(--mono);
+  letter-spacing: 0.08em;
+}
+.drop-thumbnail-option > strong {
+  font-size: 13px;
+  line-height: 1.35;
+}
+.drop-thumbnail-or {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font: 10px var(--mono);
+}
+.drop-thumbnail-or::before,
+.drop-thumbnail-or::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: var(--line);
 }
 .drop-thumbnail-picker .drop-button {
   font-size: 12px;
@@ -1852,7 +1887,7 @@ html[data-theme='light'] .drop-receipt-note {
     grid-template-columns: 1fr;
   }
 
-  .drop-thumbnail-picker > div:last-child .drop-button {
+  .drop-thumbnail-actions .drop-button {
     width: 100%;
   }
 

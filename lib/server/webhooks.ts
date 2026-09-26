@@ -2,7 +2,8 @@ import { validMedia } from '../drop-domain';
 import { HttpError, required } from './config';
 import { basic, mux, providerRequest, type MuxAsset } from './providers';
 import { database, dbError, hmac, readBody, verifyWebhook } from './security';
-import { transcribeMuxAudio } from './transcription';
+import { processMuxCaptionTrack } from './transcription';
+import { flushMarketPushEvents } from './push-notifications';
 
 type Entity = {
   id: string;
@@ -25,6 +26,14 @@ type ProviderEvent = {
     id?: string;
     upload_id?: string;
     asset_id?: string;
+    track_id?: string;
+    type?: string;
+    status?: string;
+    language_code?: string;
+    text_source?: string;
+    parameters?: { asset_id?: string; track_id?: string };
+    outputs?: { uploaded_track_id?: string };
+    errors?: { message?: string }[];
     name?: string;
     resolution?: string;
     passthrough?: string;
@@ -60,18 +69,57 @@ export async function webhook(request: Request, provider: string) {
       throw new HttpError(400, 'Missing event information.');
     if (
       [
-        'video.asset.static_rendition.ready',
-        'video.asset.static_rendition.errored',
-        'video.asset.static_rendition.skipped',
+        'robots.job.translate_captions.completed',
+        'robots.job.translate_captions.errored',
       ].includes(event.type ?? '')
     ) {
-      if (
-        event.data.name !== 'audio.m4a' &&
-        event.data.resolution !== 'audio-only'
-      )
+      const assetId = event.data.parameters?.asset_id;
+      if (!assetId) throw new HttpError(400, 'Missing caption asset identity.');
+      const asset = (
+        await mux<MuxAsset>(`assets/${encodeURIComponent(assetId)}`)
+      ).data;
+      if (!asset.upload_id) throw new HttpError(400, 'Missing upload identity.');
+      const { data: drop, error } = await db
+        .from('bought_drops')
+        .select('id,title,category,mux_asset_id,mux_playback_id,media_state')
+        .eq('mux_upload_id', asset.upload_id)
+        .maybeSingle();
+      dbError(error);
+      if (!drop) return;
+      if (drop.mux_asset_id !== assetId || drop.media_state !== 'ready')
+        throw new HttpError(503, 'The ready media event is still being linked.');
+      if (event.type === 'robots.job.translate_captions.errored') {
+        const { error: failError } = await db.rpc('bought_fail_transcription', {
+          p_drop_id: drop.id,
+          p_asset_id: assetId,
+          p_error:
+            event.data.errors?.[0]?.message ??
+            'Mux could not translate these captions to English.',
+        });
+        dbError(failError);
+        return;
+      }
+      const playbackId =
+        drop.mux_playback_id ??
+        asset.playback_ids?.find((playback) => playback.policy === 'signed')
+          ?.id;
+      const trackId = event.data.outputs?.uploaded_track_id;
+      if (!playbackId || !trackId)
+        throw new HttpError(503, 'English captions are still being attached.');
+      await processMuxCaptionTrack({
+        dropId: drop.id,
+        assetId,
+        playbackId,
+        trackId,
+        title: drop.title,
+        category: drop.category,
+      });
+      return;
+    }
+    if (event.type === 'video.asset.track.ready') {
+      if (event.data.type !== 'text' || !event.data.asset_id || !event.data.id)
         return;
       const assetId = event.data.asset_id;
-      if (!assetId) throw new HttpError(400, 'Missing asset identity.');
       const asset = (
         await mux<MuxAsset>(`assets/${encodeURIComponent(assetId)}`)
       ).data;
@@ -91,33 +139,17 @@ export async function webhook(request: Request, provider: string) {
           503,
           'The ready media event is still being linked. Retry delivery.',
         );
-      if (
-        event.type === 'video.asset.static_rendition.errored' ||
-        event.type === 'video.asset.static_rendition.skipped'
-      ) {
-        const { error: updateError } = await db
-          .from('bought_drops')
-          .update({
-            transcription_status: 'errored',
-            transcription_error:
-              'The audio-only rendition could not be prepared. Retry transcription from review.',
-          })
-          .eq('id', drop.id)
-          .eq('mux_asset_id', assetId);
-        dbError(updateError);
-        return;
-      }
       const playbackId =
         drop.mux_playback_id ??
         asset.playback_ids?.find((playback) => playback.policy === 'signed')
           ?.id;
       if (!playbackId)
         throw new HttpError(503, 'Signed playback is still being linked.');
-      await transcribeMuxAudio({
+      await processMuxCaptionTrack({
         dropId: drop.id,
         assetId,
         playbackId,
-        filename: event.data.name ?? 'audio.m4a',
+        trackId: event.data.id,
         title: drop.title,
         category: drop.category,
       });
@@ -264,4 +296,10 @@ export async function webhook(request: Request, provider: string) {
   // Any database/linking failure returns a retryable response, never an acknowledged lost payment.
   if (error)
     throw new HttpError(503, 'Payment update is pending. Retry delivery.');
+  await flushMarketPushEvents().catch((pushError: unknown) => {
+    console.error(
+      'BOUGHT push delivery is pending:',
+      pushError instanceof Error ? pushError.message : 'Unknown error.',
+    );
+  });
 }

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { MarketTopbar } from '@/components/market-topbar';
 import { MAX_VIDEO_SECONDS } from '@/lib/drop-domain';
-import { videoFrame } from '@/lib/local-recording';
+import { normalizeThumbnail, videoFrame } from '@/lib/local-recording';
 import {
   openRecordingCompanion,
   type RecordingCompanion,
@@ -43,6 +43,10 @@ export default function CaptureTestPage() {
   const [audioSource, setAudioSource] = useState('');
   const [take, setTake] = useState<Blob | null>(null);
   const [thumbnail, setThumbnail] = useState<Blob | null>(null);
+  const [thumbnailSource, setThumbnailSource] = useState<
+    'frame' | 'upload' | null
+  >(null);
+  const [frameTime, setFrameTime] = useState(0);
   const [accepted, setAccepted] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
@@ -108,6 +112,8 @@ export default function CaptureTestPage() {
     setError('');
     setTake(null);
     setThumbnail(null);
+    setThumbnailSource(null);
+    setFrameTime(0);
     setAccepted(false);
     try {
       const shared = await navigator.mediaDevices.getDisplayMedia({
@@ -213,6 +219,8 @@ export default function CaptureTestPage() {
     try {
       if (!preview.current) return;
       setThumbnail(await videoFrame(preview.current));
+      setThumbnailSource('frame');
+      setFrameTime(preview.current.currentTime);
       setError('');
     } catch {
       setError('Could not capture this frame. Play the video and try again.');
@@ -247,7 +255,14 @@ export default function CaptureTestPage() {
                 controls
                 playsInline
                 autoPlay
+                onTimeUpdate={(event) =>
+                  setFrameTime(event.currentTarget.currentTime)
+                }
+                onSeeked={(event) =>
+                  setFrameTime(event.currentTarget.currentTime)
+                }
                 onLoadedData={() => {
+                  setFrameTime(preview.current?.currentTime ?? 0);
                   if (!thumbnail) void captureThumbnail();
                 }}
               />
@@ -365,7 +380,10 @@ export default function CaptureTestPage() {
               <div className="drop-section-label">
                 <span>03 /</span> THUMBNAIL
               </div>
-              <p>This thumbnail is generated from the real recording above.</p>
+              <p>
+                Choose a frame from the real recording or upload your own
+                image. Both paths are tested locally here.
+              </p>
               <div className="drop-thumbnail-picker">
                 {thumbnailUrl ? (
                   <Image
@@ -380,15 +398,61 @@ export default function CaptureTestPage() {
                     <Camera size={28} />
                   </div>
                 )}
-                <div>
-                  <button
-                    className="drop-button"
-                    type="button"
-                    onClick={() => void captureThumbnail()}
+                <div className="drop-thumbnail-actions">
+                  <div
+                    className={`drop-thumbnail-option ${
+                      thumbnailSource === 'frame' ? 'is-selected' : ''
+                    }`}
                   >
-                    <Camera size={16} /> USE CURRENT VIDEO FRAME
-                  </button>
-                  <small>The frame never leaves this browser.</small>
+                    <span>OPTION 1 · VIDEO FRAME</span>
+                    <strong>Choose from the recording</strong>
+                    <small>Scrub the video above to the moment you want.</small>
+                    <button
+                      className="drop-button"
+                      type="button"
+                      onClick={() => void captureThumbnail()}
+                    >
+                      <Camera size={16} /> USE FRAME AT{' '}
+                      {String(Math.floor(frameTime / 60)).padStart(2, '0')}:
+                      {String(Math.floor(frameTime) % 60).padStart(2, '0')}
+                    </button>
+                  </div>
+                  <div className="drop-thumbnail-or" aria-hidden="true">
+                    OR
+                  </div>
+                  <div
+                    className={`drop-thumbnail-option ${
+                      thumbnailSource === 'upload' ? 'is-selected' : ''
+                    }`}
+                  >
+                    <span>OPTION 2 · UPLOAD IMAGE</span>
+                    <strong>Use your own thumbnail</strong>
+                    <small>JPEG, PNG or WebP · Up to 5 MB</small>
+                    <label className="drop-button">
+                      <Upload size={16} /> CHOOSE IMAGE
+                      <input
+                        className="drop-file-input"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            setThumbnail(await normalizeThumbnail(file));
+                            setThumbnailSource('upload');
+                            setError('');
+                          } catch (reason) {
+                            setError(
+                              reason instanceof Error
+                                ? reason.message
+                                : 'Could not use this image.',
+                            );
+                          }
+                          event.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
 

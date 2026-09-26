@@ -60,6 +60,14 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
       .replaceAll('clock_timestamp()', 'public.test_now()')
       .replace(/\bnow\(\)/g, 'public.test_now()'),
   );
+  const pushSql = await readFile(
+    new URL(
+      '../supabase/migrations/20260923090000_web_push_notifications.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  await db.exec(pushSql.replace(/\bnow\(\)/g, 'public.test_now()'));
   const owner = '10000000-0000-4000-8000-000000000001';
   const stranger = '10000000-0000-4000-8000-000000000002';
   const moderator = '10000000-0000-4000-8000-000000000003';
@@ -398,6 +406,10 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
       'ready-before-submit works and higher bids are ranked in the database',
       async () => {
         await create(two, 60000);
+        await db.query('update public.bought_drops set user_id=$2 where id=$1', [
+          two,
+          stranger,
+        ]);
         await pay(two, 'pay-two', 60000);
         await prepare(two);
         await ready(two, 'mux-two');
@@ -417,6 +429,70 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
           ranks.map((r) => r.position),
           [1, 2],
         );
+
+        const rankAlerts = (
+          await db.query<{
+            user_id: string;
+            kind: string;
+            title: string;
+            body: string;
+          }>(
+            'select user_id,kind,title,body from public.bought_push_events order by id',
+          )
+        ).rows;
+        assert.deepEqual(rankAlerts, [
+          {
+            user_id: owner,
+            kind: 'leader',
+            title: 'You took #1',
+            body: 'Your BUILDING bid just moved into the top spot.',
+          },
+          {
+            user_id: owner,
+            kind: 'leader',
+            title: 'A new bidder took #1',
+            body: 'Your BUILDING bid moved from #1 to #2.',
+          },
+          {
+            user_id: stranger,
+            kind: 'leader',
+            title: 'You took #1',
+            body: 'Your BUILDING bid just moved into the top spot.',
+          },
+        ]);
+        const claimed = await db.query<{
+          user_id: string;
+          title: string;
+        }>('select user_id,title from public.bought_claim_push_events(10)');
+        assert.equal(claimed.rows.length, 3);
+        assert.equal(
+          (await db.query('select * from public.bought_claim_push_events(10)'))
+            .rows.length,
+          0,
+          'a claimed event must not be delivered twice at once',
+        );
+
+        await db.exec('begin');
+        try {
+          await db.query(
+            'update public.bought_ladder set position=3 where drop_id=$1',
+            [one],
+          );
+          const outbid = (
+            await db.query<{ kind: string; title: string; body: string }>(
+              "select kind,title,body from public.bought_push_events where title='You were outbid'",
+            )
+          ).rows;
+          assert.deepEqual(outbid, [
+            {
+              kind: 'outbid',
+              title: 'You were outbid',
+              body: 'Your BUILDING bid moved from #2 to #3.',
+            },
+          ]);
+        } finally {
+          await db.exec('rollback');
+        }
       },
     );
     await t.test(
@@ -456,6 +532,15 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
           await ready(tied, 'tied-ready');
           await submit(tied);
           await publish(tied);
+          assert.equal(
+            (
+              await db.query<{ total: number }>(
+                'select count(*)::integer total from public.bought_push_events',
+              )
+            ).rows[0].total,
+            3,
+            'a new bid below #1 must not get a false “You took #1” alert',
+          );
           const result = await db.query<{ drop_id: string }>(
             'select drop_id from public.bought_ladder order by position',
           );

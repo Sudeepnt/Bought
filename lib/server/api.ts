@@ -35,6 +35,13 @@ import {
 } from './security';
 import { webhook } from './webhooks';
 import { requestTranscription } from './transcription';
+import {
+  deletePushSubscription,
+  flushMarketPushEvents,
+  pushPublicKey,
+  savePushSubscription,
+  sendPushTest,
+} from './push-notifications';
 
 const ownerDropFields =
   'id,category,capture_mode,title,amount_minor,currency,provider,payment_state,checkout_state,payment_reference,checkout_url,paid_at,state,mux_upload_id,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,transcription_status,transcribed_at,created_at';
@@ -178,7 +185,44 @@ export async function handleApi(request: Request) {
         throw new HttpError(401, 'Unauthorized.');
       const { data, error } = await database().rpc('bought_advance');
       dbError(error);
+      await flushMarketPushEvents().catch((pushError: unknown) => {
+        console.error(
+          'BOUGHT push delivery is pending:',
+          pushError instanceof Error ? pushError.message : 'Unknown error.',
+        );
+      });
       return json(data);
+    }
+    if (exactPath(path, 'push', 'key') && method === 'GET')
+      return json({ publicKey: pushPublicKey() });
+    if (path[0] === 'push' && path.length === 2) {
+      if (method !== 'POST')
+        return json({ error: 'Method not allowed.' }, 405, { Allow: 'POST' });
+      if (!['subscription', 'unsubscribe', 'test'].includes(path[1]))
+        throw new HttpError(404, 'Not found.');
+      sameOrigin(request);
+      requireJson(request);
+      const user = await identity(request);
+      await rateLimit(`push:${user.id}:${path[1]}`, 12, 60);
+      let body: Record<string, unknown>;
+      try {
+        body = JSON.parse(await readBody(request));
+      } catch (error) {
+        if (error instanceof HttpError) throw error;
+        throw new HttpError(400, 'Invalid request.');
+      }
+      if (!body || Array.isArray(body) || typeof body !== 'object')
+        throw new HttpError(400, 'Invalid request.');
+      if (path[1] === 'subscription') {
+        await savePushSubscription(user.id, body.subscription);
+        return json({ saved: true });
+      }
+      if (path[1] === 'unsubscribe') {
+        await deletePushSubscription(user.id, body.endpoint);
+        return json({ removed: true });
+      }
+      await sendPushTest(user.id);
+      return json({ sent: true });
     }
     if (exactPath(path, 'config') && method === 'GET')
       return json(
@@ -364,6 +408,12 @@ export async function handleApi(request: Request) {
           typeof body.reason === 'string' ? body.reason.slice(0, 500) : null,
       });
       dbError(error);
+      await flushMarketPushEvents().catch((pushError: unknown) => {
+        console.error(
+          'BOUGHT push delivery is pending:',
+          pushError instanceof Error ? pushError.message : 'Unknown error.',
+        );
+      });
       return json({ saved: true });
     }
     if (path.length === 1 && method === 'GET') {
@@ -505,8 +555,16 @@ export async function handleApi(request: Request) {
                 // encoding tier. This can be raised for a specific future
                 // live or premium-media workflow.
                 video_quality: 'basic',
-                static_renditions: [
-                  { resolution: 'audio-only', passthrough: drop.id },
+                inputs: [
+                  {
+                    generated_subtitles: [
+                      {
+                        language_code: 'auto',
+                        name: 'Original captions',
+                        passthrough: drop.id,
+                      },
+                    ],
+                  },
                 ],
               },
             },

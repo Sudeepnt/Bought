@@ -47,6 +47,15 @@ import { recordingCue } from '@/lib/recording-guidance';
 import { useBought } from './bought-provider';
 import { ScreenRecorder } from './screen-recorder';
 
+function formatVideoTime(seconds: number) {
+  const wholeSeconds = Number.isFinite(seconds)
+    ? Math.max(0, Math.floor(seconds))
+    : 0;
+  return `${String(Math.floor(wholeSeconds / 60)).padStart(2, '0')}:${String(
+    wholeSeconds % 60,
+  ).padStart(2, '0')}`;
+}
+
 function CameraRecorder({
   dropId,
   onRecorded,
@@ -497,6 +506,10 @@ export function DropRecorder({
   const [stage, setStage] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
+  const [thumbnailSource, setThumbnailSource] = useState<
+    'frame' | 'upload' | null
+  >(null);
+  const [frameTime, setFrameTime] = useState(0);
   const [replace, setReplace] = useState(false);
   const preview = useRef<HTMLVideoElement>(null);
   const uploader = useRef<UpChunk | null>(null);
@@ -512,6 +525,7 @@ export function DropRecorder({
         if (active && saved) {
           setBlob(saved.video);
           setThumbnail(saved.thumbnail ?? null);
+          setThumbnailSource(null);
           savedUploadId.current = saved.uploadId;
           uploadCompleted.current = saved.uploaded === true;
           setReplace(
@@ -571,6 +585,8 @@ export function DropRecorder({
       uploadCompleted.current = false;
       setBlob(take);
       setThumbnail(frame ?? null);
+      setThumbnailSource(frame ? 'frame' : null);
+      setFrameTime(0);
       setAccepted(false);
       setReplace(true);
       void saveTake(drop.id, take, frame).catch(() =>
@@ -643,8 +659,9 @@ export function DropRecorder({
     }
   }
 
-  async function chooseThumbnail(next: Blob) {
+  async function chooseThumbnail(next: Blob, source: 'frame' | 'upload') {
     setThumbnail(next);
+    setThumbnailSource(source);
     if (blob)
       try {
         await saveTake(
@@ -661,8 +678,10 @@ export function DropRecorder({
 
   async function captureFrame() {
     try {
-      if (preview.current)
-        await chooseThumbnail(await videoFrame(preview.current));
+      if (preview.current) {
+        setFrameTime(preview.current.currentTime);
+        await chooseThumbnail(await videoFrame(preview.current), 'frame');
+      }
       setError('');
     } catch (err) {
       setError(
@@ -840,7 +859,14 @@ export function DropRecorder({
               controls
               playsInline
               aria-label="Preview your recorded broadcast"
+              onTimeUpdate={(event) =>
+                setFrameTime(event.currentTarget.currentTime)
+              }
+              onSeeked={(event) =>
+                setFrameTime(event.currentTarget.currentTime)
+              }
               onLoadedData={() => {
+                setFrameTime(preview.current?.currentTime ?? 0);
                 if (!thumbnail) void captureFrame();
               }}
             />
@@ -853,6 +879,8 @@ export function DropRecorder({
               onClick={() => {
                 setBlob(null);
                 setThumbnail(null);
+                setThumbnailSource(null);
+                setFrameTime(0);
                 setAccepted(false);
                 setReplace(true);
                 savedUploadId.current = undefined;
@@ -885,8 +913,8 @@ export function DropRecorder({
                 <span>03 /</span> THUMBNAIL
               </div>
               <p>
-                Give the room a first impression. Scrub your broadcast to choose
-                a frame.
+                Choose a frame from your recording or upload your own image.
+                Both options become the broadcast cover.
               </p>
               <div className="drop-thumbnail-picker">
                 {thumbnailUrl ? (
@@ -902,41 +930,68 @@ export function DropRecorder({
                     <ImagePlus size={28} />
                   </div>
                 )}
-                <div>
-                  <label className={`drop-button ${busy ? 'disabled' : ''}`}>
-                    <Upload size={16} />
-                    UPLOAD THUMBNAIL
-                    <input
-                      className="drop-file-input"
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      disabled={busy}
-                      onChange={async (event) => {
-                        const file = event.target.files?.[0];
-                        if (!file) return;
-                        try {
-                          await chooseThumbnail(await normalizeThumbnail(file));
-                          setError('');
-                        } catch (err) {
-                          setError(
-                            err instanceof Error
-                              ? err.message
-                              : 'Could not use this image.',
-                          );
-                        }
-                        event.target.value = '';
-                      }}
-                    />
-                  </label>
-                  <button
-                    className="drop-button"
-                    disabled={busy}
-                    onClick={captureFrame}
+                <div className="drop-thumbnail-actions">
+                  <div
+                    className={`drop-thumbnail-option ${
+                      thumbnailSource === 'frame' ? 'is-selected' : ''
+                    }`}
                   >
-                    <Camera size={16} />
-                    USE BROADCAST FRAME
-                  </button>
-                  <small>JPEG, PNG or WebP · Up to 5 MB</small>
+                    <span>OPTION 1 · VIDEO FRAME</span>
+                    <strong>Choose from the recording</strong>
+                    <small>
+                      Scrub the video above to the exact moment you want.
+                    </small>
+                    <button
+                      className="drop-button"
+                      disabled={busy}
+                      onClick={captureFrame}
+                    >
+                      <Camera size={16} />
+                      USE FRAME AT {formatVideoTime(frameTime)}
+                    </button>
+                  </div>
+                  <div className="drop-thumbnail-or" aria-hidden="true">
+                    OR
+                  </div>
+                  <div
+                    className={`drop-thumbnail-option ${
+                      thumbnailSource === 'upload' ? 'is-selected' : ''
+                    }`}
+                  >
+                    <span>OPTION 2 · UPLOAD IMAGE</span>
+                    <strong>Use your own thumbnail</strong>
+                    <small>JPEG, PNG or WebP · Up to 5 MB</small>
+                    <label
+                      className={`drop-button ${busy ? 'disabled' : ''}`}
+                    >
+                      <Upload size={16} />
+                      CHOOSE IMAGE
+                      <input
+                        className="drop-file-input"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        disabled={busy}
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            await chooseThumbnail(
+                              await normalizeThumbnail(file),
+                              'upload',
+                            );
+                            setError('');
+                          } catch (err) {
+                            setError(
+                              err instanceof Error
+                                ? err.message
+                                : 'Could not use this image.',
+                            );
+                          }
+                          event.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
             </section>

@@ -18,6 +18,7 @@ import {
   Moon,
   Newspaper,
   Podium,
+  Check,
   Sun,
   WalletCards,
   type LucideIcon,
@@ -76,7 +77,12 @@ const mobileNavigation: Array<{
   icon: LucideIcon;
 }> = [
   { key: 'floor', label: 'Today', href: '/', icon: Podium },
-  { key: 'categories', label: 'Categories', href: '/categories', icon: LayoutGrid },
+  {
+    key: 'categories',
+    label: 'Categories',
+    href: '/categories',
+    icon: LayoutGrid,
+  },
   { key: 'magazine', label: 'Magazine', href: '/magazine', icon: Newspaper },
   { key: 'watchlist', label: 'Watchlist', href: '/watchlist', icon: Bookmark },
   { key: 'profile', label: 'Profile', href: '/profile', icon: CircleUser },
@@ -116,6 +122,17 @@ function utcTime(date: Date) {
   }).format(date);
 }
 
+function notificationAge(value: string) {
+  const createdAt = Date.parse(value);
+  if (!Number.isFinite(createdAt)) return 'Just now';
+  const minutes = Math.max(0, Math.floor((Date.now() - createdAt) / 60000));
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 export function MarketTopbar({ active }: { active: MarketPage }) {
   const {
     client,
@@ -125,14 +142,30 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
     entries,
     session,
     authReady,
+    notifications,
+    unreadNotificationCount,
+    browserPermission,
+    browserAlertsEnabled,
+    devicePushState,
+    devicePushError,
+    requestBrowserNotifications,
+    setBrowserAlertsEnabled,
+    requestDevicePushNotifications,
+    disableDevicePushNotifications,
+    sendDevicePushTest,
+    markNotificationRead,
+    markAllNotificationsRead,
   } = useBought();
   const chromeRef = useRef<HTMLDivElement>(null);
+  const notificationMenuRef = useRef<HTMLDivElement>(null);
   const tickerTrackRef = useRef<HTMLDivElement>(null);
   const marqueeDuration = useMarqueeDuration(tickerTrackRef);
   const [addFundsOpen, setAddFundsOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   const [floatingCountdownVisible, setFloatingCountdownVisible] =
     useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [devicePushBusy, setDevicePushBusy] = useState(false);
   const [signInStart, setSignInStart] = useState<
     'sign-in' | 'goals' | 'categories'
   >('sign-in');
@@ -141,6 +174,19 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
     setSignInOpen(false);
     setSignInStart('sign-in');
   }, []);
+  const runDevicePushAction = useCallback(
+    async (action: () => Promise<void>) => {
+      setDevicePushBusy(true);
+      try {
+        await action();
+      } catch {
+        // The provider keeps the server or permission error beside this control.
+      } finally {
+        setDevicePushBusy(false);
+      }
+    },
+    [],
+  );
   const dismissProfilePreferences = useCallback(() => {
     const devTestSignedIn =
       isDevAuthTestMode() &&
@@ -245,6 +291,26 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
   }, []);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (
+        event.target instanceof Node &&
+        !notificationMenuRef.current?.contains(event.target)
+      )
+        setNotificationsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setNotificationsOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [notificationsOpen]);
 
   useEffect(() => {
     if (!authReady || !session) return;
@@ -387,13 +453,210 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
                 <ArrowDownToLine size={15} strokeWidth={2} />
                 <span>Deposit</span>
               </button>
-              <button
-                className="topbar-icon-button"
-                type="button"
-                aria-label="View notifications"
+              <div
+                className="market-notification-menu"
+                ref={notificationMenuRef}
               >
-                <Bell size={15} strokeWidth={1.8} />
-              </button>
+                <button
+                  className={`topbar-icon-button notification-trigger ${notificationsOpen ? 'is-active' : ''}`}
+                  type="button"
+                  aria-label={`View notifications${unreadNotificationCount ? `, ${unreadNotificationCount} unread` : ''}`}
+                  aria-expanded={notificationsOpen}
+                  aria-controls="market-notifications-panel"
+                  onClick={() => setNotificationsOpen((open) => !open)}
+                >
+                  <Bell size={15} strokeWidth={1.8} />
+                  {unreadNotificationCount > 0 && (
+                    <span
+                      className="notification-unread-badge"
+                      aria-hidden="true"
+                    >
+                      {unreadNotificationCount > 9
+                        ? '9+'
+                        : unreadNotificationCount}
+                    </span>
+                  )}
+                </button>
+                {notificationsOpen && (
+                  <section
+                    className="market-notifications-panel"
+                    id="market-notifications-panel"
+                    aria-label="Notifications"
+                  >
+                    <header className="market-notifications-heading">
+                      <div>
+                        <span className="notification-kicker">
+                          MARKET ALERTS
+                        </span>
+                        <h2>Notifications</h2>
+                      </div>
+                      {unreadNotificationCount > 0 && (
+                        <button
+                          className="notification-mark-read"
+                          type="button"
+                          onClick={markAllNotificationsRead}
+                        >
+                          <Check size={12} aria-hidden="true" />
+                          Mark all read
+                        </button>
+                      )}
+                    </header>
+                    <div className="browser-alert-setting">
+                      <span className="browser-alert-copy">
+                        <strong>Browser notifications</strong>
+                        <small>
+                          {browserPermission === 'unsupported'
+                            ? 'This browser does not support alerts.'
+                            : browserPermission === 'denied'
+                              ? 'Allow notifications in your browser settings.'
+                              : browserAlertsEnabled
+                                ? 'Alerts show while this BOUGHT tab is open.'
+                                : 'Get outbid and #1 alerts while this tab is open.'}
+                        </small>
+                      </span>
+                      {browserPermission === 'granted' ? (
+                        <button
+                          className={`browser-alert-toggle ${browserAlertsEnabled ? 'is-enabled' : ''}`}
+                          type="button"
+                          aria-pressed={browserAlertsEnabled}
+                          onClick={() =>
+                            setBrowserAlertsEnabled(!browserAlertsEnabled)
+                          }
+                        >
+                          {browserAlertsEnabled ? 'On' : 'Off'}
+                        </button>
+                      ) : (
+                        <button
+                          className="browser-alert-enable"
+                          type="button"
+                          disabled={
+                            browserPermission === 'unsupported' ||
+                            browserPermission === 'denied'
+                          }
+                          onClick={() => void requestBrowserNotifications()}
+                        >
+                          Enable
+                        </button>
+                      )}
+                    </div>
+                    <div className="browser-alert-setting device-push-setting">
+                      <span className="browser-alert-copy">
+                        <strong>Phone push notifications</strong>
+                        <small>
+                          {devicePushError ??
+                            (devicePushState === 'loading'
+                              ? 'Checking push setup on this device…'
+                              : devicePushState === 'enabled'
+                                ? 'On — market alerts can arrive while BOUGHT is closed.'
+                                : devicePushState === 'not-installed'
+                                  ? 'On iPhone, add BOUGHT to your Home Screen and open it there.'
+                                  : devicePushState === 'unsupported'
+                                    ? 'This device does not support push notifications.'
+                                    : devicePushState === 'unconfigured'
+                                      ? 'Waiting for BOUGHT server push setup.'
+                                      : devicePushState === 'signed-out'
+                                        ? 'Sign in to connect this device to your account.'
+                                        : 'Get outbid and #1 alerts even when BOUGHT is closed.')}
+                        </small>
+                      </span>
+                      <span className="device-push-actions">
+                        {devicePushState === 'enabled' ? (
+                          <>
+                            <button
+                              className="browser-alert-toggle"
+                              type="button"
+                              disabled={devicePushBusy}
+                              onClick={() =>
+                                void runDevicePushAction(sendDevicePushTest)
+                              }
+                            >
+                              {devicePushBusy ? '…' : 'Test'}
+                            </button>
+                            <button
+                              className="browser-alert-toggle"
+                              type="button"
+                              disabled={devicePushBusy}
+                              onClick={() =>
+                                void runDevicePushAction(
+                                  disableDevicePushNotifications,
+                                )
+                              }
+                            >
+                              Off
+                            </button>
+                          </>
+                        ) : devicePushState === 'signed-out' ? (
+                          <button
+                            className="browser-alert-enable"
+                            type="button"
+                            onClick={() => setSignInOpen(true)}
+                          >
+                            Sign in
+                          </button>
+                        ) : (
+                          <button
+                            className="browser-alert-enable"
+                            type="button"
+                            disabled={
+                              devicePushBusy || devicePushState !== 'ready'
+                            }
+                            onClick={() =>
+                              void runDevicePushAction(
+                                requestDevicePushNotifications,
+                              )
+                            }
+                          >
+                            {devicePushBusy ? '…' : 'Enable'}
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    <div
+                      className="market-notification-list"
+                      aria-live="polite"
+                    >
+                      {notifications.length ? (
+                        notifications.slice(0, 12).map((notification) => (
+                          <Link
+                            className={`market-notification-item ${notification.readAt ? '' : 'is-unread'}`}
+                            href={notification.href}
+                            key={notification.id}
+                            onClick={() => {
+                              markNotificationRead(notification.id);
+                              setNotificationsOpen(false);
+                            }}
+                          >
+                            <span
+                              className={`market-notification-icon is-${notification.type}`}
+                              aria-hidden="true"
+                            >
+                              {notification.type === 'outbid' ? '↗' : '♛'}
+                            </span>
+                            <span className="market-notification-copy">
+                              <strong>{notification.title}</strong>
+                              <span>{notification.body}</span>
+                              <small>
+                                {notificationAge(notification.createdAt)}
+                              </small>
+                            </span>
+                            {!notification.readAt && (
+                              <i
+                                className="notification-unread-dot"
+                                aria-label="Unread"
+                              />
+                            )}
+                          </Link>
+                        ))
+                      ) : (
+                        <p className="market-notifications-empty">
+                          You&apos;re all caught up. We&apos;ll let you know
+                          when the ladder moves.
+                        </p>
+                      )}
+                    </div>
+                  </section>
+                )}
+              </div>
               <Link
                 className={`topbar-icon-button topbar-message-link ${active === 'chat' ? 'is-active' : ''}`}
                 href="/chat"

@@ -1,6 +1,7 @@
 'use client';
 
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import type MuxPlayerElement from '@mux/mux-player';
 import { useBought } from './bought-provider';
 
 const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
@@ -8,9 +9,11 @@ const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
 export function DropPlayer({
   dropId,
   onPlayingChange,
+  onAspectRatioChange,
 }: {
   dropId: string;
   onPlayingChange?: (playing: boolean) => void;
+  onAspectRatioChange?: (width: number, height: number) => void;
 }) {
   const { api } = useBought();
   const [media, setMedia] = useState<{
@@ -84,6 +87,11 @@ export function DropPlayer({
         onPlaying={() => onPlayingChange?.(true)}
         onPause={() => onPlayingChange?.(false)}
         onEnded={() => onPlayingChange?.(false)}
+        onLoadedMetadata={(event) => {
+          const player = event.currentTarget as MuxPlayerElement | null;
+          if (player)
+            onAspectRatioChange?.(player.videoWidth, player.videoHeight);
+        }}
         defaultHiddenCaptions={false}
         metadata={{ video_id: dropId, video_title: 'BOUGHT broadcast' }}
       >

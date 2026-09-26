@@ -225,15 +225,15 @@ export type MuxAsset = {
   status: string;
   duration?: number;
   playback_ids?: { id: string; policy: string }[];
-  tracks?: { type: string; max_width?: number; max_height?: number }[];
-  static_renditions?: {
-    files?: {
-      id?: string;
-      name: string;
-      status: string;
-      resolution?: string;
-    }[];
-  };
+  tracks?: {
+    id?: string;
+    type: string;
+    status?: string;
+    language_code?: string;
+    text_source?: string;
+    max_width?: number;
+    max_height?: number;
+  }[];
 };
 
 export async function mux<T>(path: string, body?: unknown) {
@@ -244,6 +244,17 @@ export async function mux<T>(path: string, body?: unknown) {
       'Content-Type': 'application/json',
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+}
+
+export async function muxRobots<T>(path: string, body: unknown) {
+  return providerRequest<{ data: T }>(`https://api.mux.com/robots/v0/${path}`, {
+    method: 'POST',
+    headers: {
+      Authorization: basic('MUX_TOKEN_ID', 'MUX_TOKEN_SECRET'),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
   });
 }
 

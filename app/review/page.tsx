@@ -72,9 +72,9 @@ function TranscriptPanel({
         <div className="review-transcript-waiting">
           <p>
             {drop.transcription_status === 'processing'
-              ? 'The audio is being translated and timed for English captions.'
+              ? 'Mux is generating or translating English captions.'
               : (drop.transcription_error ??
-                'English captions will be generated from the audio-only rendition.')}
+                'Mux will generate English captions from this broadcast.')}
           </p>
           {drop.transcription_status !== 'processing' && (
             <button

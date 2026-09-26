@@ -1,0 +1,25 @@
+{
+  "id": "/",
+  "name": "BOUGHT — The Global Attention Exchange",
+  "short_name": "BOUGHT",
+  "description": "One global auction. One daily market. Spend to be seen.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#090b0d",
+  "theme_color": "#090b0d",
+  "icons": [
+    {
+      "src": "/bought-app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/bought-app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

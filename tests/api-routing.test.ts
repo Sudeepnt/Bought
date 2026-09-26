@@ -38,6 +38,12 @@ void test('public API routes are exact, cacheable, and hardened', async () => {
   };
   assert.equal(snapshotBody.market.configured, false);
   assert.deepEqual(snapshotBody.entries, []);
+
+  const pushKey = await handleApi(
+    new Request('https://bought.example/api/bought/push/key'),
+  );
+  assert.equal(pushKey.status, 200);
+  assert.deepEqual(await pushKey.json(), { publicKey: null });
 });
 
 void test('Vercel cron GET requests require the configured bearer secret', async () => {

@@ -560,6 +560,7 @@ export default function Home() {
                 )}
               </div>
               <BroadcastVideoCard
+                key={leadBroadcast.id}
                 broadcast={leadBroadcast}
                 playingId={playingBroadcastId}
                 onPlay={(id) =>

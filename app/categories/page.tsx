@@ -1,13 +1,16 @@
 'use client';
 
 import {
+  ArrowDown,
   ArrowUp,
   Bookmark,
   Briefcase,
   Building2,
   ChevronLeft,
   ChevronRight,
+  Check,
   CircleHelp,
+  Copy,
   DollarSign,
   Eye,
   FileText,
@@ -16,8 +19,6 @@ import {
   Megaphone,
   MessageCircle,
   Mic,
-  Pause,
-  Play,
   Radio,
   RotateCcw,
   Send,
@@ -27,6 +28,7 @@ import {
   UsersRound,
   Volume2,
   VolumeX,
+  X,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -44,14 +46,13 @@ import {
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
 
-import { MarketFooter } from '@/components/market-chrome';
 import { MarketTopbar } from '@/components/market-topbar';
 import { DropPlayer } from '@/components/drop-player';
 import { ProfileAvatar } from '@/components/profile-avatar';
-import Link from '@/components/site-link';
 import { SocialPlatformIcon } from '@/components/social-brand-icons';
 import { useBought } from '@/components/bought-provider';
 import { appendDirectMessage } from '@/lib/direct-messages';
+import { portraitVideoAspectRatio } from '@/lib/video-aspect-ratio';
 
 type Creator = {
   name: string;
@@ -423,6 +424,15 @@ const categoryBroadcasts = [allBroadcasts, ...categoryLists];
 const initialBroadcastCount = 10;
 const broadcastBatchSize = 20;
 
+function socialSearchUrl(platform: string, handle: string) {
+  const query = encodeURIComponent(handle.replace(/^@/, ''));
+  if (platform === 'LinkedIn') return `https://www.linkedin.com/search/results/people/?keywords=${query}`;
+  if (platform === 'YouTube') return `https://www.youtube.com/results?search_query=${query}`;
+  if (platform === 'TikTok') return `https://www.tiktok.com/search?q=${query}`;
+  if (platform === 'Instagram') return `https://www.instagram.com/explore/search/keyword/?q=${query}`;
+  return `https://x.com/search?q=${query}&src=typed_query`;
+}
+
 function VideoThumbnail({
   broadcast,
   prominent = false,
@@ -496,12 +506,15 @@ export function BroadcastVideoCard({
   const [controlsVisible, setControlsVisible] = useState(true);
   const [mediaPlaying, setMediaPlaying] = useState(false);
   const [isDocked, setIsDocked] = useState(false);
-  const [opinions, setOpinions] = useState<string[]>([]);
+  const [mediaAspectRatio, setMediaAspectRatio] = useState<number | null>(null);
+  const [opinions, setOpinions] = useState<Array<{ text: string; stance: 'agree' | 'disagree' }>>([]);
+  const [opinionStep, setOpinionStep] = useState(0);
   const [opinionDraft, setOpinionDraft] = useState('');
   const [isMessageOpen, setIsMessageOpen] = useState(false);
+  const [isSpreadOpen, setIsSpreadOpen] = useState(false);
+  const [spreadCopied, setSpreadCopied] = useState(false);
+  const [spreadError, setSpreadError] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
-  const [messageSent, setMessageSent] = useState(false);
-  const [messageThreadId, setMessageThreadId] = useState<string | null>(null);
   const [messageError, setMessageError] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const placeholderRef = useRef<HTMLDivElement>(null);
@@ -510,6 +523,14 @@ export function BroadcastVideoCard({
   const hasLocalDemo = useSharedDemoVideo || broadcast.rank === 1;
   const canPlay = hasLocalDemo || Boolean(dropId);
   const showFloatingPlayer = isPlaying && mediaPlaying && isDocked;
+  const handleMediaAspectChange = useCallback((width: number, height: number) => {
+    const nextRatio = portraitVideoAspectRatio(width, height);
+    setMediaAspectRatio((current) =>
+      nextRatio !== null && current !== null && Math.abs(current - nextRatio) < 0.001
+        ? current
+        : nextRatio,
+    );
+  }, []);
 
   const pauseBroadcast = () => {
     if (hasLocalDemo) {
@@ -574,7 +595,7 @@ export function BroadcastVideoCard({
       window.removeEventListener('resize', schedulePosition);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
-  }, [isPlaying, mediaPlaying]);
+  }, [isPlaying, mediaAspectRatio, mediaPlaying]);
 
   function seekVideo(seconds: number) {
     const video = videoRef.current;
@@ -604,8 +625,34 @@ export function BroadcastVideoCard({
     event.preventDefault();
     const nextOpinion = opinionDraft.trim();
     if (!nextOpinion) return;
-    setOpinions((current) => [...current, nextOpinion]);
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const stance = submitter?.value === 'disagree' ? 'disagree' : 'agree';
+    setOpinions((current) => [...current, { text: nextOpinion, stance }]);
+    setOpinionStep(0);
     setOpinionDraft('');
+  }
+
+  useEffect(() => {
+    if (opinions.length === 0) return;
+    const timer = window.setInterval(() => setOpinionStep((step) => step + 1), 3000);
+    return () => window.clearInterval(timer);
+  }, [opinions.length]);
+
+  const spreadUrl = () => {
+    const url = new URL('/categories', window.location.origin);
+    url.searchParams.set('category', broadcast.id.startsWith('ALL-') ? 'ALL' : broadcast.categoryName);
+    url.searchParams.set('broadcast', broadcast.id);
+    return url.toString();
+  };
+
+  async function copySpreadLink() {
+    try {
+      await navigator.clipboard.writeText(spreadUrl());
+      setSpreadCopied(true);
+      setSpreadError('');
+    } catch {
+      setSpreadError('Could not copy automatically. Select the link below to copy it.');
+    }
   }
 
   function submitMessage(event: SyntheticEvent<HTMLFormElement>) {
@@ -631,11 +678,9 @@ export function BroadcastVideoCard({
         body,
       });
       setMessageDraft('');
-      setMessageThreadId(thread.id);
-      setMessageSent(true);
       setMessageError('');
+      window.location.assign(`/chat?thread=${encodeURIComponent(thread.id)}`);
     } catch (reason) {
-      setMessageSent(false);
       setMessageError(
         reason instanceof Error
           ? reason.message
@@ -647,6 +692,18 @@ export function BroadcastVideoCard({
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = isMuted;
   }, [isMuted]);
+
+  useEffect(() => {
+    if (!isMessageOpen && !isSpreadOpen) return;
+    function closeOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsMessageOpen(false);
+        setIsSpreadOpen(false);
+      }
+    }
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isMessageOpen, isSpreadOpen]);
 
   const clearControlsTimer = useCallback(() => {
     if (controlsTimerRef.current === null) return;
@@ -697,11 +754,22 @@ export function BroadcastVideoCard({
     videoRef.current.pause();
   }, [hasLocalDemo, isPlaying]);
 
+  const mediaAspectStyle = mediaAspectRatio
+    ? ({ '--category-video-aspect-ratio': mediaAspectRatio } as CSSProperties)
+    : undefined;
+  const cardStyle = {
+    ...(accentColor ? { '--category-accent': accentColor } : {}),
+    ...(mediaAspectRatio
+      ? { '--category-video-aspect-ratio': mediaAspectRatio }
+      : {}),
+  } as CSSProperties;
+  const recentOpinions = opinions.slice(-4).reverse();
+  const liveOpinion = recentOpinions[opinionStep % recentOpinions.length];
   const card = (
     <section
       ref={floatingRef}
-      className={`category-lead-card category-broadcast-video ${isPlaying ? 'is-playing is-player-portaled' : ''} ${isPlaying && !controlsVisible ? 'controls-hidden' : ''} ${showFloatingPlayer ? 'is-docked' : ''}`}
-      style={accentColor ? ({ '--category-accent': accentColor } as CSSProperties) : undefined}
+      className={`category-lead-card category-broadcast-video ${mediaAspectRatio ? 'is-portrait-video' : ''} ${isPlaying ? 'is-playing is-player-portaled' : ''} ${mediaPlaying ? 'is-media-playing' : ''} ${mediaPlaying && !controlsVisible ? 'controls-hidden' : ''} ${showFloatingPlayer ? 'is-docked' : ''}`}
+      style={cardStyle}
     >
       <div
         className="category-lead-media"
@@ -723,6 +791,12 @@ export function BroadcastVideoCard({
               playsInline
               preload="metadata"
               aria-label={`${broadcast.name}'s one-minute featured broadcast`}
+              onLoadedMetadata={(event) =>
+                handleMediaAspectChange(
+                  event.currentTarget.videoWidth,
+                  event.currentTarget.videoHeight,
+                )
+              }
               onPlaying={() => setMediaPlaying(true)}
               onPause={() => setMediaPlaying(false)}
               onEnded={() => {
@@ -744,7 +818,11 @@ export function BroadcastVideoCard({
         )}
         {isPlaying && !hasLocalDemo && dropId && (
           <div className="category-on-demand-player">
-            <DropPlayer dropId={dropId} onPlayingChange={setMediaPlaying} />
+            <DropPlayer
+              dropId={dropId}
+              onPlayingChange={setMediaPlaying}
+              onAspectRatioChange={handleMediaAspectChange}
+            />
           </div>
         )}
         <span className="category-lead-shade" aria-hidden="true" />
@@ -752,7 +830,7 @@ export function BroadcastVideoCard({
           className="category-lead-mic"
           type="button"
           disabled={!canPlay}
-          tabIndex={isPlaying && !controlsVisible ? -1 : 0}
+          tabIndex={mediaPlaying && !controlsVisible ? -1 : 0}
           onClick={() => {
             if (!canPlay) return;
             if (!isPlaying) onPlay(broadcast.id);
@@ -765,13 +843,9 @@ export function BroadcastVideoCard({
               : `${broadcast.name}'s broadcast is not ready to play`
           }
         >
-          {isPlaying ? (
-            mediaPlaying ? <Pause size={25} aria-hidden="true" /> : <Play size={25} aria-hidden="true" />
-          ) : (
-            <Mic size={25} strokeWidth={1.8} aria-hidden="true" />
-          )}
+          <Mic size={25} strokeWidth={1.8} aria-hidden="true" />
         </button>
-        {isPlaying && hasLocalDemo && (
+        {mediaPlaying && hasLocalDemo && (
           <div className="category-video-seek-controls" aria-label="Seek video">
             <button
               className="category-video-seek-control"
@@ -796,8 +870,8 @@ export function BroadcastVideoCard({
           </div>
         )}
         <div
-          className={`category-stage-status ${isPlaying ? 'is-visible' : ''}`}
-          aria-hidden={!isPlaying}
+          className={`category-stage-status ${mediaPlaying ? 'is-visible' : ''}`}
+          aria-hidden={!mediaPlaying}
         >
           <i aria-hidden="true" />
           <span>
@@ -805,22 +879,21 @@ export function BroadcastVideoCard({
             <small>LIVE TO THE WORLD</small>
           </span>
         </div>
-        {showFloatingPlayer && (
-          <button
-            className="category-floating-pause"
-            type="button"
-            onClick={pauseBroadcast}
-            aria-label="Pause floating broadcast"
+        {liveOpinion && (
+          <div
+            className="category-live-comment-stream"
+            aria-hidden="true"
           >
-            <Pause size={16} fill="currentColor" aria-hidden="true" />
-            Pause
-          </button>
+            <span className="category-live-comment" key={`${opinions.length}-${opinionStep}`}>
+              {liveOpinion.text}
+            </span>
+          </div>
         )}
         <div className="category-lead-media-actions">
           <button
             className={`category-lead-control category-lead-watchlist ${isWatchlisted ? 'is-saved' : ''}`}
             type="button"
-            tabIndex={controlsVisible ? 0 : -1}
+            tabIndex={!mediaPlaying || controlsVisible ? 0 : -1}
             aria-pressed={isWatchlisted}
             aria-label={`${isWatchlisted ? 'Remove' : 'Add'} ${broadcast.name}'s broadcast ${isWatchlisted ? 'from' : 'to'} your watchlist`}
             onClick={() => setIsWatchlisted((saved) => !saved)}
@@ -831,7 +904,7 @@ export function BroadcastVideoCard({
               aria-hidden="true"
             />
           </button>
-          {isPlaying && (
+          {mediaPlaying && (
             <>
               <button
                 className="category-lead-control category-lead-startover"
@@ -877,45 +950,89 @@ export function BroadcastVideoCard({
               <span className="category-lead-stat">
                 <Eye size={13} aria-hidden="true" />
                 <span>
-                  <strong>{broadcast.views.toLocaleString('en-US')}</strong>
-                  <small>saw this</small>
+                  <strong>
+                    <span className="category-lead-stat-full">
+                      {broadcast.views.toLocaleString('en-US')}
+                    </span>
+                    <span className="category-lead-stat-compact">
+                      {new Intl.NumberFormat('en-US', {
+                        notation: 'compact',
+                        maximumFractionDigits: 1,
+                      }).format(broadcast.views)}
+                    </span>
+                  </strong>
+                  <small>
+                    <span className="category-lead-stat-full">saw this</span>
+                    <span className="category-lead-stat-compact">views</span>
+                  </small>
                 </span>
               </span>
-              <span className="category-lead-stat">
+              <button
+                className="category-lead-stat category-lead-spread"
+                type="button"
+                onClick={() => { setIsSpreadOpen(true); setSpreadCopied(false); setSpreadError(''); }}
+                aria-label={`Spread ${broadcast.name}'s broadcast`}
+              >
                 <Share2 size={13} aria-hidden="true" />
                 <span>
-                  <strong>{broadcast.shares.toLocaleString('en-US')}</strong>
-                  <small>shared this</small>
+                  <strong>
+                    <span className="category-lead-stat-full">
+                      {broadcast.shares.toLocaleString('en-US')}
+                    </span>
+                    <span className="category-lead-stat-compact">
+                      {new Intl.NumberFormat('en-US', {
+                        notation: 'compact',
+                        maximumFractionDigits: 1,
+                      }).format(broadcast.shares)}
+                    </span>
+                  </strong>
+                  <small>
+                    <span className="category-lead-stat-full">spreads</span>
+                    <span className="category-lead-stat-compact">spread</span>
+                  </small>
                 </span>
-              </span>
+              </button>
               <span className="category-lead-stat category-lead-outbid">
                 <UsersRound size={13} aria-hidden="true" />
                 <span>
-                  <strong>{broadcast.outbidCount.toLocaleString('en-US')}</strong>
-                  <small>outbid this</small>
+                  <strong>
+                    <span className="category-lead-stat-full">
+                      {broadcast.outbidCount.toLocaleString('en-US')}
+                    </span>
+                    <span className="category-lead-stat-compact">
+                      {new Intl.NumberFormat('en-US', {
+                        notation: 'compact',
+                        maximumFractionDigits: 1,
+                      }).format(broadcast.outbidCount)}
+                    </span>
+                  </strong>
+                  <small>
+                    <span className="category-lead-stat-full">outbid this</span>
+                    <span className="category-lead-stat-compact">outbid</span>
+                  </small>
                 </span>
               </span>
             </div>
             <div className="category-lead-bid-panel">
               <div className="category-lead-value">
-                <small>CURRENT BID</small>
+                <small>
+                  <span className="category-lead-bid-full">CURRENT BID</span>
+                  <span className="category-lead-bid-compact">BID</span>
+                </small>
                 <strong>{broadcast.price}</strong>
               </div>
               <span className="category-lead-take">
                 <span className="category-lead-take-label">
                   <Gavel size={26} aria-hidden="true" />
-                  <strong>TAKE THIS SPOT</strong>
+                  <strong>
+                    <span className="category-lead-take-full">TAKE THIS SPOT</span>
+                    <span className="category-lead-take-compact">TAKE</span>
+                  </strong>
                 </span>
                 <b>{broadcast.takePrice}</b>
               </span>
             </div>
             <div className="category-lead-author">
-              <ProfileAvatar
-                initials={broadcast.initials}
-                imageSrc="/leaderboard-portraits.png"
-                imagePosition={broadcast.imagePosition}
-                className="category-lead-author-avatar"
-              />
               <span>
                 <strong>{broadcast.name}</strong>
                 <small>{broadcast.handle}</small>
@@ -923,19 +1040,25 @@ export function BroadcastVideoCard({
               <button
                 className="category-lead-message-button category-lead-author-message"
                 type="button"
+                aria-label={
+                  `Message ${broadcast.name}`
+                }
                 aria-expanded={isMessageOpen}
                 onClick={() => {
-                  setIsMessageOpen((open) => !open);
-                  setMessageSent(false);
+                  setIsMessageOpen(true);
                   setMessageError('');
                 }}
               >
                 <Send size={11} aria-hidden="true" />
-                {isMessageOpen ? 'CLOSE DM' : `MESSAGE ${broadcast.name.toUpperCase()}`}
+                {`MESSAGE ${broadcast.name.toUpperCase()}`}
               </button>
-              <span
+              <a
                 className="category-lead-author-platform"
-                title={broadcast.socialPlatform}
+                href={socialSearchUrl(broadcast.socialPlatform, broadcast.handle)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Find ${broadcast.handle} on ${broadcast.socialPlatform}`}
+                aria-label={`Find ${broadcast.handle} on ${broadcast.socialPlatform}`}
               >
                 <SocialPlatformIcon
                   platform={broadcast.socialPlatform}
@@ -943,106 +1066,134 @@ export function BroadcastVideoCard({
                   aria-label={`${broadcast.socialPlatform} profile`}
                   aria-hidden={false}
                 />
-              </span>
+              </a>
             </div>
           </div>
         </div>
         <div className="category-lead-copy">
           <span>{broadcast.categoryName}</span>
           <h2>&ldquo;{broadcast.title}&rdquo;</h2>
-          <div className="category-lead-engagement">
-            <div className="category-lead-engagement-head">
-              <span className="category-lead-opinion-count">
-                <MessageCircle size={12} aria-hidden="true" />
-                {opinions.length} opinions
-              </span>
-            </div>
-            {opinions.length > 0 && (
-              <div className="category-lead-opinion-list" aria-label="Opinions">
-                {opinions.slice(-2).map((opinion, index) => (
-                  <span key={`${opinion}-${index}`}>{opinion}</span>
-                ))}
-              </div>
-            )}
-            <form className="category-lead-opinion-form" onSubmit={submitOpinion}>
-              <label className="sr-only" htmlFor={`opinion-${broadcast.id}`}>
-                Opinion on {broadcast.name}&apos;s broadcast
-              </label>
-              <input
-                id={`opinion-${broadcast.id}`}
-                type="text"
-                value={opinionDraft}
-                onChange={(event) => setOpinionDraft(event.target.value)}
-                placeholder="Share an opinion..."
-                maxLength={240}
-              />
-              <button
-                type="submit"
-                aria-label="Post opinion"
-                disabled={!opinionDraft.trim()}
-              >
-                <Send size={12} aria-hidden="true" />
-              </button>
-            </form>
-            {isMessageOpen && (
-              <form className="category-lead-dm-form" onSubmit={submitMessage}>
-                <label className="sr-only" htmlFor={`message-${broadcast.id}`}>
-                  Message {broadcast.name}
-                </label>
-                <input
-                  id={`message-${broadcast.id}`}
-                  type="text"
-                  value={messageDraft}
-                  onChange={(event) => {
-                    setMessageDraft(event.target.value);
-                    setMessageSent(false);
-                    setMessageError('');
-                  }}
-                  placeholder={`Message ${broadcast.name} directly...`}
-                  maxLength={240}
-                />
-                <button type="submit" disabled={!messageDraft.trim()}>
-                  SEND
-                </button>
-              </form>
-            )}
-            {messageSent && (
-              <small className="category-lead-message-status">
-                MESSAGE SENT
-                {messageThreadId && (
-                  <Link href={`/chat?thread=${encodeURIComponent(messageThreadId)}`}>
-                    OPEN CHAT
-                  </Link>
-                )}
-              </small>
-            )}
-            {messageError && (
-              <small className="category-lead-message-error" role="alert">
-                {messageError}
-              </small>
-            )}
-          </div>
         </div>
       </div>
     </section>
   );
 
-  if (!isPlaying) return card;
+  const dialogs = typeof document !== 'undefined' && (isMessageOpen || isSpreadOpen)
+    ? createPortal(
+        <div className="category-action-backdrop">
+          {isMessageOpen ? (
+            <dialog open className="category-action-dialog" aria-modal="true" aria-labelledby={`dm-title-${broadcast.id}`}>
+              <div className="category-action-head">
+                <div>
+                  <small>DIRECT MESSAGE</small>
+                  <h2 id={`dm-title-${broadcast.id}`}>Say something to {broadcast.name}</h2>
+                </div>
+                <button type="button" onClick={() => setIsMessageOpen(false)} aria-label="Close message dialog"><X size={18} /></button>
+              </div>
+              <form className="category-action-form" onSubmit={submitMessage}>
+                <label htmlFor={`message-${broadcast.id}`}>Your message</label>
+                <textarea
+                  id={`message-${broadcast.id}`}
+                  autoFocus
+                  value={messageDraft}
+                  onChange={(event) => { setMessageDraft(event.target.value); setMessageError(''); }}
+                  placeholder={`Message ${broadcast.name} directly...`}
+                  maxLength={240}
+                  rows={4}
+                />
+                <small>Opens in your DM page after sending.</small>
+                {messageError && <p className="category-action-error" role="alert">{messageError}</p>}
+                <button className="category-action-primary" type="submit" disabled={!messageDraft.trim()}><Send size={15} /> Send message</button>
+              </form>
+            </dialog>
+          ) : (
+            <dialog open className="category-action-dialog" aria-modal="true" aria-labelledby={`spread-title-${broadcast.id}`}>
+              <div className="category-action-head">
+                <div>
+                  <small>SPREAD THIS BROADCAST</small>
+                  <h2 id={`spread-title-${broadcast.id}`}>Spread this position</h2>
+                </div>
+                <button type="button" onClick={() => setIsSpreadOpen(false)} aria-label="Close spread dialog"><X size={18} /></button>
+              </div>
+              <p className="category-action-description">Send a direct link to {broadcast.name}&apos;s position.</p>
+              <div className="category-action-copy">
+                <input readOnly aria-label="Broadcast link" value={spreadUrl()} onFocus={(event) => event.currentTarget.select()} />
+                <button type="button" onClick={copySpreadLink}>{spreadCopied ? <Check size={16} /> : <Copy size={16} />}{spreadCopied ? 'Copied' : 'Copy link'}</button>
+              </div>
+              {spreadError && <p className="category-action-error" role="alert">{spreadError}</p>}
+            </dialog>
+          )}
+        </div>,
+        document.body,
+      )
+    : null;
+
+  if (!isPlaying) return <>{card}{dialogs}</>;
 
   return (
     <>
       <div
         ref={placeholderRef}
-        className="category-lead-placeholder"
+        className={`category-lead-placeholder ${mediaAspectRatio ? 'is-portrait-video' : ''}`}
+        style={mediaAspectStyle}
         aria-hidden="true"
       />
+      {useSharedDemoVideo && mediaPlaying && (
+        <section
+          className="category-video-comments"
+          aria-label={`Opinions on ${broadcast.name}'s broadcast`}
+        >
+          <div className="category-video-comments-head">
+            <span>
+              <MessageCircle size={15} aria-hidden="true" />
+              OPINIONS
+            </span>
+            <small>{opinions.length}</small>
+          </div>
+          <div className="category-video-comments-scroll" role="log" aria-live="polite">
+            {opinions.length > 0 && (
+              <ol className="category-video-comments-list">
+                {opinions.map((opinion, index) => (
+                  <li className="category-video-comment" key={`${index}-${opinion.text}`}>
+                    <span className={`category-video-opinion-stance is-${opinion.stance}`}>
+                      {opinion.stance === 'agree' ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+                      {opinion.stance === 'agree' ? 'AGREE' : "DON'T AGREE"}
+                    </span>
+                    <p>{opinion.text}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+          <form className="category-video-comments-form" onSubmit={submitOpinion}>
+            <label className="sr-only" htmlFor={`comment-${broadcast.id}`}>
+              Share an opinion on {broadcast.name}&apos;s broadcast
+            </label>
+            <input
+              id={`comment-${broadcast.id}`}
+              type="text"
+              value={opinionDraft}
+              onChange={(event) => setOpinionDraft(event.target.value)}
+              placeholder="Share your opinion..."
+              maxLength={240}
+            />
+            <button type="submit" name="stance" value="agree" disabled={!opinionDraft.trim()} aria-label="Post opinion: I agree" title="I agree">
+              <ArrowUp size={16} aria-hidden="true" /><span>AGREE</span>
+            </button>
+            <button type="submit" name="stance" value="disagree" disabled={!opinionDraft.trim()} aria-label="Post opinion: I don't agree" title="I don't agree">
+              <ArrowDown size={16} aria-hidden="true" /><span>DON&apos;T</span>
+            </button>
+          </form>
+        </section>
+      )}
       {typeof document !== 'undefined' &&
         createPortal(
-          <div className="market-shell dashboard-shell broadcast-floating-root">
+          <div className={`market-shell dashboard-shell broadcast-floating-root ${showFloatingPlayer ? 'is-docked' : ''}`}>
             {card}
           </div>,
           document.body,
         )}
+      {dialogs}
     </>
   );
 }
@@ -1234,17 +1385,23 @@ export default function CategoriesPage() {
   );
 
   useEffect(() => {
-    const requestedCategory = new URLSearchParams(window.location.search)
-      .get('category')
-      ?.toUpperCase();
+    const params = new URLSearchParams(window.location.search);
+    const requestedCategory = params.get('category')?.toUpperCase();
     const requestedIndex = categories.findIndex(
       (category) => category.name === requestedCategory,
     );
-    if (requestedIndex <= 0) return;
+    const selectedIndex = requestedIndex >= 0 ? requestedIndex : 0;
+    const requestedBroadcast = params.get('broadcast');
+    const matchingBroadcast = categoryBroadcasts[selectedIndex].find(({ id }) => id === requestedBroadcast);
+    if (requestedIndex <= 0 && !matchingBroadcast) return;
     const frame = window.requestAnimationFrame(() => {
-      activeIndexRef.current = requestedIndex;
-      setActiveIndex(requestedIndex);
-      scrollToCategory(requestedIndex, 'auto');
+      activeIndexRef.current = selectedIndex;
+      setActiveIndex(selectedIndex);
+      if (matchingBroadcast) {
+        setFeaturedBroadcastId(matchingBroadcast.id);
+        setVisibleCounts((current) => ({ ...current, [categories[selectedIndex].name]: Math.max(current[categories[selectedIndex].name] ?? initialBroadcastCount, matchingBroadcast.rank) }));
+      }
+      scrollToCategory(selectedIndex, 'auto');
     });
     return () => window.cancelAnimationFrame(frame);
   }, [scrollToCategory]);
@@ -1495,7 +1652,6 @@ export default function CategoriesPage() {
           })}
         </section>
 
-        <MarketFooter />
       </div>
 
       {showBackToTop && (

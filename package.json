@@ -16,6 +16,7 @@
     "preflight:production": "node scripts/check-production-env.mjs"
   },
   "dependencies": {
+    "@block65/webcrypto-web-push": "2.0.0",
     "@mediapipe/tasks-vision": "1.0.1",
     "@mux/mux-player-react": "3.13.2",
     "@mux/upchunk": "3.5.0",

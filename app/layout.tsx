@@ -24,6 +24,16 @@ const jetBrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'BOUGHT — The Global Attention Exchange',
   description: 'One global auction. One daily market. Spend to be seen.',
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/apple-touch-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'BOUGHT',
+    statusBarStyle: 'black-translucent',
+  },
 };
 
 export default function RootLayout({
