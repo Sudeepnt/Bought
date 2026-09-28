@@ -247,6 +247,24 @@ export async function mux<T>(path: string, body?: unknown) {
   });
 }
 
+export async function deleteMuxAsset(assetId: string) {
+  if (!validProviderReference(assetId))
+    throw new HttpError(400, 'Invalid video asset ID.');
+  const response = await fetch(
+    `https://api.mux.com/video/v1/assets/${encodeURIComponent(assetId)}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: basic('MUX_TOKEN_ID', 'MUX_TOKEN_SECRET') },
+      signal: AbortSignal.timeout(20000),
+    },
+  );
+  if (response.ok || response.status === 404) return;
+  throw new HttpError(
+    502,
+    'The video provider could not remove an expired recording.',
+  );
+}
+
 export async function muxRobots<T>(path: string, body: unknown) {
   return providerRequest<{ data: T }>(`https://api.mux.com/robots/v0/${path}`, {
     method: 'POST',
@@ -270,7 +288,8 @@ export function muxPlaybackToken(
     throw new HttpError(404, 'This exposure has ended.');
   const encode = (value: unknown) =>
     Buffer.from(JSON.stringify(value)).toString('base64url');
-  const message = `${encode({ alg: 'RS256', typ: 'JWT', kid: required('MUX_SIGNING_KEY_ID') })}.${encode({ sub: playbackId, aud: 'v', exp: expiry })}`;
+  const keyId = required('MUX_SIGNING_KEY_ID');
+  const message = `${encode({ alg: 'RS256', typ: 'JWT', kid: keyId })}.${encode({ sub: playbackId, aud: 'v', exp: expiry, kid: keyId, default_subtitles_lang: 'en' })}`;
   const configured = required('MUX_SIGNING_PRIVATE_KEY').replace(/\\n/g, '\n');
   const pem = configured.includes('BEGIN')
     ? configured

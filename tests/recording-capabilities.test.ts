@@ -3,6 +3,7 @@ import test from 'node:test';
 import { MAX_VIDEO_BYTES } from '../lib/drop-domain';
 import {
   importedRecordingIssue,
+  recordingProfile,
   recordingExtension,
   supportedRecordingMimeType,
   validRecordedTake,
@@ -32,6 +33,24 @@ void test('completed takes enforce minimum duration and maximum bytes', () => {
   assert.equal(validRecordedTake(MAX_VIDEO_BYTES + 1, 1000), false);
 });
 
+void test('mobile and low-power devices use a lighter recording profile', () => {
+  const mobile = recordingProfile({ compact: true, hardwareConcurrency: 8 });
+  const lowPower = recordingProfile({
+    compact: false,
+    hardwareConcurrency: 4,
+  });
+  const desktop = recordingProfile({
+    compact: false,
+    hardwareConcurrency: 10,
+  });
+  assert.equal(mobile.width, 960);
+  assert.equal(mobile.frameRate, 24);
+  assert.equal(lowPower.faceSampleMs, 650);
+  assert.equal(desktop.width, 1280);
+  assert.equal(desktop.frameRate, 30);
+  assert.ok(mobile.cameraBitsPerSecond < desktop.cameraBitsPerSecond);
+});
+
 void test('imported takes enforce browser-checkable media requirements', () => {
   const valid = {
     size: 10_000,
@@ -44,6 +63,14 @@ void test('imported takes enforce browser-checkable media requirements', () => {
   assert.match(
     importedRecordingIssue({ ...valid, type: 'application/octet-stream' })!,
     /video file/,
+  );
+  assert.equal(
+    importedRecordingIssue({
+      ...valid,
+      type: 'application/octet-stream',
+      name: 'phone-recording.MOV',
+    }),
+    null,
   );
   assert.match(
     importedRecordingIssue({ ...valid, size: MAX_VIDEO_BYTES + 1 })!,

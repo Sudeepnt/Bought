@@ -7,6 +7,33 @@ export const RECORDING_MIME_TYPES = [
   'video/webm',
 ] as const;
 
+export function recordingProfile({
+  compact,
+  hardwareConcurrency,
+}: {
+  compact: boolean;
+  hardwareConcurrency?: number;
+}) {
+  const lowerPower = compact || (hardwareConcurrency ?? 8) <= 4;
+  return lowerPower
+    ? {
+        width: 960,
+        height: 540,
+        cameraBitsPerSecond: 1_800_000,
+        screenBitsPerSecond: 2_200_000,
+        faceSampleMs: 650,
+        frameRate: 24,
+      }
+    : {
+        width: 1280,
+        height: 720,
+        cameraBitsPerSecond: 2_500_000,
+        screenBitsPerSecond: 3_000_000,
+        faceSampleMs: 400,
+        frameRate: 30,
+      };
+}
+
 export function supportedRecordingMimeType(
   isSupported: (type: string) => boolean,
 ) {
@@ -33,17 +60,21 @@ export function validRecordedTake(size: number, elapsedMs: number) {
 export function importedRecordingIssue({
   size,
   type,
+  name,
   duration,
   width,
   height,
 }: {
   size: number;
   type: string;
+  name?: string;
   duration: number;
   width: number;
   height: number;
 }) {
-  if (!type.toLowerCase().startsWith('video/'))
+  const recognizedType = type.toLowerCase().startsWith('video/');
+  const recognizedExtension = /\.(mp4|mov|webm|m4v)$/i.test(name ?? '');
+  if (!recognizedType && !recognizedExtension)
     return 'Choose a video file recorded as MP4, MOV, or WebM.';
   if (size <= 0 || size > MAX_VIDEO_BYTES)
     return 'Choose a video larger than 0 bytes and no more than 250 MB.';

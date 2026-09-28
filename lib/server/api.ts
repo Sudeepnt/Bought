@@ -18,12 +18,17 @@ import {
 } from './config';
 import {
   createCheckout,
+  deleteMuxAsset,
   mux,
   muxPlaybackToken,
   trustedStripeCheckoutUrl,
   validMuxUploadTarget,
   validProviderReference,
 } from './providers';
+import {
+  RECORDING_RETENTION_MS,
+  recordingSavedAt,
+} from '../recording-retention';
 import {
   constantEqual,
   database,
@@ -34,7 +39,7 @@ import {
   sameOrigin,
 } from './security';
 import { webhook } from './webhooks';
-import { requestTranscription } from './transcription';
+import { muxGeneratedSubtitles, requestTranscription } from './transcription';
 import {
   deletePushSubscription,
   flushMarketPushEvents,
@@ -44,7 +49,7 @@ import {
 } from './push-notifications';
 
 const ownerDropFields =
-  'id,category,capture_mode,title,amount_minor,currency,provider,payment_state,checkout_state,payment_reference,checkout_url,paid_at,state,mux_upload_id,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,transcription_status,transcribed_at,created_at';
+  'id,category,capture_mode,title,amount_minor,currency,provider,payment_state,checkout_state,payment_reference,checkout_url,paid_at,state,mux_upload_id,mux_upload_expires_at,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,transcription_status,transcribed_at,created_at';
 const reviewDropFields =
   'id,category,capture_mode,title,amount_minor,currency,payment_state,paid_at,state,mux_asset_id,mux_playback_id,media_state,thumbnail_path,thumbnail_verified,submitted_at,review_reason,auction_id,exposure_starts_at,exposure_ends_at,transcription_status,transcript_english,editorial_summary,editorial_headline,editorial_quote,editorial_keywords,transcription_error,transcribed_at,created_at';
 
@@ -159,6 +164,59 @@ async function publicSnapshot() {
   return { market, entries: entries ?? [] };
 }
 
+async function expireUnusedRecordings() {
+  if (!setting('MUX_TOKEN_ID') || !setting('MUX_TOKEN_SECRET')) return 0;
+  const db = database();
+  const { data, error } = await db
+    .from('bought_drops')
+    .select(
+      'id,state,mux_asset_id,mux_upload_expires_at,created_at,submitted_at',
+    )
+    .in('state', ['draft', 'rejected'])
+    .eq('media_state', 'ready')
+    .not('mux_asset_id', 'is', null)
+    .order('created_at', { ascending: true })
+    .limit(50);
+  dbError(error);
+
+  let expired = 0;
+  for (const drop of data ?? []) {
+    const savedAt = recordingSavedAt({
+      uploadExpiresAt: drop.mux_upload_expires_at,
+      createdAt: drop.created_at,
+    });
+    if (savedAt + RECORDING_RETENTION_MS > Date.now()) continue;
+    try {
+      await deleteMuxAsset(drop.mux_asset_id);
+      const { error: updateError } = await db
+        .from('bought_drops')
+        .update({
+          mux_upload_id: null,
+          mux_upload_url: null,
+          mux_upload_expires_at: null,
+          mux_asset_id: null,
+          mux_playback_id: null,
+          media_state: 'none',
+          review_reason:
+            'Unused recording expired after 14 days. Record a new take to continue.',
+        })
+        .eq('id', drop.id)
+        .eq('mux_asset_id', drop.mux_asset_id)
+        .in('state', ['draft', 'rejected']);
+      dbError(updateError);
+      expired += 1;
+    } catch (cleanupError) {
+      console.error(
+        'BOUGHT recording cleanup is pending:',
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : 'Unknown cleanup error.',
+      );
+    }
+  }
+  return expired;
+}
+
 export async function handleApi(request: Request) {
   try {
     const url = new URL(request.url);
@@ -183,6 +241,7 @@ export async function handleApi(request: Request) {
         )
       )
         throw new HttpError(401, 'Unauthorized.');
+      const expiredRecordings = await expireUnusedRecordings();
       const { data, error } = await database().rpc('bought_advance');
       dbError(error);
       await flushMarketPushEvents().catch((pushError: unknown) => {
@@ -191,7 +250,7 @@ export async function handleApi(request: Request) {
           pushError instanceof Error ? pushError.message : 'Unknown error.',
         );
       });
-      return json(data);
+      return json({ ...data, expiredRecordings });
     }
     if (exactPath(path, 'push', 'key') && method === 'GET')
       return json({ publicKey: pushPublicKey() });
@@ -276,6 +335,19 @@ export async function handleApi(request: Request) {
         drop.state === 'published' &&
         drop.payment_state === 'paid' &&
         drop.auction_id === market.auctionId;
+      const unusedRecordingExpired =
+        ['draft', 'rejected'].includes(drop.state) &&
+        recordingSavedAt({
+          uploadExpiresAt: drop.mux_upload_expires_at,
+          createdAt: drop.created_at,
+        }) +
+          RECORDING_RETENTION_MS <=
+          Date.now();
+      if (!isPublic && unusedRecordingExpired)
+        throw new HttpError(
+          410,
+          'This unused recording expired after 14 days.',
+        );
       if (!isPublic) {
         const user = await identity(request);
         if (
@@ -297,8 +369,6 @@ export async function handleApi(request: Request) {
           isPublic ? drop.exposure_ends_at : null,
         ),
         thumbnail: thumbnail?.signedUrl,
-        captionsVtt:
-          drop.transcription_status === 'ready' ? drop.captions_vtt : null,
       });
     }
 
@@ -557,13 +627,7 @@ export async function handleApi(request: Request) {
                 video_quality: 'basic',
                 inputs: [
                   {
-                    generated_subtitles: [
-                      {
-                        language_code: 'auto',
-                        name: 'Original captions',
-                        passthrough: drop.id,
-                      },
-                    ],
+                    generated_subtitles: muxGeneratedSubtitles(drop.id),
                   },
                 ],
               },

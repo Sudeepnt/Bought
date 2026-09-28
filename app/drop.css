@@ -108,6 +108,14 @@
   background: #020403;
 }
 
+.drop-composite-preview {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: #020403;
+  object-fit: contain;
+}
+
 .review-capture-mode {
   margin: 0 0 14px;
   border-color: var(--hot);
@@ -441,6 +449,7 @@ html[data-theme='light'] .drop-capture-plan h3 {
   font: 600 14px var(--mono);
   cursor: pointer;
   text-align: center;
+  touch-action: manipulation;
 }
 .drop-button:hover:not(:disabled) {
   background: var(--line);
@@ -1700,11 +1709,15 @@ html[data-theme='light'] .drop-receipt-note {
 @media (max-width: 700px) {
   .drop-page {
     max-width: none;
-    padding: 14px 12px 40px;
+    padding: 14px max(12px, env(safe-area-inset-right))
+      calc(96px + env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left));
   }
 
   .drop-back {
+    align-items: center;
     margin-bottom: 16px;
+    min-height: 44px;
   }
 
   .drop-page-heading {
@@ -1808,7 +1821,7 @@ html[data-theme='light'] .drop-receipt-note {
 
   .drop-category-grid button {
     font-size: 11px;
-    min-height: 36px;
+    min-height: 44px;
     padding: 8px 9px;
   }
 
@@ -1867,8 +1880,45 @@ html[data-theme='light'] .drop-receipt-note {
     min-height: 54px;
   }
 
-  .drop-camera {
-    aspect-ratio: 4 / 3;
+  .drop-camera:not(.drop-screen-camera):not(.drop-recorded) {
+    aspect-ratio: 3 / 4;
+    max-height: min(70vh, 620px);
+  }
+
+  .drop-screen-camera,
+  .drop-recorded {
+    aspect-ratio: 16 / 10;
+  }
+
+  .drop-face-guide {
+    height: 52%;
+    left: 27%;
+    top: 24%;
+    width: 46%;
+  }
+
+  .drop-camera-top {
+    left: 10px;
+    right: 10px;
+    top: 10px;
+  }
+
+  .drop-recording-prompt {
+    bottom: 46px;
+    left: 10px;
+    right: 10px;
+  }
+
+  .drop-device-status {
+    align-items: stretch;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 1fr;
+    margin: 14px 0 18px;
+  }
+
+  .drop-device-status > span {
+    min-height: 28px;
   }
 
   .drop-actions {
@@ -1997,7 +2047,9 @@ html[data-theme='light'] .drop-receipt-note {
 
 .review-editorial-note h3 {
   margin: 8px 0 10px;
-  font: 700 26px/1.04 var(--font-barlow), sans-serif;
+  font:
+    700 26px/1.04 var(--font-barlow),
+    sans-serif;
   text-transform: uppercase;
 }
 
@@ -2018,7 +2070,9 @@ html[data-theme='light'] .drop-receipt-note {
   padding: 16px 18px;
   border-block: 1px solid var(--line-strong);
   color: var(--text);
-  font: 500 18px/1.45 var(--font-barlow), sans-serif;
+  font:
+    500 18px/1.45 var(--font-barlow),
+    sans-serif;
 }
 
 .review-transcript blockquote svg {

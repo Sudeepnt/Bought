@@ -1,7 +1,15 @@
 'use client';
 
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import type MuxPlayerElement from '@mux/mux-player';
+import { captionLanguageBaseCode } from '@/lib/caption-languages';
 import { useBought } from './bought-provider';
 
 const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
@@ -11,18 +19,24 @@ export function DropPlayer({
   onPlayingChange,
   onAspectRatioChange,
   onProgressChange,
+  muted,
+  captionLanguage = 'en',
+  captionsEnabled = true,
 }: {
   dropId: string;
   onPlayingChange?: (playing: boolean) => void;
   onAspectRatioChange?: (width: number, height: number) => void;
   onProgressChange?: (current: number, duration: number) => void;
+  muted?: boolean;
+  captionLanguage?: string;
+  captionsEnabled?: boolean;
 }) {
   const { api } = useBought();
+  const playerRef = useRef<MuxPlayerElement>(null);
   const [media, setMedia] = useState<{
     playbackId: string;
     token: string;
     thumbnail: string;
-    captionsVtt: string | null;
   } | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -32,7 +46,6 @@ export function DropPlayer({
         playbackId: string;
         token: string;
         thumbnail: string;
-        captionsVtt: string | null;
       }>(`media/${dropId}`)
         .then((result) => {
           if (active) {
@@ -53,21 +66,22 @@ export function DropPlayer({
       clearInterval(timer);
     };
   }, [api, dropId]);
-  const captionUrl = useMemo(
-    () =>
-      media?.captionsVtt
-        ? URL.createObjectURL(
-            new Blob([media.captionsVtt], { type: 'text/vtt' }),
-          )
-        : null,
-    [media],
-  );
-  useEffect(
-    () => () => {
-      if (captionUrl) URL.revokeObjectURL(captionUrl);
-    },
-    [captionUrl],
-  );
+  const applyCaptionLanguage = useCallback(() => {
+    const tracks = playerRef.current?.textTracks;
+    if (!tracks) return;
+    const selected = captionLanguageBaseCode(captionLanguage);
+    for (let index = 0; index < tracks.length; index += 1) {
+      const track = tracks[index];
+      track.mode =
+        captionsEnabled && captionLanguageBaseCode(track.language) === selected
+          ? 'showing'
+          : 'disabled';
+    }
+  }, [captionLanguage, captionsEnabled]);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(applyCaptionLanguage);
+    return () => window.cancelAnimationFrame(frame);
+  }, [applyCaptionLanguage, media]);
   if (error)
     return (
       <p className="drop-error" role="alert">
@@ -81,11 +95,13 @@ export function DropPlayer({
       fallback={<div className="drop-player-loading">Opening player…</div>}
     >
       <MuxPlayer
+        ref={playerRef}
         playbackId={media.playbackId}
         tokens={{ playback: media.token }}
         poster={media.thumbnail}
         accentColor="#ef2b32"
         streamType="on-demand"
+        muted={muted}
         onPlaying={() => onPlayingChange?.(true)}
         onPause={() => onPlayingChange?.(false)}
         onEnded={() => onPlayingChange?.(false)}
@@ -102,21 +118,12 @@ export function DropPlayer({
           if (player) {
             onAspectRatioChange?.(player.videoWidth, player.videoHeight);
             onProgressChange?.(player.currentTime, player.duration);
+            applyCaptionLanguage();
           }
         }}
         defaultHiddenCaptions={false}
         metadata={{ video_id: dropId, video_title: 'BOUGHT broadcast' }}
-      >
-        {captionUrl && (
-          <track
-            default
-            kind="subtitles"
-            src={captionUrl}
-            srcLang="en"
-            label="English"
-          />
-        )}
-      </MuxPlayer>
+      />
     </Suspense>
   );
 }

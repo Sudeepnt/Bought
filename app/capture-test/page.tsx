@@ -22,8 +22,11 @@ import {
 import { recordingCue } from '@/lib/recording-guidance';
 import {
   createRecordingDevice,
+  recordingExtension,
+  recordingProfile,
   supportedRecordingMimeType,
 } from '@/lib/recording-capabilities';
+import { useRecordingWakeLock } from '@/lib/use-recording-wake-lock';
 
 export default function CaptureTestPage() {
   const display = useRef<MediaStream | null>(null);
@@ -51,6 +54,8 @@ export default function CaptureTestPage() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [error, setError] = useState('');
+
+  useRecordingWakeLock(recording);
 
   function closeCompanion() {
     companionSession.current += 1;
@@ -135,6 +140,7 @@ export default function CaptureTestPage() {
       const micTrack = mic?.getAudioTracks()[0];
       const displayAudioTrack = shared.getAudioTracks()[0];
       if (!videoTrack) throw new Error('No screen source was selected.');
+      videoTrack.contentHint = 'detail';
       const audioTrack = micTrack ?? displayAudioTrack;
       setAudioSource(
         micTrack
@@ -151,7 +157,15 @@ export default function CaptureTestPage() {
         MediaRecorder.isTypeSupported(type),
       );
       if (!mime) throw new Error('This browser cannot create a recording.');
-      const device = createRecordingDevice(stream, mime, 3_000_000);
+      const profile = recordingProfile({
+        compact: window.matchMedia('(max-width: 700px)').matches,
+        hardwareConcurrency: navigator.hardwareConcurrency,
+      });
+      const device = createRecordingDevice(
+        stream,
+        mime,
+        profile.screenBitsPerSecond,
+      );
       recorder.current = device;
       device.ondataavailable = (event) => {
         if (event.data.size) chunks.current.push(event.data);
@@ -374,6 +388,16 @@ export default function CaptureTestPage() {
               </button>
             )}
           </div>
+
+          {take && previewUrl && (
+            <a
+              className="drop-text-button drop-proof-download"
+              href={previewUrl}
+              download={`bought-recording-proof.${recordingExtension(take.type)}`}
+            >
+              DOWNLOAD THIS PROOF VIDEO
+            </a>
+          )}
 
           {accepted && (
             <section className="drop-thumbnail-section">

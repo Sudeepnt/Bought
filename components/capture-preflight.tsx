@@ -41,7 +41,9 @@ export function CapturePreflight({
       setSupported(
         !!recordingSupported &&
           (mode === 'screen'
-            ? !!media?.getDisplayMedia
+            ? !!media?.getDisplayMedia &&
+              !!media?.getUserMedia &&
+              !!HTMLCanvasElement.prototype.captureStream
             : !!media?.getUserMedia),
       );
       setError('');
@@ -67,18 +69,34 @@ export function CapturePreflight({
           throw new Error(
             'Choose a screen, window, or browser tab to continue.',
           );
+        let hasCamera = false;
+        let hasMicrophone = false;
+        try {
+          const camera = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+          });
+          streams.push(camera);
+          hasCamera = camera.getVideoTracks().length > 0;
+        } catch {
+          /* The screen recorder remains usable without a face bubble. */
+        }
         try {
           const microphone = await navigator.mediaDevices.getUserMedia({
             audio: { echoCancellation: true, noiseSuppression: true },
           });
           streams.push(microphone);
-          if (!microphone.getAudioTracks().length)
-            throw new Error('No microphone track was returned.');
+          hasMicrophone = microphone.getAudioTracks().length > 0;
         } catch {
-          setNotice(
-            'Screen sharing works. No microphone was found, so this device can make a screen-only recording. Use another recorder if the broadcast needs narration.',
-          );
+          /* Shared-tab audio or silent screen recording can still work. */
         }
+        if (!hasCamera || !hasMicrophone)
+          setNotice(
+            hasCamera
+              ? 'Screen and face camera work. No microphone was found; shared-tab audio may still be included.'
+              : hasMicrophone
+                ? 'Screen and microphone work. No camera was found, so the face bubble will be hidden.'
+                : 'Screen sharing works. No camera or microphone was found; the recorder will use shared-tab audio when available.',
+          );
       } else {
         const camera = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user' },
@@ -94,7 +112,7 @@ export function CapturePreflight({
         err instanceof DOMException && err.name === 'NotAllowedError'
           ? `${mode === 'screen' ? 'Screen sharing' : 'Camera or microphone'} permission was not granted.`
           : err instanceof DOMException && err.name === 'NotFoundError'
-            ? `${mode === 'screen' ? 'A microphone was not found' : 'No camera was found on this device'}. Use the other-recorder option below.`
+            ? `${mode === 'screen' ? 'No screen source was found' : 'No camera was found on this device'}. Use the other-recorder option below.`
             : err instanceof Error
               ? err.message
               : 'This browser could not complete the recording check.',
@@ -117,7 +135,7 @@ export function CapturePreflight({
         <div>
           <span className="drop-eyebrow">
             {mode === 'screen'
-              ? 'SCREEN + OPTIONAL AUDIO'
+              ? 'SCREEN + FACE BUBBLE + AUDIO'
               : 'CAMERA + MICROPHONE'}
           </span>
           <h3 id="capture-plan-title">
@@ -133,7 +151,7 @@ export function CapturePreflight({
       </div>
       <p>
         {mode === 'screen'
-          ? 'This category needs visible proof. Test screen sharing here; microphone or shared-tab audio will be included when available. You can also import a finished video after checkout.'
+          ? 'Test the streamer layout here. Your shared screen fills the video and a real camera appears in a round bottom-right bubble. Camera, microphone, and shared-tab audio are used when available.'
           : 'Test your camera here. If this computer has no camera, record on your phone or another device and import the finished video after checkout.'}
       </p>
       {supported === false && (
@@ -162,7 +180,7 @@ export function CapturePreflight({
             : checking
               ? 'CHECKING…'
               : mode === 'screen'
-                ? 'TEST SCREEN + OPTIONAL MIC'
+                ? 'TEST SCREEN + FACE CAMERA'
                 : 'TEST CAMERA + MIC'}
           {passed && <Check size={16} />}
         </button>

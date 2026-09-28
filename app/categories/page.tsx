@@ -5,6 +5,9 @@ import {
   ArrowUp,
   Bookmark,
   Building2,
+  Captions,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   ChevronDown,
   Check,
@@ -19,11 +22,14 @@ import {
   Maximize,
   Minimize,
   Radio,
+  RotateCcw,
   Rocket,
   Send,
   Share2,
   Undo2,
   UsersRound,
+  Volume2,
+  VolumeX,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -49,6 +55,10 @@ import { SocialPlatformIcon } from '@/components/social-brand-icons';
 import { useBought } from '@/components/bought-provider';
 import { appendDirectMessage } from '@/lib/direct-messages';
 import { portraitVideoAspectRatio } from '@/lib/video-aspect-ratio';
+import {
+  CAPTION_LANGUAGES,
+  type CaptionLanguageCode,
+} from '@/lib/caption-languages';
 
 type Creator = {
   name: string;
@@ -542,6 +552,7 @@ export function BroadcastVideoCard({
 }) {
   const { session } = useBought();
   const [isWatchlisted, setIsWatchlisted] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [mediaPlaying, setMediaPlaying] = useState(false);
   const [isDocked, setIsDocked] = useState(false);
@@ -558,6 +569,10 @@ export function BroadcastVideoCard({
   const [opinionDraft, setOpinionDraft] = useState('');
   const [isMessageOpen, setIsMessageOpen] = useState(false);
   const [isSpreadOpen, setIsSpreadOpen] = useState(false);
+  const [captionLanguage, setCaptionLanguage] =
+    useState<CaptionLanguageCode>('en');
+  const [captionsEnabled, setCaptionsEnabled] = useState(true);
+  const [captionMenuOpen, setCaptionMenuOpen] = useState(false);
   const [messageDraft, setMessageDraft] = useState('');
   const [messageError, setMessageError] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -566,6 +581,7 @@ export function BroadcastVideoCard({
   const controlsTimerRef = useRef<number | null>(null);
   const lastReelMoveRef = useRef(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const captionMenuRef = useRef<HTMLDivElement>(null);
   const initialTimeAppliedRef = useRef(false);
   const videoPositionRef = useRef({ current: 0, duration: 0 });
   const reelItems = useMemo(
@@ -681,6 +697,66 @@ export function BroadcastVideoCard({
       }
     });
   };
+
+  const restartBroadcast = () => {
+    const muxPlayer = floatingRef.current?.querySelector('mux-player') as
+      | (HTMLElement & { currentTime: number })
+      | null;
+    if (!videoRef.current && !muxPlayer) return;
+    setNextCountdown(null);
+    if (videoRef.current) videoRef.current.currentTime = 0;
+    else if (muxPlayer) muxPlayer.currentTime = 0;
+    if (isFullscreen) setReelPlaybackActive(true);
+    resumeBroadcast();
+  };
+
+  const seekBroadcast = (seconds: number) => {
+    const muxPlayer = floatingRef.current?.querySelector('mux-player') as
+      | (HTMLElement & { currentTime: number; duration: number })
+      | null;
+    const video = videoRef.current;
+    if (!video && !muxPlayer) return;
+    const current = video?.currentTime ?? muxPlayer?.currentTime ?? 0;
+    const duration = video?.duration ?? muxPlayer?.duration ?? 0;
+    const next = Math.min(Math.max(current + seconds, 0), Number.isFinite(duration) ? duration : Infinity);
+    if (video) video.currentTime = next;
+    else if (muxPlayer) muxPlayer.currentTime = next;
+    updateVideoPosition(next, duration);
+  };
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
+      setIsMuted(videoRef.current.muted);
+      return;
+    }
+    const muxPlayer = floatingRef.current?.querySelector('mux-player') as
+      | (HTMLElement & { muted: boolean })
+      | null;
+    if (!muxPlayer) return;
+    muxPlayer.muted = !muxPlayer.muted;
+    setIsMuted(muxPlayer.muted);
+  };
+
+  useEffect(() => {
+    if (!captionMenuOpen) return;
+    function closeCaptionMenu(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !captionMenuRef.current?.contains(event.target)
+      )
+        setCaptionMenuOpen(false);
+    }
+    function closeCaptionMenuOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') setCaptionMenuOpen(false);
+    }
+    document.addEventListener('pointerdown', closeCaptionMenu);
+    window.addEventListener('keydown', closeCaptionMenuOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeCaptionMenu);
+      window.removeEventListener('keydown', closeCaptionMenuOnEscape);
+    };
+  }, [captionMenuOpen]);
 
   useLayoutEffect(() => {
     if (!isPlaying || isFullscreen) return;
@@ -909,7 +985,7 @@ export function BroadcastVideoCard({
   const card = (
     <section
       ref={floatingRef}
-      className={`category-lead-card category-broadcast-video ${mediaAspectRatio ? 'is-portrait-video' : ''} ${isPlaying ? 'is-playing' : ''} ${isPlaying || isFullscreen ? 'is-player-portaled' : ''} ${isFullscreen ? 'is-video-fullscreen' : ''} ${mediaPlaying ? 'is-media-playing' : ''} ${mediaPlaying && !controlsVisible ? 'controls-hidden' : ''} ${showFloatingPlayer ? 'is-docked' : ''}`}
+      className={`category-lead-card category-broadcast-video ${mediaAspectRatio ? 'is-portrait-video' : ''} ${isPlaying ? 'is-playing' : ''} ${isPlaying || isFullscreen ? 'is-player-portaled' : ''} ${isFullscreen ? 'is-video-fullscreen' : ''} ${isFullscreen && nextCountdown !== null ? 'is-next-up' : ''} ${mediaPlaying ? 'is-media-playing' : ''} ${mediaPlaying && !controlsVisible && !captionMenuOpen ? 'controls-hidden' : ''} ${showFloatingPlayer ? 'is-docked' : ''}`}
       style={cardStyle}
       onWheel={(event) => {
         if (!isFullscreen || Math.abs(event.deltaY) < 12) return;
@@ -950,6 +1026,7 @@ export function BroadcastVideoCard({
               ref={videoRef}
               src={demoSource}
               poster={demoPoster}
+              muted={isMuted}
               playsInline
               preload="metadata"
               aria-label={`${broadcast.name}'s one-minute featured broadcast`}
@@ -989,13 +1066,15 @@ export function BroadcastVideoCard({
                   setPlayIntent(false);
                 }
               }}
+              onVolumeChange={(event) => setIsMuted(event.currentTarget.muted)}
             >
               <track
+                key={`${captionLanguage}:${captionsEnabled}`}
                 kind="captions"
                 src="/video/category-feature.vtt"
                 srcLang="en"
                 label="English"
-                default
+                default={captionsEnabled && captionLanguage === 'en'}
               />
             </video>
           </div>
@@ -1008,6 +1087,9 @@ export function BroadcastVideoCard({
               onPlayingChange={setMediaPlaying}
               onAspectRatioChange={handleMediaAspectChange}
               onProgressChange={updateVideoPosition}
+              muted={isMuted}
+              captionLanguage={captionLanguage}
+              captionsEnabled={captionsEnabled}
             />
           </div>
         )}
@@ -1060,6 +1142,30 @@ export function BroadcastVideoCard({
             <Mic size={25} strokeWidth={1.8} aria-hidden="true" />
           )}
         </button>
+        {isPlaying && mediaPlaying && (
+          <div className="category-video-seek-controls" aria-label="Seek video">
+            <button
+              className="category-video-seek-control"
+              type="button"
+              onClick={() => seekBroadcast(-10)}
+              tabIndex={!mediaPlaying || controlsVisible ? 0 : -1}
+              aria-label="Back 10 seconds"
+            >
+              <ChevronLeft size={18} aria-hidden="true" />
+              <span>10</span>
+            </button>
+            <button
+              className="category-video-seek-control"
+              type="button"
+              onClick={() => seekBroadcast(10)}
+              tabIndex={!mediaPlaying || controlsVisible ? 0 : -1}
+              aria-label="Forward 10 seconds"
+            >
+              <span>10</span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
+          </div>
+        )}
         <div
           className={`category-stage-status ${mediaPlaying ? 'is-visible' : ''}`}
           aria-hidden={!mediaPlaying}
@@ -1081,6 +1187,72 @@ export function BroadcastVideoCard({
           </div>
         )}
         <div className="category-lead-media-actions">
+          {isPlaying && (
+            <div className="category-caption-control" ref={captionMenuRef}>
+              <button
+                className={`category-lead-control category-caption-trigger ${captionsEnabled ? 'is-active' : ''}`}
+                type="button"
+                tabIndex={!mediaPlaying || controlsVisible ? 0 : -1}
+                aria-label="Choose caption language"
+                aria-haspopup="menu"
+                aria-expanded={captionMenuOpen}
+                title="Captions"
+                onClick={() => setCaptionMenuOpen((open) => !open)}
+              >
+                <Captions size={17} aria-hidden="true" />
+              </button>
+              {captionMenuOpen && (
+                <div
+                  className="category-caption-menu"
+                  role="menu"
+                  aria-label="Caption language"
+                >
+                  <header>
+                    <strong>CAPTIONS</strong>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={!captionsEnabled}
+                      onClick={() => {
+                        setCaptionsEnabled(false);
+                        setCaptionMenuOpen(false);
+                      }}
+                    >
+                      Off
+                      {!captionsEnabled && <Check size={14} aria-hidden="true" />}
+                    </button>
+                  </header>
+                  <div>
+                    {CAPTION_LANGUAGES.map((language) => {
+                      const selected =
+                        captionsEnabled && captionLanguage === language.code;
+                      return (
+                        <button
+                          key={language.code}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={selected}
+                          onClick={() => {
+                            setCaptionLanguage(language.code);
+                            setCaptionsEnabled(true);
+                            setCaptionMenuOpen(false);
+                          }}
+                        >
+                          <span>
+                            <strong>{language.nativeLabel}</strong>
+                            {language.nativeLabel !== language.label && (
+                              <small>{language.label}</small>
+                            )}
+                          </span>
+                          {selected && <Check size={14} aria-hidden="true" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <button
             className="category-lead-control category-lead-spread-action"
             type="button"
@@ -1115,6 +1287,31 @@ export function BroadcastVideoCard({
               aria-hidden="true"
             />
           </button>
+          {isPlaying && (
+            <>
+              <button
+                className="category-lead-control category-lead-startover"
+                type="button"
+                tabIndex={!mediaPlaying || controlsVisible ? 0 : -1}
+                onClick={restartBroadcast}
+                aria-label="Restart broadcast"
+                title="Restart broadcast"
+              >
+                <RotateCcw size={15} aria-hidden="true" />
+              </button>
+              <button
+                className="category-lead-control category-lead-sound"
+                type="button"
+                tabIndex={!mediaPlaying || controlsVisible ? 0 : -1}
+                aria-pressed={isMuted}
+                onClick={toggleMute}
+                aria-label={isMuted ? 'Turn on video sound' : 'Mute video'}
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
+              </button>
+            </>
+          )}
         </div>
         {isFullscreen && reelItems.length > 1 && (
           <nav className="category-reel-navigation" aria-label="Fullscreen videos">
@@ -1137,8 +1334,8 @@ export function BroadcastVideoCard({
             </button>
           </nav>
         )}
-        {isFullscreen && (
-          <time className="category-video-elapsed" aria-label={`Elapsed video time ${videoClock(videoPosition.current)}`}>
+        {isPlaying && (
+          <time className={`category-video-elapsed${isFullscreen ? '' : ' is-inline'}`} aria-label={`Elapsed video time ${videoClock(videoPosition.current)}`}>
             {videoClock(videoPosition.current)}
           </time>
         )}
@@ -1283,6 +1480,25 @@ export function BroadcastVideoCard({
           <h2>&ldquo;{broadcast.title}&rdquo;</h2>
         </div>
       </div>
+      {isFullscreen && nextCountdown !== null && nextBroadcast && (
+        <aside className="category-next-preview" aria-label={`Up next: position #${nextBroadcast.rank}`}>
+          <div className="category-next-preview-heading">
+            <strong>UP NEXT · #{nextBroadcast.rank}</strong>
+            <span>STARTS IN {nextCountdown}S</span>
+          </div>
+          <span className="category-next-preview-category">{nextBroadcast.categoryName}</span>
+          <h3>{nextBroadcast.title}</h3>
+          <p>{nextBroadcast.name} · {nextBroadcast.handle}</p>
+          <div className="category-next-preview-actions">
+            <button type="button" onClick={() => { setNextCountdown(null); setPlayIntent(false); }}>
+              STAY HERE
+            </button>
+            <button type="button" onClick={() => changeReel(1)}>
+              WATCH NOW
+            </button>
+          </div>
+        </aside>
+      )}
     </section>
   );
 
@@ -1627,6 +1843,7 @@ export default function CategoriesPage() {
 
   const allCategory = categories[0];
   const AllCategoryIcon = allCategory.icon;
+  const activeVisualIndex = categoryTabIndices.indexOf(activeIndex);
 
   const scrollToCategory = useCallback(
     (index: number, behavior: ScrollBehavior = 'auto') => {
@@ -1877,11 +2094,12 @@ export default function CategoriesPage() {
           aria-live="polite"
           onScroll={handleScroll}
         >
-          {categories.map((category, index) => {
+          {categoryTabIndices.map((index, visualIndex) => {
+            const category = categories[index];
             const position =
               index === activeIndex
                 ? 'active'
-                : index < activeIndex
+                : visualIndex < activeVisualIndex
                   ? 'previous'
                   : 'next';
 

@@ -35,6 +35,7 @@ import {
 import {
   createRecordingDevice,
   importedRecordingIssue,
+  recordingProfile,
   recordingExtension,
   supportedRecordingMimeType,
   validRecordedTake,
@@ -44,6 +45,7 @@ import {
   type RecordingCompanion,
 } from '@/lib/recording-companion';
 import { recordingCue } from '@/lib/recording-guidance';
+import { useRecordingWakeLock } from '@/lib/use-recording-wake-lock';
 import { useBought } from './bought-provider';
 import { ScreenRecorder } from './screen-recorder';
 
@@ -86,6 +88,8 @@ function CameraRecorder({
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
 
+  useRecordingWakeLock(recording);
+
   function closeCompanion() {
     companionSession.current += 1;
     companion.current?.close();
@@ -121,11 +125,15 @@ function CameraRecorder({
           throw new Error(
             'Use a current browser with camera recording support over HTTPS.',
           );
+        const profile = recordingProfile({
+          compact: window.matchMedia('(max-width: 700px)').matches,
+          hardwareConcurrency: navigator.hardwareConcurrency,
+        });
         const media = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'user',
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: profile.width },
+            height: { ideal: profile.height },
           },
           audio: { echoCancellation: true, noiseSuppression: true },
         });
@@ -218,7 +226,7 @@ function CameraRecorder({
               if (elapsed >= MAX_VIDEO_SECONDS || totalBytes > MAX_VIDEO_BYTES)
                 stop();
             }
-          }, 400);
+          }, profile.faceSampleMs);
         } catch {
           throw new Error(
             'The microphone could not be checked. Reconnect your devices.',
@@ -232,7 +240,11 @@ function CameraRecorder({
           throw new Error(
             'This browser cannot record a supported broadcast. Try Chrome, Edge, or Safari.',
           );
-        const recordingDevice = createRecordingDevice(media, mime, 2500000);
+        const recordingDevice = createRecordingDevice(
+          media,
+          mime,
+          profile.cameraBitsPerSecond,
+        );
         recorder.current = recordingDevice;
         let chunks: Blob[] = [];
         recordingDevice.onstart = () => {
@@ -642,6 +654,7 @@ export function DropRecorder({
       const issue = importedRecordingIssue({
         size: file.size,
         type: file.type,
+        name: file.name,
         ...metadata,
       });
       if (issue) throw new Error(issue);

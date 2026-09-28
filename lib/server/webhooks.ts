@@ -31,7 +31,11 @@ type ProviderEvent = {
     status?: string;
     language_code?: string;
     text_source?: string;
-    parameters?: { asset_id?: string; track_id?: string };
+    parameters?: {
+      asset_id?: string;
+      track_id?: string;
+      to_language_code?: string;
+    };
     outputs?: { uploaded_track_id?: string };
     errors?: { message?: string }[];
     name?: string;
@@ -75,6 +79,10 @@ export async function webhook(request: Request, provider: string) {
     ) {
       const assetId = event.data.parameters?.asset_id;
       if (!assetId) throw new HttpError(400, 'Missing caption asset identity.');
+      // The remaining languages are playback-only tracks. English is the one
+      // stored for editorial review and therefore the only translation whose
+      // completion changes the broadcast's transcription state.
+      if (event.data.parameters?.to_language_code !== 'en') return;
       const asset = (
         await mux<MuxAsset>(`assets/${encodeURIComponent(assetId)}`)
       ).data;

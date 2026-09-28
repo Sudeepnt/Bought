@@ -1,5 +1,7 @@
 'use client';
 
+/* oxlint-disable jsx-a11y/media-has-caption -- Device-local recovery recordings do not have caption tracks yet. */
+
 import {
   useCallback,
   useEffect,
@@ -15,6 +17,7 @@ import {
   Check,
   ChevronDown,
   ClipboardPaste,
+  Clock3,
   Edit3,
   Eye,
   Link2,
@@ -33,6 +36,7 @@ import {
 import Link from 'next/link';
 
 import { MarketPageShell } from '@/components/market-page-shell';
+import { DropPlayer } from '@/components/drop-player';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import {
   InstagramBrandIcon,
@@ -43,6 +47,13 @@ import {
   type SocialBrandIcon,
 } from '@/components/social-brand-icons';
 import { useBought } from '@/components/bought-provider';
+import { loadTake } from '@/lib/local-recording';
+import {
+  RECORDING_RETENTION_DAYS,
+  recordingExpiryLabel,
+  recordingRetention,
+  recordingSavedAt,
+} from '@/lib/recording-retention';
 import {
   DEV_TEST_AUTH_STORAGE_KEY,
   DEV_TEST_PROFILE_STORAGE_KEY,
@@ -70,7 +81,19 @@ type ProfileBroadcast = {
   state: string;
   amount_minor: number;
   created_at: string;
-  thumbnail_path?: string;
+  media_state?: string;
+  mux_asset_id?: string | null;
+  mux_playback_id?: string | null;
+  mux_upload_expires_at?: string | null;
+  submitted_at?: string | null;
+  review_reason?: string | null;
+  thumbnail_path?: string | null;
+  thumbnail_verified?: boolean;
+};
+
+type LocalRecordingPreview = {
+  savedAt: number;
+  url: string;
 };
 
 type ProfileStats = {
@@ -363,12 +386,16 @@ function ProfileOverview({
   profile,
   stats,
   broadcasts,
+  localRecordings,
+  retentionNow,
   joinedAt,
   onEdit,
 }: {
   profile: ProfileDraft;
   stats: ProfileStats;
   broadcasts: ProfileBroadcast[];
+  localRecordings: Record<string, LocalRecordingPreview>;
+  retentionNow: number;
   joinedAt: string;
   onEdit: () => void;
 }) {
@@ -545,9 +572,40 @@ function ProfileOverview({
           </div>
         </div>
 
+        <p className="profile-recording-policy">
+          <Clock3 size={15} aria-hidden="true" />
+          Unused recordings stay here for {RECORDING_RETENTION_DAYS} days.
+          Submit one to keep it with the broadcast.
+        </p>
+
         {sortedBroadcasts.length > 0 ? (
           <div className="profile-showcase-broadcast-grid">
             {sortedBroadcasts.map((broadcast, index) => {
+              const localRecording = localRecordings[broadcast.id];
+              const inUse = ['processing', 'review', 'published'].includes(
+                broadcast.state,
+              );
+              const retention = recordingRetention({
+                savedAt: recordingSavedAt({
+                  localSavedAt: localRecording?.savedAt,
+                  uploadExpiresAt: broadcast.mux_upload_expires_at,
+                  createdAt: broadcast.created_at,
+                }),
+                inUse,
+                now: retentionNow,
+              });
+              const canPlayRemote = Boolean(
+                !retention.expired &&
+                broadcast.media_state === 'ready' &&
+                broadcast.mux_playback_id &&
+                broadcast.thumbnail_verified,
+              );
+              const hasRecording = Boolean(
+                localRecording ||
+                broadcast.mux_asset_id ||
+                broadcast.mux_playback_id ||
+                broadcast.review_reason?.startsWith('Unused recording expired'),
+              );
               const thumbnail = broadcast.thumbnail_path;
               const canDisplayThumbnail = Boolean(
                 thumbnail && /^(https?:\/\/|data:image\/|\/)/.test(thumbnail),
@@ -555,7 +613,7 @@ function ProfileOverview({
               return (
                 <article className="profile-showcase-card" key={broadcast.id}>
                   <div
-                    className={`profile-showcase-card-visual is-tone-${index % 4}`}
+                    className={`profile-showcase-card-visual is-tone-${index % 4} ${localRecording || canPlayRemote ? 'has-recording' : ''}`}
                     style={
                       canDisplayThumbnail
                         ? { backgroundImage: `url(${thumbnail})` }
@@ -563,7 +621,21 @@ function ProfileOverview({
                     }
                   >
                     <span>{broadcast.category}</span>
-                    <Radio size={30} aria-hidden="true" />
+                    {localRecording && !retention.expired ? (
+                      <video
+                        src={localRecording.url}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        aria-label={`Play ${broadcast.title}`}
+                      />
+                    ) : canPlayRemote ? (
+                      <div className="profile-recording-player">
+                        <DropPlayer dropId={broadcast.id} />
+                      </div>
+                    ) : (
+                      <Radio size={30} aria-hidden="true" />
+                    )}
                     <small>{broadcast.state.replaceAll('_', ' ')}</small>
                   </div>
                   <div className="profile-showcase-card-copy">
@@ -596,6 +668,42 @@ function ProfileOverview({
                         }).format(broadcast.amount_minor / 100)}
                       </strong>
                     </footer>
+                    {hasRecording && (
+                      <div
+                        className={`profile-recording-retention ${retention.expired ? 'is-expired' : ''} ${retention.inUse ? 'is-retained' : ''}`}
+                      >
+                        <div className="profile-recording-retention-copy">
+                          <span>
+                            <Clock3 size={14} />
+                            <strong>
+                              {retention.inUse
+                                ? 'Saved with broadcast'
+                                : recordingExpiryLabel(retention.remainingMs)}
+                            </strong>
+                          </span>
+                          <small>
+                            {retention.inUse
+                              ? 'This recording is in use and will not expire.'
+                              : retention.expired
+                                ? `Unused recording removed after ${RECORDING_RETENTION_DAYS} days.`
+                                : `Unused recordings are kept until ${new Intl.DateTimeFormat(
+                                    'en-US',
+                                    {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    },
+                                  ).format(new Date(retention.expiresAt))}.`}
+                          </small>
+                        </div>
+                        <span
+                          className="profile-recording-retention-track"
+                          aria-hidden="true"
+                        >
+                          <i style={{ width: `${retention.progress}%` }} />
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </article>
               );
@@ -1224,6 +1332,10 @@ function ProfileExperience({
   const [profile, setProfile] = useState(initial);
   const [editing, setEditing] = useState(() => !hasExistingProfile);
   const [broadcasts, setBroadcasts] = useState<ProfileBroadcast[]>([]);
+  const [localRecordings, setLocalRecordings] = useState<
+    Record<string, LocalRecordingPreview>
+  >({});
+  const [retentionNow, setRetentionNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!hasExistingProfile || !editing) return;
@@ -1251,6 +1363,49 @@ function ProfileExperience({
       active = false;
     };
   }, [api, client]);
+
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setRetentionNow(Date.now()),
+      60 * 1000,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const objectUrls: string[] = [];
+    void Promise.all(
+      broadcasts.map(async (broadcast) => {
+        try {
+          const take = await loadTake(broadcast.id);
+          if (!take) return null;
+          const url = URL.createObjectURL(take.video);
+          objectUrls.push(url);
+          return [broadcast.id, { savedAt: take.savedAt, url }] as const;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((recordings) => {
+      if (!active) {
+        objectUrls.forEach((url) => URL.revokeObjectURL(url));
+        return;
+      }
+      setLocalRecordings(
+        Object.fromEntries(
+          recordings.filter(
+            (recording): recording is NonNullable<typeof recording> =>
+              recording !== null,
+          ),
+        ),
+      );
+    });
+    return () => {
+      active = false;
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [broadcasts]);
 
   const updateProfile = useCallback((next: ProfileDraft) => {
     setProfile(next);
@@ -1303,6 +1458,8 @@ function ProfileExperience({
             profile={profile}
             stats={stats}
             broadcasts={broadcasts}
+            localRecordings={localRecordings}
+            retentionNow={retentionNow}
             joinedAt={joinedAt}
             onEdit={() => setEditing(true)}
           />

@@ -4,6 +4,7 @@ import type { Drop } from '../lib/drop-domain';
 import { HttpError } from '../lib/server/config';
 import {
   createCheckout,
+  deleteMuxAsset,
   providerRequest,
   trustedStripeCheckoutUrl,
   validMuxUploadTarget,
@@ -130,6 +131,30 @@ void test('provider identifiers and browser destinations are constrained', () =>
     validMuxUploadTarget('upload_123', 'https://mux.com.evil.test/upload'),
     false,
   );
+});
+
+void test('expired Mux recordings are deleted with bounded asset IDs', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalId = process.env.MUX_TOKEN_ID;
+  const originalSecret = process.env.MUX_TOKEN_SECRET;
+  try {
+    process.env.MUX_TOKEN_ID = 'mux_test_id';
+    process.env.MUX_TOKEN_SECRET = 'mux_test_secret';
+    let method = '';
+    globalThis.fetch = async (_input, init) => {
+      method = init?.method ?? '';
+      return new Response(null, { status: 204 });
+    };
+    await deleteMuxAsset('asset_123');
+    assert.equal(method, 'DELETE');
+    await assert.rejects(() => deleteMuxAsset('../asset'));
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalId === undefined) delete process.env.MUX_TOKEN_ID;
+    else process.env.MUX_TOKEN_ID = originalId;
+    if (originalSecret === undefined) delete process.env.MUX_TOKEN_SECRET;
+    else process.env.MUX_TOKEN_SECRET = originalSecret;
+  }
 });
 
 void test('Stripe checkout retries use one stable idempotency key and validate the session', async () => {

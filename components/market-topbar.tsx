@@ -64,7 +64,6 @@ const navigation: Array<{ key: MarketPage; label: string; href: string }> = [
   { key: 'floor', label: 'TODAY', href: '/' },
   { key: 'categories', label: 'CATEGORIES', href: '/categories' },
   { key: 'magazine', label: 'MAGAZINE', href: '/magazine' },
-  { key: 'chat', label: 'MESSAGES', href: '/chat' },
   { key: 'watchlist', label: 'WATCHLIST', href: '/watchlist' },
   { key: 'rules', label: 'HOW IT WORKS', href: '/how-it-works' },
   { key: 'profile', label: 'PROFILE', href: '/profile' },

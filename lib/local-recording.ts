@@ -1,5 +1,7 @@
+import { RECORDING_RETENTION_MS } from './recording-retention';
+
 // A device-local recovery copy, never the source of truth for payment or publication.
-type LocalTake = {
+export type LocalTake = {
   id: string;
   video: Blob;
   thumbnail?: Blob;
@@ -82,10 +84,19 @@ export async function markTakeUploaded(id: string, uploadId: string) {
   await saveTake(saved.id, saved.video, saved.thumbnail, saved.uploadId, true);
   return true;
 }
-export function loadTake(id: string) {
-  return transaction('readonly', (store) => store.get(id)) as Promise<
-    LocalTake | undefined
-  >;
+export async function loadTake(id: string) {
+  const take = (await transaction('readonly', (store) => store.get(id))) as
+    | LocalTake
+    | undefined;
+  if (
+    take &&
+    !take.uploaded &&
+    take.savedAt + RECORDING_RETENTION_MS <= Date.now()
+  ) {
+    await deleteTake(id);
+    return undefined;
+  }
+  return take;
 }
 export function deleteTake(id: string) {
   return transaction('readwrite', (store) => store.delete(id));
@@ -119,20 +130,42 @@ export async function normalizeThumbnail(file: File): Promise<Blob> {
     file.size > 5 * 1024 * 1024
   )
     throw new Error('Choose a JPEG, PNG, or WebP image under 5 MB.');
-  const image = await createImageBitmap(file);
+  let objectUrl = '';
+  let bitmap: ImageBitmap | null = null;
+  let image: CanvasImageSource;
+  let width: number;
+  let height: number;
+  if ('createImageBitmap' in window)
+    try {
+      bitmap = await createImageBitmap(file);
+    } catch {
+      // Older mobile Safari builds expose the API but reject some valid files.
+    }
+  if (bitmap) {
+    image = bitmap;
+    width = bitmap.width;
+    height = bitmap.height;
+  } else {
+    objectUrl = URL.createObjectURL(file);
+    const element = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const next = new Image();
+      next.onload = () => resolve(next);
+      next.onerror = () => reject(new Error('Could not read this image.'));
+      next.src = objectUrl;
+    });
+    image = element;
+    width = element.naturalWidth;
+    height = element.naturalHeight;
+  }
   try {
-    if (
-      image.width < 240 ||
-      image.height < 240 ||
-      image.width * image.height > 40000000
-    )
+    if (width < 240 || height < 240 || width * height > 40000000)
       throw new Error(
         'Use an image at least 240 × 240 pixels and under 40 megapixels.',
       );
     const canvas = document.createElement('canvas');
-    const scale = Math.min(1, 1280 / Math.max(image.width, image.height));
-    canvas.width = Math.round(image.width * scale);
-    canvas.height = Math.round(image.height * scale);
+    const scale = Math.min(1, 1280 / Math.max(width, height));
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Image processing is unavailable.');
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -147,6 +180,7 @@ export async function normalizeThumbnail(file: File): Promise<Blob> {
       ),
     );
   } finally {
-    image.close();
+    bitmap?.close();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }

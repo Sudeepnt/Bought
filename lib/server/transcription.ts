@@ -1,5 +1,9 @@
 import { database, dbError } from './security';
 import { mux, muxPlaybackToken, muxRobots, type MuxAsset } from './providers';
+import {
+  CAPTION_LANGUAGES,
+  captionLanguageBaseCode,
+} from '../caption-languages';
 
 const MAX_CAPTION_BYTES = 2 * 1024 * 1024;
 
@@ -30,6 +34,72 @@ function fallbackNotes(title: string, transcript: string): EditorialNotes {
 export function isEnglishCaptionLanguage(language: string | undefined) {
   const normalized = language?.toLowerCase();
   return normalized === 'en' || normalized?.startsWith('en-') === true;
+}
+
+export function muxGeneratedSubtitles(dropId: string) {
+  return [
+    {
+      language_code: 'auto',
+      name: 'Original captions',
+      passthrough: dropId,
+    },
+  ];
+}
+
+export function selectReadyMuxCaptionTrack(
+  tracks: MuxAsset['tracks'] | undefined,
+) {
+  const captions =
+    tracks?.filter(
+      (track) => track.type === 'text' && track.status === 'ready' && track.id,
+    ) ?? [];
+  return (
+    captions.find((track) => isEnglishCaptionLanguage(track.language_code)) ??
+    captions.find((track) => track.text_source === 'generated_vod') ??
+    null
+  );
+}
+
+export function captionTranslationTargets(
+  tracks: MuxAsset['tracks'] | undefined,
+  sourceLanguage: string | undefined,
+) {
+  const existing = new Set(
+    tracks
+      ?.filter(
+        (track) => track.type === 'text' && track.status !== 'errored',
+      )
+      .map((track) => captionLanguageBaseCode(track.language_code))
+      .filter(Boolean),
+  );
+  existing.add(captionLanguageBaseCode(sourceLanguage));
+  return CAPTION_LANGUAGES.map(({ code }) => code).filter(
+    (code) => !existing.has(code),
+  );
+}
+
+async function startCaptionTranslations(args: {
+  dropId: string;
+  assetId: string;
+  trackId: string;
+  targets: string[];
+}) {
+  const results = await Promise.allSettled(
+    args.targets.map((language) =>
+      muxRobots('jobs/translate-captions', {
+        parameters: {
+          asset_id: args.assetId,
+          track_id: args.trackId,
+          to_language_code: language,
+          upload_to_mux: true,
+        },
+        passthrough: `${args.dropId}:${language}`,
+      }),
+    ),
+  );
+  return new Map(
+    args.targets.map((language, index) => [language, results[index]]),
+  );
 }
 
 async function fetchMuxTextTrack(
@@ -73,12 +143,13 @@ async function finishMuxCaptions(args: {
   title: string;
 }) {
   try {
-    const [transcriptSource, captions] = await Promise.all([
+    const [transcriptSource, captionsSource] = await Promise.all([
       fetchMuxTextTrack(args.playbackId, args.trackId, 'txt'),
       fetchMuxTextTrack(args.playbackId, args.trackId, 'vtt'),
     ]);
     const transcript = clip(transcriptSource, 100_000);
-    if (!transcript || !captions.startsWith('WEBVTT'))
+    const captions = captionsSource.replace(/^\uFEFF/, '');
+    if (!transcript || !/^WEBVTT(?:\s|$)/.test(captions))
       throw new Error('Mux did not return a complete English transcript.');
     const notes = fallbackNotes(args.title, transcript);
     const { error } = await database().rpc('bought_finish_transcription', {
@@ -127,30 +198,41 @@ export async function processMuxCaptionTrack(args: {
     );
     dbError(error);
     if (!claimed) return { state: 'unchanged' as const };
+    const targets = captionTranslationTargets(
+      asset.tracks,
+      track.language_code,
+    );
+    const translations = await startCaptionTranslations({
+      dropId: args.dropId,
+      assetId: args.assetId,
+      trackId: args.trackId,
+      targets,
+    });
+    for (const [language, result] of translations) {
+      if (language !== 'en' && result.status === 'rejected')
+        console.error(
+          `BOUGHT ${language} caption translation could not start:`,
+          result.reason instanceof Error ? result.reason.message : result.reason,
+        );
+    }
     if (isEnglishCaptionLanguage(track.language_code))
       return finishMuxCaptions({ ...args, trackId: args.trackId });
 
-    try {
-      await muxRobots('jobs/translate-captions', {
-        parameters: {
-          asset_id: args.assetId,
-          track_id: args.trackId,
-          to_language_code: 'en',
-          upload_to_mux: true,
-        },
-        passthrough: args.dropId,
-      });
-      return { state: 'processing' as const };
-    } catch (error) {
+    const english = translations.get('en');
+    if (!english || english.status === 'rejected') {
+      const translationError =
+        english?.status === 'rejected' ? english.reason : null;
       await failTranscription(
         args.dropId,
         args.assetId,
-        error instanceof Error
-          ? error.message
+        translationError instanceof Error
+          ? translationError.message
           : 'Mux could not start English caption translation.',
       );
-      throw error;
+      if (translationError instanceof Error) throw translationError;
+      throw new Error('Mux could not start English caption translation.');
     }
+    return { state: 'processing' as const };
   }
 
   // Mux Robots attaches the translated English VTT as a second ready track.
@@ -173,9 +255,7 @@ export async function requestTranscription(drop: {
   const asset = (
     await mux<MuxAsset>(`assets/${encodeURIComponent(drop.mux_asset_id)}`)
   ).data;
-  const caption = asset.tracks?.find(
-    (track) => track.type === 'text' && track.status === 'ready',
-  );
+  const caption = selectReadyMuxCaptionTrack(asset.tracks);
   if (caption)
     return processMuxCaptionTrack({
       dropId: drop.id,
@@ -186,6 +266,22 @@ export async function requestTranscription(drop: {
       category: drop.category,
     });
 
+  // Direct uploads already request generated subtitles. If Mux has created a
+  // pending track, wait for its track.ready webhook instead of starting a
+  // duplicate generate-subtitles job when a moderator presses Retry.
+  const captionPreparing = asset.tracks?.some(
+    (track) => track.type === 'text' && track.status === 'preparing',
+  );
+  if (captionPreparing) {
+    const { error } = await database()
+      .from('bought_drops')
+      .update({ transcription_status: 'pending', transcription_error: null })
+      .eq('id', drop.id)
+      .eq('mux_asset_id', drop.mux_asset_id);
+    dbError(error);
+    return { state: 'pending' as const };
+  }
+
   const audio = asset.tracks?.find(
     (track) => track.type === 'audio' && track.id,
   );
@@ -193,13 +289,7 @@ export async function requestTranscription(drop: {
   await mux(
     `assets/${encodeURIComponent(drop.mux_asset_id)}/tracks/${encodeURIComponent(audio.id)}/generate-subtitles`,
     {
-      generated_subtitles: [
-        {
-          language_code: 'auto',
-          name: 'Original captions',
-          passthrough: drop.id,
-        },
-      ],
+      generated_subtitles: muxGeneratedSubtitles(drop.id),
     },
   );
   const { error } = await database()
