@@ -6,7 +6,6 @@ import {
   Building2,
   Check,
   MessageCircle,
-  Radio,
   Rocket,
   Target,
   TrendingUp,

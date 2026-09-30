@@ -39,7 +39,12 @@ import {
   sameOrigin,
 } from './security';
 import { webhook } from './webhooks';
-import { muxGeneratedSubtitles, requestTranscription } from './transcription';
+import {
+  muxGeneratedSubtitles,
+  requestCaptionLanguage,
+  requestTranscription,
+} from './transcription';
+import { isCaptionLanguageCode } from '../caption-languages';
 import {
   deletePushSubscription,
   flushMarketPushEvents,
@@ -316,6 +321,63 @@ export async function handleApi(request: Request) {
         'Cache-Control':
           'public, max-age=0, s-maxage=5, stale-while-revalidate=10',
       });
+    }
+    if (
+      path[0] === 'media' &&
+      method === 'POST' &&
+      path.length === 3 &&
+      path[2] === 'captions'
+    ) {
+      if (!validUuid(path[1]))
+        throw new HttpError(400, 'Invalid broadcast ID.');
+      sameOrigin(request);
+      requireJson(request);
+      let body: Record<string, unknown>;
+      try {
+        body = JSON.parse(await readBody(request));
+      } catch (error) {
+        if (error instanceof HttpError) throw error;
+        throw new HttpError(400, 'Invalid request.');
+      }
+      if (!body || Array.isArray(body) || typeof body !== 'object')
+        throw new HttpError(400, 'Invalid request.');
+      const language = typeof body.language === 'string' ? body.language : '';
+      if (!isCaptionLanguageCode(language))
+        throw new HttpError(400, 'Choose a supported caption language.');
+      await rateLimit(`captions:${path[1]}:${language}`, 120, 600);
+
+      const db = database();
+      const { data: drop, error } = await db
+        .from('bought_drops')
+        .select(
+          'id,state,payment_state,auction_id,mux_asset_id,mux_playback_id,media_state',
+        )
+        .eq('id', path[1])
+        .maybeSingle();
+      dbError(error);
+      if (!drop) throw new HttpError(404, 'Broadcast not found.');
+      const { data: market, error: marketError } =
+        await db.rpc('bought_advance');
+      dbError(marketError);
+      if (
+        drop.state !== 'published' ||
+        drop.payment_state !== 'paid' ||
+        drop.auction_id !== market.auctionId
+      )
+        throw new HttpError(404, 'Broadcast not found.');
+      if (
+        drop.media_state !== 'ready' ||
+        !drop.mux_asset_id ||
+        !drop.mux_playback_id
+      )
+        throw new HttpError(409, 'Broadcast captions are still processing.');
+      return json(
+        await requestCaptionLanguage({
+          dropId: drop.id,
+          assetId: drop.mux_asset_id,
+          language,
+        }),
+      );
     }
     if (path[0] === 'media' && method === 'GET' && path.length === 2) {
       if (!validUuid(path[1]))

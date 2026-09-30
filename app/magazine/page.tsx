@@ -112,12 +112,7 @@ export default function MagazinePage() {
           <aside><span>THE POINT</span><p>A paid position is temporary. A daily issue is the receipt that stays.</p></aside>
         </section>
 
-        <section className="magazine-all-section" aria-labelledby="all-issue-title">
-          <header>
-            <span>LATEST EDITION / PUBLISHED AFTER THE 08 SEP DROP</span>
-            <h2 id="all-issue-title">The cover that owns the whole market.</h2>
-            <p>One overall #1 gets the biggest page in the daily Review.</p>
-          </header>
+        <section className="magazine-all-section">
           <div className="magazine-all-grid">
             <MagazineCover issue={latestIssue} featured />
             <article className="magazine-all-copy">
@@ -173,51 +168,6 @@ export default function MagazinePage() {
           <div><strong>42,700</strong><span>UNIQUE READERS</span></div>
           <div><strong>13</strong><span>ROOM LEADERS</span></div>
           <div><strong>1</strong><span>ALL #1 COVER</span></div>
-        </section>
-
-        <section className="magazine-latest-issue" id="latest-issue">
-          <div className="magazine-latest-folio"><span>THE ALL ISSUE</span><strong>05</strong><span>09 / 09 / 2026</span></div>
-          <article>
-            <span className="magazine-library-kicker">THE COST OF BEING SEEN</span>
-            <h2>Being first matters. Being recorded as first matters longer.</h2>
-            <p>The Review is where a winning BOUGHT position stops being a moment in the market and becomes a page readers can return to. Your broadcast, claim, rank, and the attention it earned stay together.</p>
-            <p>The next drop is your chance to put a point of view in the running. The next day is when the winning work becomes part of BOUGHT history.</p>
-          </article>
-          <aside>
-            <span className="magazine-library-kicker">ON THIS PAGE</span>
-            <ol>
-              <li><span>01</span> The overall position readers see first.</li>
-              <li><span>02</span> The category leaders that shaped the drop.</li>
-              <li><span>03</span> The reach that remains attached to the issue.</li>
-            </ol>
-            <Link href="/">SEE TODAY&apos;S BOARD <ArrowUpRight size={14} /></Link>
-          </aside>
-        </section>
-
-        <section className="magazine-broadcast-dossier" id="broadcast-dossier" aria-labelledby="broadcast-dossier-title">
-          <header>
-            <span className="magazine-library-kicker">PAGE 03 / THE BROADCAST</span>
-            <h2 id="broadcast-dossier-title">What earns a place in the daily issue.</h2>
-            <p>A good broadcast gives readers a position they can understand, remember, and respond to.</p>
-          </header>
-          <article className="magazine-dossier-feature">
-            <div>
-              <span>THE POSITION</span>
-              <blockquote>“If you want attention, make a claim strong enough to be wrong about.”</blockquote>
-              <p>That is the kind of clear, defensible point a BOUGHT broadcast puts into the room.</p>
-            </div>
-            <dl>
-              <div><dt>BROADCAST</dt><dd>01:42 MINUTES</dd></div>
-              <div><dt>FORMAT</dt><dd>DIRECT TAKE + PROOF</dd></div>
-              <div><dt>DISCOVERABILITY</dt><dd>ALL + CATEGORY ISSUE</dd></div>
-              <div><dt>PROFILE LINE</dt><dd>HANDLE, SITE, X, LINKEDIN</dd></div>
-            </dl>
-          </article>
-          <div className="magazine-broadcast-checklist">
-            <article><span>01</span><h3>STATE THE CLAIM</h3><p>Give the room one specific point of view, not a generic pitch.</p></article>
-            <article><span>02</span><h3>SHOW THE RECEIPT</h3><p>Bring the data, the work, the failure, or the reason you believe it.</p></article>
-            <article><span>03</span><h3>MAKE IT SHAREABLE</h3><p>Keep the take focused enough that a reader can repeat it in one sentence.</p></article>
-          </div>
         </section>
 
         <section className="magazine-placement-story magazine-why-placement" aria-labelledby="placement-title">

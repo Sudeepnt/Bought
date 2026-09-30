@@ -11,7 +11,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
+  type SubmitEvent,
 } from 'react';
 
 import { useBought } from '@/components/bought-provider';
@@ -79,19 +79,18 @@ export default function ChatPage() {
   }, [ownerId]);
 
   useEffect(() => {
-    if (!threads.length) {
-      setSelectedId(null);
-      return;
-    }
-    const requested = new URLSearchParams(window.location.search).get('thread');
-    setSelectedId((current) => {
-      if (threads.some((thread) => thread.id === current)) return current;
-      const requestedThread = threads.find((thread) => thread.id === requested);
-      if (requestedThread) return requestedThread.id;
-      return window.matchMedia('(max-width: 760px)').matches
-        ? null
-        : threads[0].id;
+    const frame = window.requestAnimationFrame(() => {
+      const requested = new URLSearchParams(window.location.search).get('thread');
+      setSelectedId((current) => {
+        if (threads.some((thread) => thread.id === current)) return current;
+        const requestedThread = threads.find((thread) => thread.id === requested);
+        if (requestedThread) return requestedThread.id;
+        return window.matchMedia('(max-width: 760px)').matches
+          ? null
+          : (threads[0]?.id ?? null);
+      });
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [threads]);
 
   const filteredThreads = useMemo(() => {
@@ -122,7 +121,7 @@ export default function ChatPage() {
     window.history.replaceState({}, '', `/chat?${params.toString()}`);
   }
 
-  function submitMessage(event: FormEvent<HTMLFormElement>) {
+  function submitMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || !draft.trim()) return;
     try {

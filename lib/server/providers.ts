@@ -276,6 +276,16 @@ export async function muxRobots<T>(path: string, body: unknown) {
   });
 }
 
+export async function muxRobotsGet<T>(path: string) {
+  return providerRequest<{ data: T }>(`https://api.mux.com/robots/v0/${path}`, {
+    method: 'GET',
+    headers: {
+      Authorization: basic('MUX_TOKEN_ID', 'MUX_TOKEN_SECRET'),
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
 export function muxPlaybackToken(
   playbackId: string,
   expiresAt?: string | null,

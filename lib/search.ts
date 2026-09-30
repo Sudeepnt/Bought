@@ -76,15 +76,15 @@ const featuredBroadcasts: SearchResult[] = [
 
 const people: SearchResult[] = [
   ['Ananya Rao', '@ananyabuilds', 'Founder'],
-  ['Arjun S.', '@arjunsays', 'Builder'],
-  ['Priya M.', '@priyamakes', 'Operator'],
-  ['Rahul K.', '@rahulbuilds', 'Creator'],
-  ['Karan V.', '@karanv', 'Founder'],
-  ['Maya K.', '@mayaknowsthis', 'Creator'],
-  ['Dev P.', '@devpicks', 'Investor'],
-  ['Simran N.', '@simrannotes', 'Creator'],
-  ['Kabir J.', '@kabirj', 'Builder'],
-  ['Aisha T.', '@aishatellsit', 'Creator'],
+  ['Arjun Sharma', '@arjunsays', 'Builder'],
+  ['Priya Mehta', '@priyamakes', 'Operator'],
+  ['Rahul Kapoor', '@rahulbuilds', 'Creator'],
+  ['Karan Verma', '@karanv', 'Founder'],
+  ['Maya Khanna', '@mayaknowsthis', 'Creator'],
+  ['Dev Patel', '@devpicks', 'Investor'],
+  ['Simran Nair', '@simrannotes', 'Creator'],
+  ['Kabir Joshi', '@kabirj', 'Builder'],
+  ['Aisha Thomas', '@aishatellsit', 'Creator'],
 ].map(([title, subtitle, meta]) => ({
   id: title
     .toLocaleLowerCase()

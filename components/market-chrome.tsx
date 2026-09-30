@@ -92,6 +92,37 @@ function useMarketCountdown() {
   };
 }
 
+function CountdownSegments({
+  countdown,
+  countdownReady,
+}: {
+  countdown: { hours: string; minutes: string; seconds: string };
+  countdownReady: boolean;
+}) {
+  return (
+    <div className="countdown-segments">
+      <span className="countdown-segment">
+        <strong>{countdownReady ? countdown.hours : '--'}</strong>
+        <small>HOURS</small>
+      </span>
+      <strong className="countdown-separator" aria-hidden="true">
+        :
+      </strong>
+      <span className="countdown-segment is-pulsing">
+        <strong>{countdownReady ? countdown.minutes : '--'}</strong>
+        <small>MINUTES</small>
+      </span>
+      <strong className="countdown-separator" aria-hidden="true">
+        :
+      </strong>
+      <span className="countdown-segment is-pulsing">
+        <strong>{countdownReady ? countdown.seconds : '--'}</strong>
+        <small>SECONDS</small>
+      </span>
+    </div>
+  );
+}
+
 export function useMarqueeDuration(trackRef: RefObject<HTMLElement | null>) {
   const [duration, setDuration] = useState<number | null>(null);
 
@@ -118,16 +149,16 @@ export function useMarqueeDuration(trackRef: RefObject<HTMLElement | null>) {
 }
 
 export const fallbackFeedItems: FeedItem[] = [
-  ['Ananya R.', 'took #1 in', 'UNPOPULAR OPINION', '$11,400', 'now'],
-  ['Rahul K.', 'raised a bid in', 'PRODUCT LAUNCH', '$6,200', '8s ago'],
-  ['Priya M.', 'shared an opinion on', 'MONEY', '', '14s ago'],
-  ['Arjun S.', 'claimed #2 in', 'BUILDING', '$8,900', '21s ago'],
-  ['Karan V.', 'was outbid in', 'UNPOPULAR OPINION', '$11,500', '29s ago'],
-  ['Maya K.', 'published a broadcast in', 'I WAS WRONG', '$4,200', '36s ago'],
-  ['Dev P.', 'joined the bidding in', 'THE PITCH THAT GOT REJECTED', '$3,900', '43s ago'],
-  ['Simran N.', 'shared an opinion on', 'MONEY I SET ON FIRE', '', '51s ago'],
-  ['Kabir J.', 'climbed to #3 in', 'BUILDING', '$3,200', '1m ago'],
-  ['Aisha T.', 'placed a bid in', 'CONFESSIONS', '$2,900', '1m ago'],
+  ['Ananya Rao', 'took #1 in', 'UNPOPULAR OPINION', '$11,400', 'now'],
+  ['Rahul Kapoor', 'raised a bid in', 'PRODUCT LAUNCH', '$6,200', '8s ago'],
+  ['Priya Mehta', 'shared an opinion on', 'MONEY', '', '14s ago'],
+  ['Arjun Sharma', 'claimed #2 in', 'BUILDING', '$8,900', '21s ago'],
+  ['Karan Verma', 'was outbid in', 'UNPOPULAR OPINION', '$11,500', '29s ago'],
+  ['Maya Khanna', 'published a broadcast in', 'I WAS WRONG', '$4,200', '36s ago'],
+  ['Dev Patel', 'joined the bidding in', 'THE PITCH THAT GOT REJECTED', '$3,900', '43s ago'],
+  ['Simran Nair', 'shared an opinion on', 'MONEY I SET ON FIRE', '', '51s ago'],
+  ['Kabir Joshi', 'climbed to #3 in', 'BUILDING', '$3,200', '1m ago'],
+  ['Aisha Thomas', 'placed a bid in', 'CONFESSIONS', '$2,900', '1m ago'],
   ['Nia P.', 'took the lead in', 'CONFESSIONS', '$5,700', '2m ago'],
   ['Jon B.', 'had a broadcast approved in', 'BUILDING', '$2,600', '2m ago'],
   ['Rhea D.', 'replied to a broadcast in', 'MONEY I SET ON FIRE', '', '3m ago'],
@@ -200,26 +231,10 @@ export function MarketStatusStrip({
           </span>
         </div>
         <div className="countdown-value">
-          <div className="countdown-segments">
-            <span className="countdown-segment">
-              <strong>{countdownReady ? countdown.hours : '--'}</strong>
-              <small>HOURS</small>
-            </span>
-            <strong className="countdown-separator" aria-hidden="true">
-              :
-            </strong>
-            <span className="countdown-segment is-pulsing">
-              <strong>{countdownReady ? countdown.minutes : '--'}</strong>
-              <small>MINUTES</small>
-            </span>
-            <strong className="countdown-separator" aria-hidden="true">
-              :
-            </strong>
-            <span className="countdown-segment is-pulsing">
-              <strong>{countdownReady ? countdown.seconds : '--'}</strong>
-              <small>SECONDS</small>
-            </span>
-          </div>
+          <CountdownSegments
+            countdown={countdown}
+            countdownReady={countdownReady}
+          />
         </div>
       </div>
     </section>
@@ -242,22 +257,18 @@ export function FloatingMarketCountdown({ visible }: { visible: boolean }) {
           <Timer size={28} strokeWidth={1.8} />
         )}
       </span>
-      <span className="floating-market-countdown-label">
+      <div className="countdown-label floating-market-countdown-label">
         <strong>{exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
-        <small>
+        <span>
           {exposureLocked ? 'EXPOSURE LOCKED' : 'BIDDING CLOSES IN'}
-        </small>
-      </span>
-      <span className="floating-market-countdown-time">
-        <strong>
-          {countdownReady
-            ? `${countdown.hours}:${countdown.minutes}:${countdown.seconds}`
-            : '--:--:--'}
-        </strong>
-        <small>
-          HOURS&nbsp;&nbsp;&nbsp;&nbsp; MINUTES&nbsp;&nbsp;&nbsp; SECONDS
-        </small>
-      </span>
+        </span>
+      </div>
+      <div className="countdown-value floating-market-countdown-time">
+        <CountdownSegments
+          countdown={countdown}
+          countdownReady={countdownReady}
+        />
+      </div>
     </aside>
   );
 }

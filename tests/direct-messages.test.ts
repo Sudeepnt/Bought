@@ -6,12 +6,12 @@ import {
   parseDirectMessageThreads,
 } from '../lib/direct-messages';
 
-test('direct-message thread IDs normalize public handles', () => {
+await test('direct-message thread IDs normalize public handles', () => {
   assert.equal(directMessageThreadId('@AnanyaBuilds'), 'contact:ananyabuilds');
   assert.equal(directMessageThreadId('  @ARJUNSAYS  '), 'contact:arjunsays');
 });
 
-test('stored direct messages are validated and sorted by recency', () => {
+await test('stored direct messages are validated and sorted by recency', () => {
   const threads = parseDirectMessageThreads(
     JSON.stringify([
       {
@@ -70,4 +70,3 @@ test('stored direct messages are validated and sorted by recency', () => {
   );
   assert.equal(threads[0].messages[0].body, 'Most recent message');
 });
-

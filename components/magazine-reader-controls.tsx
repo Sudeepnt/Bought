@@ -6,8 +6,6 @@ import { latestIssue, magazinePdfHref } from '@/lib/magazine';
 
 const pages = [
   'daily-review-title',
-  'latest-issue',
-  'broadcast-dossier',
   'exposure-package',
   'recent-editions-title',
   'history-title',

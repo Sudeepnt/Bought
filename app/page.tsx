@@ -31,30 +31,30 @@ import {
 type LeaderboardRow = [string, string, string, string, string, string];
 
 const leaderboard: LeaderboardRow[] = [
-  ['Ananya R.', '@ananyabuilds', 'UNPOPULAR OPINION', '$11,400', 'AR', 'coral'],
-  ['Arjun S.', '@arjunsays', 'BUILDING', '$8,900', 'AS', 'green'],
+  ['Ananya Rao', '@ananyabuilds', 'UNPOPULAR OPINION', '$11,400', 'AR', 'coral'],
+  ['Arjun Sharma', '@arjunsays', 'BUILDING', '$8,900', 'AS', 'green'],
   [
-    'Priya M.',
+    'Priya Mehta',
     '@priyamakes',
     'MONEY I SET ON FIRE',
     '$6,200',
     'PM',
     'orange',
   ],
-  ['Rahul K.', '@rahulbuilds', 'PRODUCT LAUNCH', '$6,200', 'RK', 'blue'],
-  ['Karan V.', '@karanv', 'UNPOPULAR OPINION', '$4,800', 'KV', 'purple'],
-  ['Maya K.', '@mayaknowsthis', 'I WAS WRONG', '$4,200', 'MK', 'green'],
-  ['Dev P.', '@devpicks', 'THE PITCH THAT GOT REJECTED', '$3,900', 'DP', 'blue'],
+  ['Rahul Kapoor', '@rahulbuilds', 'PRODUCT LAUNCH', '$6,200', 'RK', 'blue'],
+  ['Karan Verma', '@karanv', 'UNPOPULAR OPINION', '$4,800', 'KV', 'purple'],
+  ['Maya Khanna', '@mayaknowsthis', 'I WAS WRONG', '$4,200', 'MK', 'green'],
+  ['Dev Patel', '@devpicks', 'THE PITCH THAT GOT REJECTED', '$3,900', 'DP', 'blue'],
   [
-    'Simran N.',
+    'Simran Nair',
     '@simrannotes',
     'MONEY I SET ON FIRE',
     '$3,600',
     'SN',
     'orange',
   ],
-  ['Kabir J.', '@kabirj', 'BUILDING', '$3,200', 'KJ', 'coral'],
-  ['Aisha T.', '@aishatellsit', 'CONFESSIONS', '$2,900', 'AT', 'purple'],
+  ['Kabir Joshi', '@kabirj', 'BUILDING', '$3,200', 'KJ', 'coral'],
+  ['Aisha Thomas', '@aishatellsit', 'CONFESSIONS', '$2,900', 'AT', 'purple'],
 ];
 
 const leaderboardMovementSeeds = [
@@ -119,7 +119,7 @@ function getTakePrice(price: string) {
 
 const globalLeadBroadcast: CategoryBroadcast = {
   id: 'GLOBAL-LEADER-1',
-  name: 'Ananya R.',
+  name: 'Ananya Rao',
   handle: '@ananyabuilds',
   initials: 'AR',
   duration: '8:17',
@@ -540,7 +540,12 @@ export default function Home() {
                   )
                 }
                 loadThumbnail
-                dropId={selectedLeaderboard?.dropId ?? null}
+                dropId={
+                  selectedLeaderboard
+                    ? selectedLeaderboard.dropId
+                    : (entries[0]?.drop_id ?? null)
+                }
+                autoPreview={!selectedLeaderboard || selectedLeaderboard.rank === 1}
               />
             </article>
 

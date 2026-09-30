@@ -3,6 +3,11 @@ import { generateKeyPairSync, verify } from 'node:crypto';
 import { test } from 'node:test';
 import { muxPlaybackToken } from '../lib/server/providers';
 import {
+  ALL_CAPTION_LANGUAGES,
+  FEATURED_CAPTION_LANGUAGES,
+  OTHER_CAPTION_LANGUAGES,
+} from '../lib/caption-languages';
+import {
   isEnglishCaptionLanguage,
   captionTranslationTargets,
   muxGeneratedSubtitles,
@@ -70,7 +75,39 @@ void test('Mux translates each generated track into the missing top languages', 
       ],
       'hi',
     ),
-    ['en', 'zh', 'fr', 'ar', 'bn', 'pt', 'ru', 'ur'],
+    ['en', 'zh', 'fr', 'bn', 'pt', 'ru', 'id', 'de', 'ja'],
+  );
+});
+
+void test('caption selector pins ten languages and alphabetizes every other language', () => {
+  assert.equal(ALL_CAPTION_LANGUAGES.length, 86);
+  assert.equal(FEATURED_CAPTION_LANGUAGES.length, 10);
+  assert.deepEqual(
+    FEATURED_CAPTION_LANGUAGES.map(({ code }) => code),
+    ['en', 'zh', 'es', 'fr', 'bn', 'pt', 'ru', 'id', 'de', 'ja'],
+  );
+  for (const code of ['ar', 'hi', 'ur']) {
+    assert.equal(
+      FEATURED_CAPTION_LANGUAGES.some((language) => language.code === code),
+      false,
+    );
+    assert.equal(
+      OTHER_CAPTION_LANGUAGES.some((language) => language.code === code),
+      true,
+    );
+  }
+  assert.deepEqual(
+    OTHER_CAPTION_LANGUAGES.map(({ label }) => label),
+    OTHER_CAPTION_LANGUAGES.map(({ label }) => label).toSorted((a, b) =>
+      a.localeCompare(b),
+    ),
+  );
+  assert.equal(
+    new Set([
+      ...FEATURED_CAPTION_LANGUAGES.map(({ code }) => code),
+      ...OTHER_CAPTION_LANGUAGES.map(({ code }) => code),
+    ]).size,
+    ALL_CAPTION_LANGUAGES.length,
   );
 });
 

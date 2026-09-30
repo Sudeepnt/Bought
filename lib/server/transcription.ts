@@ -1,8 +1,16 @@
 import { database, dbError } from './security';
-import { mux, muxPlaybackToken, muxRobots, type MuxAsset } from './providers';
 import {
-  CAPTION_LANGUAGES,
+  mux,
+  muxPlaybackToken,
+  muxRobots,
+  muxRobotsGet,
+  type MuxAsset,
+} from './providers';
+import { HttpError } from './config';
+import {
+  FEATURED_CAPTION_LANGUAGE_CODES,
   captionLanguageBaseCode,
+  isCaptionLanguageCode,
 } from '../caption-languages';
 
 const MAX_CAPTION_BYTES = 2 * 1024 * 1024;
@@ -66,16 +74,12 @@ export function captionTranslationTargets(
 ) {
   const existing = new Set(
     tracks
-      ?.filter(
-        (track) => track.type === 'text' && track.status !== 'errored',
-      )
+      ?.filter((track) => track.type === 'text' && track.status !== 'errored')
       .map((track) => captionLanguageBaseCode(track.language_code))
       .filter(Boolean),
   );
   existing.add(captionLanguageBaseCode(sourceLanguage));
-  return CAPTION_LANGUAGES.map(({ code }) => code).filter(
-    (code) => !existing.has(code),
-  );
+  return FEATURED_CAPTION_LANGUAGE_CODES.filter((code) => !existing.has(code));
 }
 
 async function startCaptionTranslations(args: {
@@ -100,6 +104,81 @@ async function startCaptionTranslations(args: {
   return new Map(
     args.targets.map((language, index) => [language, results[index]]),
   );
+}
+
+type MuxCaptionTranslationJob = {
+  status?: string;
+  parameters?: {
+    asset_id?: string;
+    track_id?: string;
+    to_language_code?: string;
+  };
+  outputs?: { uploaded_track_id?: string };
+};
+
+export async function requestCaptionLanguage(args: {
+  dropId: string;
+  assetId: string;
+  language: string;
+}) {
+  if (!isCaptionLanguageCode(args.language))
+    throw new HttpError(400, 'Choose a supported caption language.');
+  const asset = (
+    await mux<MuxAsset>(`assets/${encodeURIComponent(args.assetId)}`)
+  ).data;
+  const existing = asset.tracks?.find(
+    (track) =>
+      track.type === 'text' &&
+      track.status === 'ready' &&
+      track.id &&
+      captionLanguageBaseCode(track.language_code) === args.language,
+  );
+  if (existing?.id) return { state: 'ready' as const, trackId: existing.id };
+  const preparing = asset.tracks?.some(
+    (track) =>
+      track.type === 'text' &&
+      track.status === 'preparing' &&
+      captionLanguageBaseCode(track.language_code) === args.language,
+  );
+  if (preparing) return { state: 'processing' as const, trackId: null };
+
+  const source = asset.tracks?.find(
+    (track) =>
+      track.type === 'text' &&
+      track.status === 'ready' &&
+      track.text_source === 'generated_vod' &&
+      track.id,
+  );
+  if (!source?.id)
+    throw new HttpError(
+      409,
+      'The original captions are still being prepared.',
+    );
+
+  const query = new URLSearchParams({
+    workflow: 'translate-captions',
+    asset_id: args.assetId,
+    limit: '100',
+  });
+  const jobs = (await muxRobotsGet<MuxCaptionTranslationJob[]>(`jobs?${query}`))
+    .data;
+  const active = jobs.find(
+    (job) =>
+      ['pending', 'processing'].includes(job.status ?? '') &&
+      job.parameters?.to_language_code === args.language,
+  );
+  if (active) return { state: 'processing' as const, trackId: null };
+
+  await muxRobots('jobs/translate-captions', {
+    parameters: {
+      asset_id: args.assetId,
+      track_id: source.id,
+      to_language_code: args.language,
+      upload_to_mux: true,
+    },
+    passthrough: `${args.dropId}:${args.language}`,
+  });
+  return { state: 'processing' as const, trackId: null };
 }
 
 async function fetchMuxTextTrack(
@@ -187,7 +266,9 @@ export async function processMuxCaptionTrack(args: {
   const asset = (
     await mux<MuxAsset>(`assets/${encodeURIComponent(args.assetId)}`)
   ).data;
-  const track = asset.tracks?.find((candidate) => candidate.id === args.trackId);
+  const track = asset.tracks?.find(
+    (candidate) => candidate.id === args.trackId,
+  );
   if (!track || track.type !== 'text' || track.status !== 'ready')
     return { state: 'pending' as const };
 
@@ -212,7 +293,9 @@ export async function processMuxCaptionTrack(args: {
       if (language !== 'en' && result.status === 'rejected')
         console.error(
           `BOUGHT ${language} caption translation could not start:`,
-          result.reason instanceof Error ? result.reason.message : result.reason,
+          result.reason instanceof Error
+            ? result.reason.message
+            : result.reason,
         );
     }
     if (isEnglishCaptionLanguage(track.language_code))

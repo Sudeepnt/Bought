@@ -50,13 +50,15 @@ import { createPortal } from 'react-dom';
 
 import { MarketTopbar } from '@/components/market-topbar';
 import { DropPlayer } from '@/components/drop-player';
+import { BroadcastThumbnailPreview } from '@/components/broadcast-thumbnail-preview';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { SocialPlatformIcon } from '@/components/social-brand-icons';
 import { useBought } from '@/components/bought-provider';
 import { appendDirectMessage } from '@/lib/direct-messages';
 import { portraitVideoAspectRatio } from '@/lib/video-aspect-ratio';
 import {
-  CAPTION_LANGUAGES,
+  FEATURED_CAPTION_LANGUAGES,
+  OTHER_CAPTION_LANGUAGES,
   type CaptionLanguageCode,
 } from '@/lib/caption-languages';
 
@@ -98,7 +100,7 @@ export type CategoryBroadcast = Creator & {
 
 const creators: Creator[] = [
   {
-    name: 'Ananya R.',
+    name: 'Ananya Rao',
     handle: '@ananyabuilds',
     initials: 'AR',
     duration: '8:17',
@@ -108,7 +110,7 @@ const creators: Creator[] = [
     location: 'Bengaluru, India',
   },
   {
-    name: 'Arjun S.',
+    name: 'Arjun Sharma',
     handle: '@arjunsays',
     initials: 'AS',
     duration: '12:14',
@@ -118,7 +120,7 @@ const creators: Creator[] = [
     location: 'Mumbai, India',
   },
   {
-    name: 'Priya M.',
+    name: 'Priya Mehta',
     handle: '@priyamakes',
     initials: 'PM',
     duration: '10:21',
@@ -128,7 +130,7 @@ const creators: Creator[] = [
     location: 'New Delhi, India',
   },
   {
-    name: 'Rahul K.',
+    name: 'Rahul Kapoor',
     handle: '@rahulbuilds',
     initials: 'RK',
     duration: '6:43',
@@ -138,7 +140,7 @@ const creators: Creator[] = [
     location: 'Hyderabad, India',
   },
   {
-    name: 'Karan V.',
+    name: 'Karan Verma',
     handle: '@karanv',
     initials: 'KV',
     duration: '7:43',
@@ -148,7 +150,7 @@ const creators: Creator[] = [
     location: 'London, United Kingdom',
   },
   {
-    name: 'Maya K.',
+    name: 'Maya Khanna',
     handle: '@mayaknowsthis',
     initials: 'MK',
     duration: '9:12',
@@ -158,7 +160,7 @@ const creators: Creator[] = [
     location: 'Singapore',
   },
   {
-    name: 'Dev P.',
+    name: 'Dev Patel',
     handle: '@devpicks',
     initials: 'DP',
     duration: '8:06',
@@ -168,7 +170,7 @@ const creators: Creator[] = [
     location: 'New York, United States',
   },
   {
-    name: 'Simran N.',
+    name: 'Simran Nair',
     handle: '@simrannotes',
     initials: 'SN',
     duration: '6:55',
@@ -178,7 +180,7 @@ const creators: Creator[] = [
     location: 'Toronto, Canada',
   },
   {
-    name: 'Kabir J.',
+    name: 'Kabir Joshi',
     handle: '@kabirj',
     initials: 'KJ',
     duration: '10:14',
@@ -188,7 +190,7 @@ const creators: Creator[] = [
     location: 'Bengaluru, India',
   },
   {
-    name: 'Aisha T.',
+    name: 'Aisha Thomas',
     handle: '@aishatellsit',
     initials: 'AT',
     duration: '7:48',
@@ -365,9 +367,9 @@ function makeBroadcasts(
   });
 }
 
-const categoryLists = categories.slice(1).map((category, index) =>
-  makeBroadcasts(category, index + 1),
-);
+const categoryLists = categories
+  .slice(1)
+  .map((category, index) => makeBroadcasts(category, index + 1));
 const allBroadcasts = categoryLists
   .flat()
   .sort((a, b) => priceValue(b.price) - priceValue(a.price))
@@ -383,10 +385,13 @@ const broadcastBatchSize = 20;
 
 function socialSearchUrl(platform: string, handle: string) {
   const query = encodeURIComponent(handle.replace(/^@/, ''));
-  if (platform === 'LinkedIn') return `https://www.linkedin.com/search/results/people/?keywords=${query}`;
-  if (platform === 'YouTube') return `https://www.youtube.com/results?search_query=${query}`;
+  if (platform === 'LinkedIn')
+    return `https://www.linkedin.com/search/results/people/?keywords=${query}`;
+  if (platform === 'YouTube')
+    return `https://www.youtube.com/results?search_query=${query}`;
   if (platform === 'TikTok') return `https://www.tiktok.com/search?q=${query}`;
-  if (platform === 'Instagram') return `https://www.instagram.com/explore/search/keyword/?q=${query}`;
+  if (platform === 'Instagram')
+    return `https://www.instagram.com/explore/search/keyword/?q=${query}`;
   return `https://x.com/search?q=${query}&src=typed_query`;
 }
 
@@ -401,7 +406,7 @@ function VideoThumbnail({
 }) {
   const prominentImage = prominent
     ? broadcast.rank === 2
-      ? '/category-feature-portrait-poster.jpg'
+      ? '/zero-to-one-book-review-poster.jpg'
       : '/category-feature-poster.jpg'
     : null;
   const style = shouldLoad
@@ -452,12 +457,18 @@ function videoClock(seconds: number) {
 
 function broadcastShareUrl(broadcast: CategoryBroadcast) {
   const url = new URL('/categories', window.location.origin);
-  url.searchParams.set('category', broadcast.id.startsWith('ALL-') ? 'ALL' : broadcast.categoryName);
+  url.searchParams.set(
+    'category',
+    broadcast.id.startsWith('ALL-') ? 'ALL' : broadcast.categoryName,
+  );
   url.searchParams.set('broadcast', broadcast.id);
   return url.toString();
 }
 
-function SpreadPositionDialog({ broadcast, onClose }: {
+function SpreadPositionDialog({
+  broadcast,
+  onClose,
+}: {
   broadcast: CategoryBroadcast;
   onClose: () => void;
 }) {
@@ -479,7 +490,9 @@ function SpreadPositionDialog({ broadcast, onClose }: {
       setCopied(true);
       setError('');
     } catch {
-      setError('Could not copy automatically. Select the link below to copy it.');
+      setError(
+        'Could not copy automatically. Select the link below to copy it.',
+      );
     }
   }
 
@@ -496,25 +509,56 @@ function SpreadPositionDialog({ broadcast, onClose }: {
 
   return createPortal(
     <div className="category-action-backdrop">
-      <dialog open className="category-action-dialog" aria-modal="true" aria-labelledby={`spread-title-${broadcast.id}`}>
+      <dialog
+        open
+        className="category-action-dialog"
+        aria-modal="true"
+        aria-labelledby={`spread-title-${broadcast.id}`}
+      >
         <div className="category-action-head">
           <div>
             <small>SPREAD THIS BROADCAST</small>
             <h2 id={`spread-title-${broadcast.id}`}>Spread this position</h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close spread dialog"><X size={18} /></button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close spread dialog"
+          >
+            <X size={18} />
+          </button>
         </div>
-        <p className="category-action-description">Send a direct link to {broadcast.name}&apos;s video.</p>
+        <p className="category-action-description">
+          Send a direct link to {broadcast.name}&apos;s video.
+        </p>
         <div className="category-action-copy">
-          <input readOnly aria-label="Broadcast link" value={url} onFocus={(event) => event.currentTarget.select()} />
-          <button type="button" onClick={copyLink}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? 'Copied' : 'Copy link'}</button>
+          <input
+            readOnly
+            aria-label="Broadcast link"
+            value={url}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+          <button type="button" onClick={copyLink}>
+            {copied ? <Check size={16} /> : <Copy size={16} />}
+            {copied ? 'Copied' : 'Copy link'}
+          </button>
         </div>
         {typeof navigator.share === 'function' && (
-          <button className="category-action-primary category-action-share" type="button" onClick={() => { void shareLink(); }}>
+          <button
+            className="category-action-primary category-action-share"
+            type="button"
+            onClick={() => {
+              void shareLink();
+            }}
+          >
             <Share2 size={15} aria-hidden="true" /> Share link
           </button>
         )}
-        {error && <p className="category-action-error" role="alert">{error}</p>}
+        {error && (
+          <p className="category-action-error" role="alert">
+            {error}
+          </p>
+        )}
       </dialog>
     </div>,
     document.body,
@@ -530,8 +574,10 @@ export function BroadcastVideoCard({
   reelBroadcasts,
   onReelExit,
   initialPlaybackTime = 0,
+  positionCue = null,
   useSharedDemoVideo = false,
   thumbnailPreview = false,
+  autoPreview = false,
   onPreviewSpread,
   onPreviewSelect,
   accentColor,
@@ -542,10 +588,16 @@ export function BroadcastVideoCard({
   loadThumbnail: boolean;
   dropId: string | null;
   reelBroadcasts?: CategoryBroadcast[];
-  onReelExit?: (broadcast: CategoryBroadcast, resume: boolean, time: number) => void;
+  onReelExit?: (
+    broadcast: CategoryBroadcast,
+    resume: boolean,
+    time: number,
+  ) => void;
   initialPlaybackTime?: number;
+  positionCue?: string | null;
   useSharedDemoVideo?: boolean;
   thumbnailPreview?: boolean;
+  autoPreview?: boolean;
   onPreviewSpread?: (broadcast: CategoryBroadcast) => void;
   onPreviewSelect?: (broadcast: CategoryBroadcast) => void;
   accentColor?: string;
@@ -559,12 +611,20 @@ export function BroadcastVideoCard({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [reelIndex, setReelIndex] = useState<number | null>(null);
   const [reelPlaybackActive, setReelPlaybackActive] = useState(false);
-  const [playIntent, setPlayIntent] = useState(playingId === selectedBroadcast.id);
+  const [playIntent, setPlayIntent] = useState(
+    playingId === selectedBroadcast.id,
+  );
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
-  const [reelSlideToken, setReelSlideToken] = useState(0);
-  const [measuredAspectRatio, setMeasuredAspectRatio] = useState<number | null>(null);
-  const [videoPosition, setVideoPosition] = useState({ current: 0, duration: 0 });
-  const [opinions, setOpinions] = useState<Array<{ text: string; stance: 'agree' | 'disagree' }>>([]);
+  const [measuredAspectRatio, setMeasuredAspectRatio] = useState<number | null>(
+    null,
+  );
+  const [videoPosition, setVideoPosition] = useState({
+    current: 0,
+    duration: 0,
+  });
+  const [opinions, setOpinions] = useState<
+    Array<{ text: string; stance: 'agree' | 'disagree' }>
+  >([]);
   const [opinionStep, setOpinionStep] = useState(0);
   const [opinionDraft, setOpinionDraft] = useState('');
   const [isMessageOpen, setIsMessageOpen] = useState(false);
@@ -580,7 +640,15 @@ export function BroadcastVideoCard({
   const floatingRef = useRef<HTMLElement>(null);
   const controlsTimerRef = useRef<number | null>(null);
   const lastReelMoveRef = useRef(0);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const reelTrackRef = useRef<HTMLDivElement>(null);
+  const reelMoveTimerRef = useRef<number | null>(null);
+  const reelMovingRef = useRef(false);
+  const touchStartRef = useRef<{
+    x: number;
+    y: number;
+    startedAt: number;
+    horizontal: boolean;
+  } | null>(null);
   const captionMenuRef = useRef<HTMLDivElement>(null);
   const initialTimeAppliedRef = useRef(false);
   const videoPositionRef = useRef({ current: 0, duration: 0 });
@@ -588,48 +656,103 @@ export function BroadcastVideoCard({
     () => (reelBroadcasts?.length ? reelBroadcasts : [selectedBroadcast]),
     [reelBroadcasts, selectedBroadcast],
   );
-  const selectedIndex = Math.max(0, reelItems.findIndex(({ id }) => id === selectedBroadcast.id));
+  const selectedIndex = Math.max(
+    0,
+    reelItems.findIndex(({ id }) => id === selectedBroadcast.id),
+  );
   const activeReelIndex = reelIndex ?? selectedIndex;
-  const broadcast = isFullscreen ? reelItems[activeReelIndex] ?? selectedBroadcast : selectedBroadcast;
+  const broadcast = isFullscreen
+    ? (reelItems[activeReelIndex] ?? selectedBroadcast)
+    : selectedBroadcast;
   const nextBroadcast = reelItems[activeReelIndex + 1];
-  const isPlaying = isFullscreen ? reelPlaybackActive : playingId === selectedBroadcast.id;
-  const hasLocalDemo = useSharedDemoVideo || broadcast.rank === 1;
-  const isPortraitDemo = hasLocalDemo && broadcast.rank === 2;
-  const mediaAspectRatio = measuredAspectRatio ?? (isPortraitDemo && !thumbnailPreview ? 9 / 16 : null);
-  const demoSource = isPortraitDemo
-    ? '/video/category-feature-portrait.mp4'
+  const isPlaying = isFullscreen
+    ? reelPlaybackActive
+    : playingId === selectedBroadcast.id;
+  const hasLocalDemo = !dropId && (useSharedDemoVideo || broadcast.rank === 1);
+  const isBookReviewDemo = hasLocalDemo && broadcast.rank === 2;
+  const mediaAspectRatio = measuredAspectRatio;
+  const demoSource = isBookReviewDemo
+    ? '/video/zero-to-one-book-review.mp4'
     : '/video/category-feature.mp4';
-  const demoPoster = isPortraitDemo
-    ? '/category-feature-portrait-poster.jpg'
+  const demoPoster = isBookReviewDemo
+    ? '/zero-to-one-book-review-poster.jpg'
     : '/category-feature-poster.jpg';
   const canPlay = hasLocalDemo || Boolean(dropId);
-  const showFloatingPlayer = isPlaying && (mediaPlaying || nextCountdown !== null) && isDocked && !isFullscreen;
-  const handleMediaAspectChange = useCallback((width: number, height: number) => {
-    const nextRatio = portraitVideoAspectRatio(width, height);
-    setMeasuredAspectRatio((current) =>
-      nextRatio !== null && current !== null && Math.abs(current - nextRatio) < 0.001
-        ? current
-        : nextRatio,
-    );
+  const showFloatingPlayer =
+    isPlaying &&
+    (mediaPlaying || nextCountdown !== null) &&
+    isDocked &&
+    !isFullscreen;
+  const handleMediaAspectChange = useCallback(
+    (width: number, height: number) => {
+      const nextRatio = portraitVideoAspectRatio(width, height);
+      setMeasuredAspectRatio((current) =>
+        nextRatio !== null &&
+        current !== null &&
+        Math.abs(current - nextRatio) < 0.001
+          ? current
+          : nextRatio,
+      );
+    },
+    [],
+  );
+
+  const resetReelTrack = useCallback(() => {
+    if (reelMoveTimerRef.current !== null) {
+      window.clearTimeout(reelMoveTimerRef.current);
+      reelMoveTimerRef.current = null;
+    }
+    reelMovingRef.current = false;
+    const track = reelTrackRef.current;
+    if (track) {
+      track.style.transition = 'none';
+      track.style.transform = 'translate3d(0, 0, 0)';
+    }
   }, []);
 
-  const changeReel = useCallback((direction: -1 | 1, fromGesture = false) => {
-    if (!isFullscreen) return;
-    const nextIndex = activeReelIndex + direction;
-    if (nextIndex < 0 || nextIndex >= reelItems.length) return;
-    const now = Date.now();
-    if (fromGesture && now - lastReelMoveRef.current < 650) return;
-    lastReelMoveRef.current = now;
-    setNextCountdown(null);
-    setReelIndex(nextIndex);
-    setReelSlideToken((token) => token + 1);
-    setReelPlaybackActive(playIntent);
-    setMediaPlaying(false);
-    setMeasuredAspectRatio(null);
-    const nextPosition = { current: 0, duration: useSharedDemoVideo ? 60 : 0 };
-    videoPositionRef.current = nextPosition;
-    setVideoPosition(nextPosition);
-  }, [activeReelIndex, isFullscreen, playIntent, reelItems.length, useSharedDemoVideo]);
+  useLayoutEffect(() => {
+    resetReelTrack();
+  }, [activeReelIndex, isFullscreen, resetReelTrack]);
+
+  useEffect(() => () => resetReelTrack(), [resetReelTrack]);
+
+  const changeReel = useCallback(
+    (direction: -1 | 1, fromGesture = false) => {
+      if (!isFullscreen || reelMovingRef.current) return false;
+      const nextIndex = activeReelIndex + direction;
+      if (nextIndex < 0 || nextIndex >= reelItems.length) return false;
+      const now = Date.now();
+      if (fromGesture && now - lastReelMoveRef.current < 450) return false;
+      lastReelMoveRef.current = now;
+      const track = reelTrackRef.current;
+      const height = floatingRef.current?.clientHeight ?? window.innerHeight;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const commit = () => {
+        reelMoveTimerRef.current = null;
+        setNextCountdown(null);
+        setReelIndex(nextIndex);
+        setReelPlaybackActive(playIntent);
+        setMediaPlaying(false);
+        setMeasuredAspectRatio(null);
+        const nextPosition = {
+          current: 0,
+          duration: useSharedDemoVideo ? 60 : 0,
+        };
+        videoPositionRef.current = nextPosition;
+        setVideoPosition(nextPosition);
+      };
+      if (!track || reduceMotion) {
+        commit();
+        return true;
+      }
+      reelMovingRef.current = true;
+      track.style.transition = 'transform 430ms cubic-bezier(0.22, 0.8, 0.24, 1)';
+      track.style.transform = `translate3d(0, ${-direction * height}px, 0)`;
+      reelMoveTimerRef.current = window.setTimeout(commit, 430);
+      return true;
+    },
+    [activeReelIndex, isFullscreen, playIntent, reelItems.length, useSharedDemoVideo],
+  );
 
   useEffect(() => {
     if (nextCountdown === null) return;
@@ -647,19 +770,32 @@ export function BroadcastVideoCard({
   }, [changeReel, isFullscreen, nextBroadcast, nextCountdown, onReelExit]);
 
   const finishFullscreen = useCallback(() => {
+    resetReelTrack();
+    touchStartRef.current = null;
     const activeBroadcast = reelItems[activeReelIndex] ?? selectedBroadcast;
     const resume = reelPlaybackActive && playIntent;
-    const time = videoRef.current?.currentTime ?? videoPositionRef.current.current;
+    const time =
+      videoRef.current?.currentTime ?? videoPositionRef.current.current;
     setIsFullscreen(false);
     setReelIndex(null);
     setReelPlaybackActive(false);
     if (
       onReelExit &&
-      (activeBroadcast.id !== selectedBroadcast.id || (resume && playingId !== selectedBroadcast.id))
+      (activeBroadcast.id !== selectedBroadcast.id ||
+        (resume && playingId !== selectedBroadcast.id))
     ) {
       onReelExit(activeBroadcast, resume, time);
     }
-  }, [activeReelIndex, onReelExit, playIntent, playingId, reelItems, reelPlaybackActive, selectedBroadcast]);
+  }, [
+    activeReelIndex,
+    onReelExit,
+    playIntent,
+    playingId,
+    reelItems,
+    reelPlaybackActive,
+    resetReelTrack,
+    selectedBroadcast,
+  ]);
 
   function updateVideoPosition(current: number, duration: number) {
     const next = {
@@ -718,7 +854,10 @@ export function BroadcastVideoCard({
     if (!video && !muxPlayer) return;
     const current = video?.currentTime ?? muxPlayer?.currentTime ?? 0;
     const duration = video?.duration ?? muxPlayer?.duration ?? 0;
-    const next = Math.min(Math.max(current + seconds, 0), Number.isFinite(duration) ? duration : Infinity);
+    const next = Math.min(
+      Math.max(current + seconds, 0),
+      Number.isFinite(duration) ? duration : Infinity,
+    );
     if (video) video.currentTime = next;
     else if (muxPlayer) muxPlayer.currentTime = next;
     updateVideoPosition(next, duration);
@@ -769,9 +908,18 @@ export function BroadcastVideoCard({
     const updatePosition = () => {
       const rect = placeholder.getBoundingClientRect();
       floatingCard.style.setProperty('--broadcast-source-top', `${rect.top}px`);
-      floatingCard.style.setProperty('--broadcast-source-left', `${rect.left}px`);
-      floatingCard.style.setProperty('--broadcast-source-width', `${rect.width}px`);
-      floatingCard.style.setProperty('--broadcast-source-height', `${rect.height}px`);
+      floatingCard.style.setProperty(
+        '--broadcast-source-left',
+        `${rect.left}px`,
+      );
+      floatingCard.style.setProperty(
+        '--broadcast-source-width',
+        `${rect.width}px`,
+      );
+      floatingCard.style.setProperty(
+        '--broadcast-source-height',
+        `${rect.height}px`,
+      );
       setIsDocked((mediaPlaying || nextCountdown !== null) && rect.bottom <= 0);
     };
     const schedulePosition = () => {
@@ -789,14 +937,18 @@ export function BroadcastVideoCard({
       passive: true,
     });
     window.addEventListener('resize', schedulePosition);
+    const list = placeholder.closest('.category-position-list');
+    const listObserver = list ? new ResizeObserver(schedulePosition) : null;
+    if (list && listObserver) listObserver.observe(list);
 
     return () => {
       window.removeEventListener('scroll', schedulePosition);
       document.removeEventListener('scroll', schedulePosition, true);
       window.removeEventListener('resize', schedulePosition);
+      listObserver?.disconnect();
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
-  }, [isPlaying, isFullscreen, mediaAspectRatio, mediaPlaying, nextCountdown]);
+  }, [isPlaying, isFullscreen, mediaAspectRatio, mediaPlaying, nextCountdown, positionCue]);
 
   useEffect(() => {
     if (!isFullscreen) return;
@@ -804,7 +956,10 @@ export function BroadcastVideoCard({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape' && document.fullscreenElement !== floatingRef.current) {
+      if (
+        event.key === 'Escape' &&
+        document.fullscreenElement !== floatingRef.current
+      ) {
         finishFullscreen();
       }
       if (
@@ -816,7 +971,8 @@ export function BroadcastVideoCard({
       }
     };
     const onFullscreenChange = () => {
-      if (document.fullscreenElement !== floatingRef.current) finishFullscreen();
+      if (document.fullscreenElement !== floatingRef.current)
+        finishFullscreen();
     };
     document.addEventListener('keydown', onEscape);
     document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -864,7 +1020,8 @@ export function BroadcastVideoCard({
     event.preventDefault();
     const nextOpinion = opinionDraft.trim();
     if (!nextOpinion) return;
-    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const submitter = (event.nativeEvent as SubmitEvent)
+      .submitter as HTMLButtonElement | null;
     const stance = submitter?.value === 'disagree' ? 'disagree' : 'agree';
     setOpinions((current) => [...current, { text: nextOpinion, stance }]);
     setOpinionStep(0);
@@ -873,7 +1030,10 @@ export function BroadcastVideoCard({
 
   useEffect(() => {
     if (opinions.length === 0) return;
-    const timer = window.setInterval(() => setOpinionStep((step) => step + 1), 3000);
+    const timer = window.setInterval(
+      () => setOpinionStep((step) => step + 1),
+      3000,
+    );
     return () => window.clearInterval(timer);
   }, [opinions.length]);
 
@@ -992,11 +1152,36 @@ export function BroadcastVideoCard({
         changeReel(event.deltaY > 0 ? 1 : -1, true);
       }}
       onTouchStart={(event) => {
-        if (!isFullscreen) return;
+        if (
+          !isFullscreen ||
+          reelMovingRef.current ||
+          (event.target instanceof Element &&
+            event.target.closest('button, a, input, textarea, select, [role="menu"], [role="slider"]'))
+        ) return;
         touchStartRef.current = {
           x: event.touches[0].clientX,
           y: event.touches[0].clientY,
+          startedAt: Date.now(),
+          horizontal: false,
         };
+      }}
+      onTouchMove={(event) => {
+        const start = touchStartRef.current;
+        const track = reelTrackRef.current;
+        if (!isFullscreen || !start || !track || reelMovingRef.current) return;
+        const deltaX = event.touches[0].clientX - start.x;
+        const deltaY = event.touches[0].clientY - start.y;
+        if (Math.abs(deltaX) > 12 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+          start.horizontal = true;
+        }
+        if (start.horizontal) return;
+        const hasNeighbor = deltaY < 0
+          ? activeReelIndex < reelItems.length - 1
+          : activeReelIndex > 0;
+        const height = floatingRef.current?.clientHeight ?? window.innerHeight;
+        const offset = Math.max(-height, Math.min(height, hasNeighbor ? deltaY : deltaY * 0.14));
+        track.style.transition = 'none';
+        track.style.transform = `translate3d(0, ${offset}px, 0)`;
       }}
       onTouchEnd={(event) => {
         const start = touchStartRef.current;
@@ -1004,13 +1189,51 @@ export function BroadcastVideoCard({
         if (!isFullscreen || !start) return;
         const deltaX = event.changedTouches[0].clientX - start.x;
         const deltaY = event.changedTouches[0].clientY - start.y;
-        if (Math.abs(deltaY) < 60 || Math.abs(deltaY) < Math.abs(deltaX) * 1.3) return;
-        changeReel(deltaY < 0 ? 1 : -1, true);
+        const height = floatingRef.current?.clientHeight ?? window.innerHeight;
+        const fastFlick = Date.now() - start.startedAt < 280 && Math.abs(deltaY) > 55;
+        const shouldAdvance = !start.horizontal &&
+          Math.abs(deltaY) > Math.abs(deltaX) * 1.2 &&
+          (Math.abs(deltaY) > Math.min(130, height * 0.2) || fastFlick);
+        if (shouldAdvance && changeReel(deltaY < 0 ? 1 : -1, true)) return;
+        const track = reelTrackRef.current;
+        if (!track) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          resetReelTrack();
+          return;
+        }
+        reelMovingRef.current = true;
+        track.style.transition = 'transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1)';
+        track.style.transform = 'translate3d(0, 0, 0)';
+        reelMoveTimerRef.current = window.setTimeout(resetReelTrack, 260);
+      }}
+      onTouchCancel={() => {
+        touchStartRef.current = null;
+        resetReelTrack();
       }}
     >
+      <div ref={reelTrackRef} className="category-reel-track">
+      {isFullscreen && activeReelIndex > 0 && (
+        <div className="category-reel-neighbor is-previous" aria-hidden="true">
+          <VideoThumbnail broadcast={reelItems[activeReelIndex - 1]} prominent shouldLoad />
+          <div className="category-reel-neighbor-copy">
+            <small>#{reelItems[activeReelIndex - 1].rank} · {reelItems[activeReelIndex - 1].categoryName}</small>
+            <h2>{reelItems[activeReelIndex - 1].title}</h2>
+            <span>{reelItems[activeReelIndex - 1].name}</span>
+          </div>
+        </div>
+      )}
+      {isFullscreen && activeReelIndex < reelItems.length - 1 && (
+        <div className="category-reel-neighbor is-next" aria-hidden="true">
+          <VideoThumbnail broadcast={reelItems[activeReelIndex + 1]} prominent shouldLoad />
+          <div className="category-reel-neighbor-copy">
+            <small>#{reelItems[activeReelIndex + 1].rank} · {reelItems[activeReelIndex + 1].categoryName}</small>
+            <h2>{reelItems[activeReelIndex + 1].title}</h2>
+            <span>{reelItems[activeReelIndex + 1].name}</span>
+          </div>
+        </div>
+      )}
       <div
-        key={reelSlideToken}
-        className={`category-lead-media ${isFullscreen && reelSlideToken > 0 ? 'is-reel-rising' : ''}`}
+        className="category-lead-media"
         onPointerDown={revealControls}
         onPointerMove={revealControls}
       >
@@ -1019,6 +1242,15 @@ export function BroadcastVideoCard({
           prominent
           shouldLoad={loadThumbnail}
         />
+        {(autoPreview || thumbnailPreview) && !isPlaying && !isFullscreen && (
+          <BroadcastThumbnailPreview
+            key={dropId ?? 'demo'}
+            active
+            delayMs={thumbnailPreview ? 2000 : 0}
+            dropId={dropId}
+            demoSource={demoSource}
+          />
+        )}
         {hasLocalDemo && isPlaying && (
           <div className="category-on-demand-player category-local-player">
             <video
@@ -1029,7 +1261,7 @@ export function BroadcastVideoCard({
               muted={isMuted}
               playsInline
               preload="metadata"
-              aria-label={`${broadcast.name}'s one-minute featured broadcast`}
+              aria-label={`${broadcast.name}'s featured broadcast`}
               onLoadedMetadata={(event) => {
                 handleMediaAspectChange(
                   event.currentTarget.videoWidth,
@@ -1046,13 +1278,22 @@ export function BroadcastVideoCard({
                   );
                   initialTimeAppliedRef.current = true;
                 }
-                updateVideoPosition(event.currentTarget.currentTime, event.currentTarget.duration);
+                updateVideoPosition(
+                  event.currentTarget.currentTime,
+                  event.currentTarget.duration,
+                );
               }}
               onTimeUpdate={(event) =>
-                updateVideoPosition(event.currentTarget.currentTime, event.currentTarget.duration)
+                updateVideoPosition(
+                  event.currentTarget.currentTime,
+                  event.currentTarget.duration,
+                )
               }
               onDurationChange={(event) =>
-                updateVideoPosition(event.currentTarget.currentTime, event.currentTarget.duration)
+                updateVideoPosition(
+                  event.currentTarget.currentTime,
+                  event.currentTarget.duration,
+                )
               }
               onPlaying={() => setMediaPlaying(true)}
               onPause={() => setMediaPlaying(false)}
@@ -1060,7 +1301,11 @@ export function BroadcastVideoCard({
                 setMediaPlaying(false);
                 clearControlsTimer();
                 setControlsVisible(true);
-                if (playIntent && nextBroadcast && (isFullscreen || onReelExit)) {
+                if (
+                  playIntent &&
+                  nextBroadcast &&
+                  (isFullscreen || onReelExit)
+                ) {
                   setNextCountdown(10);
                 } else {
                   setPlayIntent(false);
@@ -1069,9 +1314,13 @@ export function BroadcastVideoCard({
               onVolumeChange={(event) => setIsMuted(event.currentTarget.muted)}
             >
               <track
-                key={`${captionLanguage}:${captionsEnabled}`}
+                key={`${captionLanguage}:${captionsEnabled}:${isBookReviewDemo}`}
                 kind="captions"
-                src="/video/category-feature.vtt"
+                src={
+                  isBookReviewDemo
+                    ? '/video/zero-to-one-book-review.en.vtt'
+                    : '/video/category-feature.vtt'
+                }
                 srcLang="en"
                 label="English"
                 default={captionsEnabled && captionLanguage === 'en'}
@@ -1107,7 +1356,9 @@ export function BroadcastVideoCard({
           type="button"
           disabled={!canPlay}
           tabIndex={mediaPlaying && !controlsVisible ? -1 : 0}
-          title={nextCountdown !== null ? 'Click to stop the next video' : undefined}
+          title={
+            nextCountdown !== null ? 'Click to stop the next video' : undefined
+          }
           onClick={() => {
             if (!canPlay) return;
             if (nextCountdown !== null) {
@@ -1123,21 +1374,29 @@ export function BroadcastVideoCard({
               setPlayIntent(true);
               if (isFullscreen) setReelPlaybackActive(true);
               else onPlay(selectedBroadcast.id);
-            }
-            else if (mediaPlaying) pauseBroadcast();
+            } else if (mediaPlaying) pauseBroadcast();
             else resumeBroadcast();
           }}
           aria-label={
             nextCountdown !== null
               ? `Next video in ${nextCountdown} seconds. Click to stop.`
               : canPlay
-              ? `${isPlaying && mediaPlaying ? 'Pause' : 'Play'} ${broadcast.name}'s broadcast`
-              : `${broadcast.name}'s broadcast is not ready to play`
+                ? `${isPlaying && mediaPlaying ? 'Pause' : 'Play'} ${broadcast.name}'s broadcast`
+                : `${broadcast.name}'s broadcast is not ready to play`
           }
-          style={nextCountdown !== null ? { '--next-progress': `${(10 - nextCountdown) * 10}%` } as CSSProperties : undefined}
+          style={
+            nextCountdown !== null
+              ? ({
+                  '--next-progress': `${(10 - nextCountdown) * 10}%`,
+                } as CSSProperties)
+              : undefined
+          }
         >
           {nextCountdown !== null ? (
-            <span className="category-next-countdown-label"><strong>{nextCountdown}</strong><small>NEXT</small></span>
+            <span className="category-next-countdown-label">
+              <strong>{nextCountdown}</strong>
+              <small>NEXT</small>
+            </span>
           ) : (
             <Mic size={25} strokeWidth={1.8} aria-hidden="true" />
           )}
@@ -1166,22 +1425,40 @@ export function BroadcastVideoCard({
             </button>
           </div>
         )}
+        {isPlaying && mediaPlaying && (
+          <div
+            className="category-playing-details"
+            aria-label={`Current bid ${broadcast.price}; ${broadcast.views.toLocaleString('en-US')} views; ${broadcast.name}`}
+          >
+            <span>
+              <small>CURRENT BID</small>
+              <strong>{broadcast.price}</strong>
+            </span>
+            <span>
+              <small>VIEWS</small>
+              <strong>{broadcast.views.toLocaleString('en-US')}</strong>
+            </span>
+            <span className="category-playing-creator">
+              <strong>{broadcast.name}</strong>
+            </span>
+          </div>
+        )}
         <div
           className={`category-stage-status ${mediaPlaying ? 'is-visible' : ''}`}
           aria-hidden={!mediaPlaying}
         >
           <i aria-hidden="true" />
           <span>
-            <strong>ON STAGE</strong>
+            <strong>#{broadcast.rank} ON STAGE</strong>
             <small>LIVE TO THE WORLD</small>
           </span>
         </div>
         {liveOpinion && (
-          <div
-            className="category-live-comment-stream"
-            aria-hidden="true"
-          >
-            <span className="category-live-comment" key={`${opinions.length}-${opinionStep}`}>
+          <div className="category-live-comment-stream" aria-hidden="true">
+            <span
+              className="category-live-comment"
+              key={`${opinions.length}-${opinionStep}`}
+            >
               {liveOpinion.text}
             </span>
           </div>
@@ -1219,36 +1496,55 @@ export function BroadcastVideoCard({
                       }}
                     >
                       Off
-                      {!captionsEnabled && <Check size={14} aria-hidden="true" />}
+                      {!captionsEnabled && (
+                        <Check size={14} aria-hidden="true" />
+                      )}
                     </button>
                   </header>
-                  <div>
-                    {CAPTION_LANGUAGES.map((language) => {
-                      const selected =
-                        captionsEnabled && captionLanguage === language.code;
-                      return (
-                        <button
-                          key={language.code}
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked={selected}
-                          onClick={() => {
-                            setCaptionLanguage(language.code);
-                            setCaptionsEnabled(true);
-                            setCaptionMenuOpen(false);
-                          }}
-                        >
-                          <span>
-                            <strong>{language.nativeLabel}</strong>
-                            {language.nativeLabel !== language.label && (
-                              <small>{language.label}</small>
-                            )}
-                          </span>
-                          {selected && <Check size={14} aria-hidden="true" />}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {[
+                    {
+                      label: 'MOST USED',
+                      languages: FEATURED_CAPTION_LANGUAGES,
+                    },
+                    {
+                      label: 'ALL OTHER LANGUAGES',
+                      languages: OTHER_CAPTION_LANGUAGES,
+                    },
+                  ].map((section) => (
+                    <section key={section.label}>
+                      <p>{section.label}</p>
+                      <div>
+                        {section.languages.map((language) => {
+                          const selected =
+                            captionsEnabled &&
+                            captionLanguage === language.code;
+                          return (
+                            <button
+                              key={language.code}
+                              type="button"
+                              role="menuitemradio"
+                              aria-checked={selected}
+                              onClick={() => {
+                                setCaptionLanguage(language.code);
+                                setCaptionsEnabled(true);
+                                setCaptionMenuOpen(false);
+                              }}
+                            >
+                              <span>
+                                <strong>{language.nativeLabel}</strong>
+                                {language.nativeLabel !== language.label && (
+                                  <small>{language.label}</small>
+                                )}
+                              </span>
+                              {selected && (
+                                <Check size={14} aria-hidden="true" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
                 </div>
               )}
             </div>
@@ -1258,7 +1554,11 @@ export function BroadcastVideoCard({
             type="button"
             tabIndex={!mediaPlaying || controlsVisible ? 0 : -1}
             aria-label={`Spread ${broadcast.name}'s broadcast`}
-            onClick={() => onPreviewSpread ? onPreviewSpread(broadcast) : setIsSpreadOpen(true)}
+            onClick={() =>
+              onPreviewSpread
+                ? onPreviewSpread(broadcast)
+                : setIsSpreadOpen(true)
+            }
           >
             <Share2 size={15} aria-hidden="true" />
             <span>SPREAD IT</span>
@@ -1269,9 +1569,15 @@ export function BroadcastVideoCard({
             tabIndex={!mediaPlaying || controlsVisible ? 0 : -1}
             aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             aria-pressed={isFullscreen}
-            onClick={() => { void toggleFullscreen(); }}
+            onClick={() => {
+              void toggleFullscreen();
+            }}
           >
-            {isFullscreen ? <Minimize size={15} aria-hidden="true" /> : <Maximize size={15} aria-hidden="true" />}
+            {isFullscreen ? (
+              <Minimize size={15} aria-hidden="true" />
+            ) : (
+              <Maximize size={15} aria-hidden="true" />
+            )}
           </button>
           <button
             className={`category-lead-control category-lead-watchlist ${isWatchlisted ? 'is-saved' : ''}`}
@@ -1308,13 +1614,20 @@ export function BroadcastVideoCard({
                 aria-label={isMuted ? 'Turn on video sound' : 'Mute video'}
                 title={isMuted ? 'Unmute' : 'Mute'}
               >
-                {isMuted ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
+                {isMuted ? (
+                  <VolumeX size={16} aria-hidden="true" />
+                ) : (
+                  <Volume2 size={16} aria-hidden="true" />
+                )}
               </button>
             </>
           )}
         </div>
         {isFullscreen && reelItems.length > 1 && (
-          <nav className="category-reel-navigation" aria-label="Fullscreen videos">
+          <nav
+            className="category-reel-navigation"
+            aria-label="Fullscreen videos"
+          >
             <button
               type="button"
               disabled={activeReelIndex === 0}
@@ -1323,7 +1636,9 @@ export function BroadcastVideoCard({
             >
               <ChevronUp size={20} aria-hidden="true" />
             </button>
-            <span aria-live="polite">{activeReelIndex + 1} / {reelItems.length}</span>
+            <span aria-live="polite">
+              {activeReelIndex + 1} / {reelItems.length}
+            </span>
             <button
               type="button"
               disabled={activeReelIndex === reelItems.length - 1}
@@ -1335,12 +1650,17 @@ export function BroadcastVideoCard({
           </nav>
         )}
         {isPlaying && (
-          <time className={`category-video-elapsed${isFullscreen ? '' : ' is-inline'}`} aria-label={`Elapsed video time ${videoClock(videoPosition.current)}`}>
+          <time
+            className={`category-video-elapsed${isFullscreen ? '' : ' is-inline'}`}
+            aria-label={`Elapsed video time ${videoClock(videoPosition.current)}`}
+          >
             {videoClock(videoPosition.current)}
           </time>
         )}
       </div>
-      <div key={reelSlideToken} className={`category-lead-content ${isFullscreen && reelSlideToken > 0 ? 'is-reel-rising' : ''}`}>
+      <div
+        className="category-lead-content"
+      >
         <div className="category-lead-market">
           <span className="category-lead-rank">
             <b>#{broadcast.rank}</b>
@@ -1375,7 +1695,11 @@ export function BroadcastVideoCard({
               <button
                 className="category-lead-stat category-lead-spread"
                 type="button"
-                onClick={() => onPreviewSpread ? onPreviewSpread(broadcast) : setIsSpreadOpen(true)}
+                onClick={() =>
+                  onPreviewSpread
+                    ? onPreviewSpread(broadcast)
+                    : setIsSpreadOpen(true)
+                }
                 aria-label={`Spread ${broadcast.name}'s broadcast`}
               >
                 <Share2 size={13} aria-hidden="true" />
@@ -1430,7 +1754,9 @@ export function BroadcastVideoCard({
                 <span className="category-lead-take-label">
                   <Gavel size={26} aria-hidden="true" />
                   <strong>
-                    <span className="category-lead-take-full">TAKE THIS SPOT</span>
+                    <span className="category-lead-take-full">
+                      TAKE THIS SPOT
+                    </span>
                     <span className="category-lead-take-compact">TAKE</span>
                   </strong>
                 </span>
@@ -1445,9 +1771,7 @@ export function BroadcastVideoCard({
               <button
                 className="category-lead-message-button category-lead-author-message"
                 type="button"
-                aria-label={
-                  `Message ${broadcast.name}`
-                }
+                aria-label={`Message ${broadcast.name}`}
                 aria-expanded={isMessageOpen}
                 onClick={() => {
                   setIsMessageOpen(true);
@@ -1459,7 +1783,10 @@ export function BroadcastVideoCard({
               </button>
               <a
                 className="category-lead-author-platform"
-                href={socialSearchUrl(broadcast.socialPlatform, broadcast.handle)}
+                href={socialSearchUrl(
+                  broadcast.socialPlatform,
+                  broadcast.handle,
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 title={`Find ${broadcast.handle} on ${broadcast.socialPlatform}`}
@@ -1480,17 +1807,31 @@ export function BroadcastVideoCard({
           <h2>&ldquo;{broadcast.title}&rdquo;</h2>
         </div>
       </div>
+      </div>
       {isFullscreen && nextCountdown !== null && nextBroadcast && (
-        <aside className="category-next-preview" aria-label={`Up next: position #${nextBroadcast.rank}`}>
+        <aside
+          className="category-next-preview"
+          aria-label={`Up next: position #${nextBroadcast.rank}`}
+        >
           <div className="category-next-preview-heading">
             <strong>UP NEXT · #{nextBroadcast.rank}</strong>
             <span>STARTS IN {nextCountdown}S</span>
           </div>
-          <span className="category-next-preview-category">{nextBroadcast.categoryName}</span>
+          <span className="category-next-preview-category">
+            {nextBroadcast.categoryName}
+          </span>
           <h3>{nextBroadcast.title}</h3>
-          <p>{nextBroadcast.name} · {nextBroadcast.handle}</p>
+          <p>
+            {nextBroadcast.name} · {nextBroadcast.handle}
+          </p>
           <div className="category-next-preview-actions">
-            <button type="button" onClick={() => { setNextCountdown(null); setPlayIntent(false); }}>
+            <button
+              type="button"
+              onClick={() => {
+                setNextCountdown(null);
+                setPlayIntent(false);
+              }}
+            >
               STAY HERE
             </button>
             <button type="button" onClick={() => changeReel(1)}>
@@ -1502,44 +1843,89 @@ export function BroadcastVideoCard({
     </section>
   );
 
-  const dialogs = typeof document !== 'undefined' && isMessageOpen
-    ? createPortal(
-        <div className="category-action-backdrop">
-          <dialog open className="category-action-dialog" aria-modal="true" aria-labelledby={`dm-title-${broadcast.id}`}>
+  const dialogs =
+    typeof document !== 'undefined' && isMessageOpen
+      ? createPortal(
+          <div className="category-action-backdrop">
+            <dialog
+              open
+              className="category-action-dialog"
+              aria-modal="true"
+              aria-labelledby={`dm-title-${broadcast.id}`}
+            >
               <div className="category-action-head">
                 <div>
                   <small>DIRECT MESSAGE</small>
-                  <h2 id={`dm-title-${broadcast.id}`}>Connect with {broadcast.name}</h2>
-                  <p>Start a conversation about their take or share what resonated.</p>
+                  <h2 id={`dm-title-${broadcast.id}`}>
+                    Connect with {broadcast.name}
+                  </h2>
+                  <p>
+                    Start a conversation about their take or share what
+                    resonated.
+                  </p>
                 </div>
-                <button type="button" onClick={() => setIsMessageOpen(false)} aria-label="Close message dialog"><X size={18} /></button>
+                <button
+                  type="button"
+                  onClick={() => setIsMessageOpen(false)}
+                  aria-label="Close message dialog"
+                >
+                  <X size={18} />
+                </button>
               </div>
               <form className="category-action-form" onSubmit={submitMessage}>
-                <label htmlFor={`message-${broadcast.id}`}>Your opening message</label>
+                <label htmlFor={`message-${broadcast.id}`}>
+                  Your opening message
+                </label>
                 <textarea
                   id={`message-${broadcast.id}`}
                   autoFocus
                   value={messageDraft}
-                  onChange={(event) => { setMessageDraft(event.target.value); setMessageError(''); }}
+                  onChange={(event) => {
+                    setMessageDraft(event.target.value);
+                    setMessageError('');
+                  }}
                   placeholder={`What would you like to talk about with ${broadcast.name}?`}
                   maxLength={240}
                   rows={4}
                 />
-                <small>Your conversation opens in Direct Messages after sending.</small>
-                {messageError && <p className="category-action-error" role="alert">{messageError}</p>}
-                <button className="category-action-primary" type="submit" disabled={!messageDraft.trim()}><Send size={15} /> Start conversation</button>
+                <small>
+                  Your conversation opens in Direct Messages after sending.
+                </small>
+                {messageError && (
+                  <p className="category-action-error" role="alert">
+                    {messageError}
+                  </p>
+                )}
+                <button
+                  className="category-action-primary"
+                  type="submit"
+                  disabled={!messageDraft.trim()}
+                >
+                  <Send size={15} /> Start conversation
+                </button>
               </form>
-          </dialog>
-        </div>,
-        document.body,
-      )
-    : null;
+            </dialog>
+          </div>,
+          document.body,
+        )
+      : null;
 
-  const spreadDialog = isSpreadOpen && typeof document !== 'undefined'
-    ? <SpreadPositionDialog broadcast={broadcast} onClose={() => setIsSpreadOpen(false)} />
-    : null;
+  const spreadDialog =
+    isSpreadOpen && typeof document !== 'undefined' ? (
+      <SpreadPositionDialog
+        broadcast={broadcast}
+        onClose={() => setIsSpreadOpen(false)}
+      />
+    ) : null;
 
-  if (!isPlaying && !isFullscreen) return <>{card}{dialogs}{spreadDialog}</>;
+  if (!isPlaying && !isFullscreen)
+    return (
+      <>
+        {card}
+        {dialogs}
+        {spreadDialog}
+      </>
+    );
 
   return (
     <>
@@ -1561,13 +1947,26 @@ export function BroadcastVideoCard({
             </span>
             <small>{opinions.length}</small>
           </div>
-          <div className="category-video-comments-scroll" role="log" aria-live="polite">
+          <div
+            className="category-video-comments-scroll"
+            role="log"
+            aria-live="polite"
+          >
             {opinions.length > 0 && (
               <ol className="category-video-comments-list">
                 {opinions.map((opinion, index) => (
-                  <li className="category-video-comment" key={`${index}-${opinion.text}`}>
-                    <span className={`category-video-opinion-stance is-${opinion.stance}`}>
-                      {opinion.stance === 'agree' ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+                  <li
+                    className="category-video-comment"
+                    key={`${index}-${opinion.text}`}
+                  >
+                    <span
+                      className={`category-video-opinion-stance is-${opinion.stance}`}
+                    >
+                      {opinion.stance === 'agree' ? (
+                        <ArrowUp size={13} />
+                      ) : (
+                        <ArrowDown size={13} />
+                      )}
                       {opinion.stance === 'agree' ? 'AGREE' : "DON'T AGREE"}
                     </span>
                     <p>{opinion.text}</p>
@@ -1576,7 +1975,10 @@ export function BroadcastVideoCard({
               </ol>
             )}
           </div>
-          <form className="category-video-comments-form" onSubmit={submitOpinion}>
+          <form
+            className="category-video-comments-form"
+            onSubmit={submitOpinion}
+          >
             <label className="sr-only" htmlFor={`comment-${broadcast.id}`}>
               Share an opinion on {broadcast.name}&apos;s broadcast
             </label>
@@ -1588,18 +1990,36 @@ export function BroadcastVideoCard({
               placeholder="Share your opinion..."
               maxLength={240}
             />
-            <button type="submit" name="stance" value="agree" disabled={!opinionDraft.trim()} aria-label="Post opinion: I agree" title="I agree">
-              <ArrowUp size={16} aria-hidden="true" /><span>AGREE</span>
+            <button
+              type="submit"
+              name="stance"
+              value="agree"
+              disabled={!opinionDraft.trim()}
+              aria-label="Post opinion: I agree"
+              title="I agree"
+            >
+              <ArrowUp size={16} aria-hidden="true" />
+              <span>AGREE</span>
             </button>
-            <button type="submit" name="stance" value="disagree" disabled={!opinionDraft.trim()} aria-label="Post opinion: I don't agree" title="I don't agree">
-              <ArrowDown size={16} aria-hidden="true" /><span>DON&apos;T</span>
+            <button
+              type="submit"
+              name="stance"
+              value="disagree"
+              disabled={!opinionDraft.trim()}
+              aria-label="Post opinion: I don't agree"
+              title="I don't agree"
+            >
+              <ArrowDown size={16} aria-hidden="true" />
+              <span>DON&apos;T</span>
             </button>
           </form>
         </section>
       )}
       {typeof document !== 'undefined' &&
         createPortal(
-          <div className={`market-shell dashboard-shell broadcast-floating-root ${showFloatingPlayer ? 'is-docked' : ''} ${isFullscreen ? 'is-fullscreen' : ''}`}>
+          <div
+            className={`market-shell dashboard-shell broadcast-floating-root ${showFloatingPlayer ? 'is-docked' : ''} ${isFullscreen ? 'is-fullscreen' : ''}`}
+          >
             {card}
           </div>,
           document.body,
@@ -1629,7 +2049,11 @@ const CategoryPanel = memo(function CategoryPanel({
   onPlay: (id: string) => void;
   selectedBroadcastId: string | null;
   onSelectBroadcast: (id: string) => void;
-  onReelExit: (broadcast: CategoryBroadcast, resume: boolean, time: number) => void;
+  onReelExit: (
+    broadcast: CategoryBroadcast,
+    resume: boolean,
+    time: number,
+  ) => void;
   reelResume: { id: string; time: number } | null;
   visibleCount: number;
   onLoadMore: (categoryName: string) => void;
@@ -1641,8 +2065,11 @@ const CategoryPanel = memo(function CategoryPanel({
     broadcasts.find(({ id }) => id === selectedBroadcastId) ?? leader;
   const loadedCount = Math.min(visibleCount, broadcasts.length);
   const hasMore = loadedCount < broadcasts.length;
-  const [spreadBroadcast, setSpreadBroadcast] = useState<CategoryBroadcast | null>(null);
-  const [hoveredBroadcastId, setHoveredBroadcastId] = useState<string | null>(null);
+  const [spreadBroadcast, setSpreadBroadcast] =
+    useState<CategoryBroadcast | null>(null);
+  const [hoveredBroadcastId, setHoveredBroadcastId] = useState<string | null>(
+    null,
+  );
   const loadMarkerRef = useRef<HTMLDivElement>(null);
   const expandedBroadcastRef = useRef<HTMLDivElement>(null);
   const categoryStyle = {
@@ -1709,8 +2136,12 @@ const CategoryPanel = memo(function CategoryPanel({
                     dropId={dropIdsByRank[broadcast.rank] ?? null}
                     reelBroadcasts={broadcasts}
                     onReelExit={onReelExit}
-                    initialPlaybackTime={reelResume?.id === broadcast.id ? reelResume.time : 0}
+                    initialPlaybackTime={
+                      reelResume?.id === broadcast.id ? reelResume.time : 0
+                    }
+                    positionCue={hoveredBroadcastId}
                     useSharedDemoVideo
+                    autoPreview={broadcast.rank === 1}
                     accentColor={category.accent}
                   />
                 </div>
@@ -1722,12 +2153,19 @@ const CategoryPanel = memo(function CategoryPanel({
                 className="category-position-item"
                 key={broadcast.id}
                 onPointerEnter={(event) => {
-                  if (event.pointerType === 'mouse' && window.innerWidth > 680) {
+                  if (
+                    event.pointerType === 'mouse' &&
+                    window.innerWidth > 680
+                  ) {
                     setHoveredBroadcastId(broadcast.id);
                   }
                 }}
                 onPointerLeave={() => {
-                  if (!document.querySelector('.category-action-dialog[aria-labelledby^="dm-title"], .category-lead-card.is-video-fullscreen')) {
+                  if (
+                    !document.querySelector(
+                      '.category-action-dialog[aria-labelledby^="dm-title"], .category-lead-card.is-video-fullscreen',
+                    )
+                  ) {
                     setHoveredBroadcastId(null);
                   }
                 }}
@@ -1737,7 +2175,10 @@ const CategoryPanel = memo(function CategoryPanel({
                     <BroadcastVideoCard
                       broadcast={broadcast}
                       playingId={null}
-                      onPlay={(id) => { onSelectBroadcast(id); onPlay(id); }}
+                      onPlay={(id) => {
+                        onSelectBroadcast(id);
+                        onPlay(id);
+                      }}
                       loadThumbnail
                       dropId={dropIdsByRank[broadcast.rank] ?? null}
                       reelBroadcasts={broadcasts}
@@ -1745,56 +2186,60 @@ const CategoryPanel = memo(function CategoryPanel({
                       useSharedDemoVideo
                       thumbnailPreview
                       onPreviewSpread={setSpreadBroadcast}
-                      onPreviewSelect={(preview) => onSelectBroadcast(preview.id)}
+                      onPreviewSelect={(preview) =>
+                        onSelectBroadcast(preview.id)
+                      }
                       accentColor={category.accent}
                     />
                   </div>
                 ) : (
                   <>
-                <button
-                  className="category-position-row"
-                  type="button"
-                  aria-label={`Open and play position #${broadcast.rank}, ${broadcast.price}, ${broadcast.title}`}
-                  onClick={() => onSelectBroadcast(broadcast.id)}
-                >
-                  <span className="category-position-rank">#{broadcast.rank}</span>
-                  <ProfileAvatar
-                    initials={broadcast.initials}
-                    imageSrc="/leaderboard-portraits.png"
-                    imagePosition={broadcast.imagePosition}
-                    className="category-position-avatar"
-                    alt={broadcast.name}
-                  />
-                  <span className="category-position-copy">
-                    <strong>{broadcast.title}</strong>
-                    <small>
-                      {broadcast.name} · {broadcast.handle}
-                    </small>
-                  </span>
-                  <span className="category-position-bid">
-                    <small>CURRENT BID</small>
-                    <strong>{broadcast.price}</strong>
-                  </span>
-                  <span
-                    className={`category-position-change ${broadcast.change > 0 ? 'is-up' : 'is-down'}`}
-                  >
-                    {broadcast.change > 0 ? '+' : ''}
-                    {broadcast.change}%
-                  </span>
-                  <span className="category-position-next">
-                    <small>TAKE THIS SPOT</small>
-                    <strong>{broadcast.takePrice}</strong>
-                  </span>
-                </button>
-                <button
-                  className="category-position-spread"
-                  type="button"
-                  aria-label={`Spread position #${broadcast.rank}: ${broadcast.title}`}
-                  onClick={() => setSpreadBroadcast(broadcast)}
-                >
-                  <Share2 size={15} aria-hidden="true" />
-                  <span>SPREAD IT</span>
-                </button>
+                    <button
+                      className="category-position-row"
+                      type="button"
+                      aria-label={`Open and play position #${broadcast.rank}, ${broadcast.price}, ${broadcast.title}`}
+                      onClick={() => onSelectBroadcast(broadcast.id)}
+                    >
+                      <span className="category-position-rank">
+                        #{broadcast.rank}
+                      </span>
+                      <ProfileAvatar
+                        initials={broadcast.initials}
+                        imageSrc="/leaderboard-portraits.png"
+                        imagePosition={broadcast.imagePosition}
+                        className="category-position-avatar"
+                        alt={broadcast.name}
+                      />
+                      <span className="category-position-copy">
+                        <strong>{broadcast.title}</strong>
+                        <small>
+                          {broadcast.name} · {broadcast.handle}
+                        </small>
+                      </span>
+                      <span className="category-position-bid">
+                        <small>CURRENT BID</small>
+                        <strong>{broadcast.price}</strong>
+                      </span>
+                      <span
+                        className={`category-position-change ${broadcast.change > 0 ? 'is-up' : 'is-down'}`}
+                      >
+                        {broadcast.change > 0 ? '+' : ''}
+                        {broadcast.change}%
+                      </span>
+                      <span className="category-position-next">
+                        <small>TAKE THIS SPOT</small>
+                        <strong>{broadcast.takePrice}</strong>
+                      </span>
+                    </button>
+                    <button
+                      className="category-position-spread"
+                      type="button"
+                      aria-label={`Spread position #${broadcast.rank}: ${broadcast.title}`}
+                      onClick={() => setSpreadBroadcast(broadcast)}
+                    >
+                      <Share2 size={15} aria-hidden="true" />
+                      <span>SPREAD IT</span>
+                    </button>
                   </>
                 )}
               </div>
@@ -1812,7 +2257,10 @@ const CategoryPanel = memo(function CategoryPanel({
         {spreadBroadcast && (
           <SpreadPositionDialog
             broadcast={spreadBroadcast}
-            onClose={() => { setSpreadBroadcast(null); setHoveredBroadcastId(null); }}
+            onClose={() => {
+              setSpreadBroadcast(null);
+              setHoveredBroadcastId(null);
+            }}
           />
         )}
       </div>
@@ -1829,7 +2277,10 @@ export default function CategoriesPage() {
     null,
   );
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [reelResume, setReelResume] = useState<{ id: string; time: number } | null>(null);
+  const [reelResume, setReelResume] = useState<{
+    id: string;
+    time: number;
+  } | null>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>(
     {},
@@ -1865,14 +2316,22 @@ export default function CategoriesPage() {
     );
     const selectedIndex = requestedIndex >= 0 ? requestedIndex : 0;
     const requestedBroadcast = params.get('broadcast');
-    const matchingBroadcast = categoryBroadcasts[selectedIndex].find(({ id }) => id === requestedBroadcast);
+    const matchingBroadcast = categoryBroadcasts[selectedIndex].find(
+      ({ id }) => id === requestedBroadcast,
+    );
     if (requestedIndex <= 0 && !matchingBroadcast) return;
     const frame = window.requestAnimationFrame(() => {
       activeIndexRef.current = selectedIndex;
       setActiveIndex(selectedIndex);
       if (matchingBroadcast) {
         setFeaturedBroadcastId(matchingBroadcast.id);
-        setVisibleCounts((current) => ({ ...current, [categories[selectedIndex].name]: Math.max(current[categories[selectedIndex].name] ?? initialBroadcastCount, matchingBroadcast.rank) }));
+        setVisibleCounts((current) => ({
+          ...current,
+          [categories[selectedIndex].name]: Math.max(
+            current[categories[selectedIndex].name] ?? initialBroadcastCount,
+            matchingBroadcast.rank,
+          ),
+        }));
       }
       scrollToCategory(selectedIndex, 'auto');
     });
@@ -1941,16 +2400,22 @@ export default function CategoriesPage() {
     setReelResume(null);
   }, []);
 
-  const exitReel = useCallback((broadcast: CategoryBroadcast, resume: boolean, time: number) => {
-    setFeaturedBroadcastId(broadcast.id);
-    setPlayingId(resume ? broadcast.id : null);
-    setReelResume(resume ? { id: broadcast.id, time } : null);
-    const categoryName = categories[activeIndexRef.current].name;
-    setVisibleCounts((current) => ({
-      ...current,
-      [categoryName]: Math.max(current[categoryName] ?? initialBroadcastCount, broadcast.rank),
-    }));
-  }, []);
+  const exitReel = useCallback(
+    (broadcast: CategoryBroadcast, resume: boolean, time: number) => {
+      setFeaturedBroadcastId(broadcast.id);
+      setPlayingId(resume ? broadcast.id : null);
+      setReelResume(resume ? { id: broadcast.id, time } : null);
+      const categoryName = categories[activeIndexRef.current].name;
+      setVisibleCounts((current) => ({
+        ...current,
+        [categoryName]: Math.max(
+          current[categoryName] ?? initialBroadcastCount,
+          broadcast.rank,
+        ),
+      }));
+    },
+    [],
+  );
 
   const scrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2074,9 +2539,7 @@ export default function CategoriesPage() {
                   <strong>{category.name}</strong>
                   <span>{category.liveCount} bids</span>
                   {isTrending && (
-                    <span className="homepage-category-trending">
-                      TRENDING
-                    </span>
+                    <span className="homepage-category-trending">TRENDING</span>
                   )}
                 </button>
               );
@@ -2126,13 +2589,14 @@ export default function CategoriesPage() {
                     }
                     onLoadMore={loadMoreBroadcasts}
                     dropIdsByRank={Object.fromEntries(
-                      entries
-                        .filter(
-                          (entry) =>
-                            category.name === 'ALL' ||
-                            entry.category.toUpperCase() === category.name,
-                        )
-                        .map((entry) => [entry.position, entry.drop_id]),
+                      category.name === 'ALL'
+                        ? entries.map((entry) => [entry.position, entry.drop_id])
+                        : entries
+                            .filter(
+                              (entry) =>
+                                entry.category.toUpperCase() === category.name,
+                            )
+                            .map((entry, position) => [position + 1, entry.drop_id]),
                     )}
                   />
                 )}
@@ -2140,7 +2604,6 @@ export default function CategoriesPage() {
             );
           })}
         </section>
-
       </div>
 
       {showBackToTop && (
