@@ -362,7 +362,6 @@ export function BoughtProvider({ children }: { children: ReactNode }) {
             .filter(
               (drop) =>
                 drop.state === 'published' &&
-                drop.payment_state === 'paid' &&
                 drop.auction_id === market?.auctionId,
             )
             .map((drop) => drop.id),

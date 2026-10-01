@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 const sections = [
   ['service', 'The BOUGHT service'],
   ['accounts', 'Accounts and eligibility'],
-  ['auction', 'Bids, auctions, and ranking'],
+  ['auction', 'Auctions and ranking'],
   ['payments', 'Payments and refunds'],
   ['content', 'Broadcasts and moderation'],
   ['rights', 'Your content and our license'],
@@ -78,9 +78,9 @@ export default function TermsPage() {
               <h2>01 / The BOUGHT service</h2>
               <p>
                 BOUGHT is a paid broadcast platform. You choose a category,
-                record a short video, and attach a bid to reserve a place in the
+                record a short video, and attach a payment to reserve a place in the
                 next auction. Approved broadcasts appear on the public floor,
-                where higher paid bids rank above lower paid bids.
+                where higher paid amounts rank above lower paid amounts.
               </p>
               <p>
                 BOUGHT is not an editorial publication, investment product,
@@ -108,15 +108,15 @@ export default function TermsPage() {
             </section>
 
             <section id="auction">
-              <h2>03 / Bids, auctions, and ranking</h2>
+              <h2>03 / Auctions and ranking</h2>
               <p>
-                Bidding runs from 00:00 to 12:00 UTC. During that window,
-                published bids can move as other participants enter the market.
+                The market runs from 00:00 to 12:00 UTC. During that window,
+                published positions can move as other participants enter.
                 At 12:00 UTC, the current order is frozen for the exposure period,
                 which ends at 00:00 UTC.
               </p>
               <p>
-                Higher paid bids rank first. When bids are equal, the earlier
+                Higher paid amounts rank first. When amounts are equal, the earlier
                 server-side payment confirmation ranks first; if that is also
                 equal, BOUGHT uses the broadcast identifier as a final
                 tiebreaker. The database clock controls auction transitions, not
@@ -132,7 +132,7 @@ export default function TermsPage() {
             <section id="payments">
               <h2>04 / Payments and refunds</h2>
               <p>
-                Bids are charged in US dollars. Checkout is handled by the
+                Payments are charged in US dollars. Checkout is handled by the
                 payment provider shown to you at checkout, such as Stripe or
                 Razorpay. BOUGHT does not receive or store your full payment-card
                 number. The provider’s own terms and privacy notice also apply to
@@ -202,7 +202,7 @@ export default function TermsPage() {
               </p>
               <p>
                 Public broadcasts may show your title, category,
-                bid, rank, publication time, thumbnail, and the broadcast itself.
+                amount, rank, publication time, thumbnail, and the broadcast itself.
                 Payment references and private account identifiers are not part of
                 the public listing.
               </p>

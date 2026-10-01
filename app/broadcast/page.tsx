@@ -196,6 +196,43 @@ export default function BroadcastPage() {
     window.history.replaceState(null, '', `/broadcast?dropId=${id}`);
   }
 
+  async function createFreeDraft() {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      if (!captureReady)
+        throw new Error(
+          'Complete the recording check before starting your free upload.',
+        );
+      const amountMinor = parseBid(amount);
+      if (title.trim().length < 3 || title.trim().length > 120)
+        throw new Error('Add a title between 3 and 120 characters.');
+      draftId.current ??= crypto.randomUUID();
+      const result = await api<{ dropId: string }>('drops', {
+        id: draftId.current,
+        category,
+        amountMinor,
+        title: title.trim(),
+        provider,
+      });
+      setDropId(result.dropId);
+      setLoading(true);
+      window.history.replaceState(
+        null,
+        '',
+        `/broadcast?dropId=${result.dropId}`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not start the free upload.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function checkout() {
     if (busy) return;
     let razorpayOpen = false;
@@ -203,27 +240,8 @@ export default function BroadcastPage() {
     setError('');
     setNotice('');
     try {
-      if (!captureReady)
-        throw new Error(
-          'Complete the recording check before opening checkout.',
-        );
-      let id = dropId;
-      if (!id) {
-        const amountMinor = parseBid(amount);
-        if (title.trim().length < 3 || title.trim().length > 120)
-          throw new Error('Add a title between 3 and 120 characters.');
-        draftId.current ??= crypto.randomUUID();
-        const result = await api<{ dropId: string }>('drops', {
-          id: draftId.current,
-          category,
-          amountMinor,
-          title: title.trim(),
-          provider,
-        });
-        id = result.dropId;
-        setDropId(id);
-        window.history.replaceState(null, '', `/broadcast?dropId=${id}`);
-      }
+      if (!dropId)
+        throw new Error('Upload your video before placing a paid bid.');
       const payment = await api<{
         provider: PaymentProvider;
         url: string | null;
@@ -231,7 +249,7 @@ export default function BroadcastPage() {
         key: string;
         amount: number;
         currency: string;
-      }>(`drops/${id}/checkout`, {});
+      }>(`drops/${dropId}/checkout`, {});
       if (payment.provider === 'stripe' && payment.url) {
         window.location.assign(payment.url);
         return;
@@ -245,7 +263,7 @@ export default function BroadcastPage() {
         amount: payment.amount,
         currency: payment.currency,
         name: 'BOUGHT',
-        description: 'Your position in today’s market',
+        description: 'Your paid position in today’s market',
         theme: { color: '#ef2b32' },
         // Browser callbacks only show waiting copy. Only the signed webhook can mark paid.
         handler: () => {
@@ -290,8 +308,8 @@ export default function BroadcastPage() {
   const selectedCategory = drop?.category ?? category;
   const captureMode =
     drop?.capture_mode ?? captureModeForCategory(selectedCategory);
-  const steps = ['RESERVE', 'RECORD', 'THUMBNAIL', 'PUBLISH'];
-  const currentStep = submitted ? 3 : paid ? 1 : 0;
+  const steps = ['DETAILS', 'RECORD', 'UPLOAD', 'PUBLISH'];
+  const currentStep = submitted ? 3 : drop ? 1 : 0;
 
   return (
     <main className="market-shell dashboard-shell">
@@ -308,13 +326,13 @@ export default function BroadcastPage() {
             <h1>
               MAKE YOUR BROADCAST<span>.</span>
             </h1>
-            <p>Choose your category. Back your voice. Take the floor.</p>
+            <p>Upload for free. Pay only if you bid for a ranked spot.</p>
           </div>
           <span className="drop-market-badge">
             <Clock3 size={16} />
             {marketFresh && market
               ? market.phase === 'bidding'
-                ? 'BIDDING OPEN · UNTIL 12:00 UTC'
+                ? 'OPEN · UNTIL 12:00 UTC'
                 : 'NEXT AUCTION · 00:00 UTC'
               : 'SYNCING MARKET…'}
           </span>
@@ -343,10 +361,10 @@ export default function BroadcastPage() {
           <output className="drop-service-notice">
             <LockKeyhole size={20} />
             <div>
-              <strong>CHECKOUT IS COMING SOON</strong>
+              <strong>FREE VIDEO UPLOADS ARE OPEN</strong>
               <p>
-                Explore the broadcast flow below. Payments and recording will
-                open when BOUGHT is ready to accept broadcasts.
+                Upload at no charge: three videos per account each UTC day.
+                Paid bids open when checkout is configured.
               </p>
             </div>
           </output>
@@ -361,8 +379,15 @@ export default function BroadcastPage() {
             {notice && <output className="drop-notice">{notice}</output>}
             {!queryReady || (loading && session) ? (
               <div className="drop-loading">Loading your saved broadcast…</div>
-            ) : paid && drop && !submitted ? (
-              <DropRecorder key={drop.id} drop={drop} refresh={refresh} />
+            ) :
+              drop &&
+              ['draft', 'rejected'].includes(drop.state) &&
+              !['refunded', 'disputed'].includes(drop.payment_state) ? (
+                <DropRecorder
+                  key={drop.id}
+                  drop={drop}
+                  refresh={refresh}
+                />
             ) : submitted && drop ? (
               <div className="drop-submitted">
                 <div className="drop-success-icon">
@@ -375,7 +400,9 @@ export default function BroadcastPage() {
                 <span className="drop-eyebrow">
                   {drop.state === 'published'
                     ? 'BROADCAST ACCEPTED'
-                    : 'PAYMENT CONFIRMED'}
+                    : paid
+                      ? 'PAYMENT CONFIRMED'
+                      : 'FREE UPLOAD · NO PAYMENT'}
                 </span>
                 <h2>
                   {drop.state === 'published'
@@ -386,15 +413,19 @@ export default function BroadcastPage() {
                 </h2>
                 <p>
                   {drop.state === 'published'
-                    ? 'Your paid bid, broadcast, and thumbnail are linked to your position. Final ranking locks at 12:00 UTC.'
+                    ? paid
+                      ? 'Your approved broadcast is live with its paid bid boosting its rank. Ranking locks at 12:00 UTC.'
+                      : paymentsAvailable
+                        ? 'Your approved broadcast is live for free. You can place an optional paid bid to boost its rank while bidding is open.'
+                        : 'Your approved broadcast is live for free. Paid boosts will be available once checkout is configured.'
                     : drop.state === 'review'
                       ? 'We’re checking your face, audio, broadcast, and thumbnail before publishing. You can close this page; your broadcast is saved.'
-                      : 'Your broadcast is being prepared for playback. It moves to review as soon as processing finishes.'}
+                      : 'Your free broadcast is being prepared for playback. It moves to review as soon as processing finishes.'}
                 </p>
                 <div className="drop-progress-list">
                   <span>
                     <Check size={17} />
-                    Payment verified
+                    {paid ? 'Optional bid payment verified' : 'Free upload · no charge'}
                   </span>
                   <span>
                     <Check size={17} />
@@ -430,6 +461,20 @@ export default function BroadcastPage() {
                     UTC.
                   </p>
                 )}
+                {drop.state === 'published' &&
+                  drop.payment_state === 'unpaid' &&
+                  paymentsAvailable && (
+                    <button
+                      className="drop-button primary drop-submit"
+                      disabled={busy}
+                      onClick={() => void checkout()}
+                    >
+                      {busy
+                        ? 'OPENING SECURE CHECKOUT…'
+                        : `UPBID ${money(drop.amount_minor)} TO BOOST`}
+                      <ArrowUpRight size={17} />
+                    </button>
+                  )}
                 <Link className="drop-button primary" href="/">
                   RETURN TO TODAY
                   <ArrowUpRight size={17} />
@@ -444,7 +489,7 @@ export default function BroadcastPage() {
             ) : (
               <>
                 <div className="drop-section-label">
-                  <span>01 /</span> RESERVE YOUR POSITION
+                  <span>01 /</span> PREPARE YOUR FREE BROADCAST
                 </div>
                 <fieldset className="drop-category-grid">
                   <legend>Your category</legend>
@@ -486,13 +531,13 @@ export default function BroadcastPage() {
                   <small>{(drop?.title ?? title).length} / 120</small>
                 </label>
                 <label className="drop-field">
-                  Your bid{' '}
+                  Bid amount if you choose to upbid{' '}
                   <div className="drop-bid-input">
                     <span>$</span>
                     <input
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      aria-label="Bid amount in dollars"
+                      aria-label="Amount in dollars"
                       value={drop ? String(drop.amount_minor / 100) : amount}
                       onChange={(e) => setAmount(e.target.value)}
                       disabled={!!dropId}
@@ -514,11 +559,11 @@ export default function BroadcastPage() {
                   </div>
                 )}
                 <p className="drop-fineprint">
-                  Minimum $100. Higher paid bids rank above lower bids. Equal
-                  bids are ordered by payment confirmation time.
+                  Nothing is charged for recording or uploading. This bid is
+                  charged only if you choose to enter the ranked floor.
                 </p>
                 <div className="drop-section-label">
-                  <CreditCard size={17} /> PAYMENT METHOD
+                  <CreditCard size={17} /> OPTIONAL BID PAYMENT METHOD
                 </div>
                 <div className="drop-payment-methods">
                   <button
@@ -566,25 +611,16 @@ export default function BroadcastPage() {
                 )}
                 <button
                   className="drop-button primary drop-pay"
-                  disabled={
-                    busy ||
-                    !session ||
-                    !captureReady ||
-                    !paymentsAvailable ||
-                    !config?.providers[drop?.provider ?? provider] ||
-                    !marketFresh ||
-                    market?.phase !== 'bidding'
-                  }
-                  onClick={checkout}
+                  disabled={busy || !session || !captureReady}
+                  onClick={createFreeDraft}
                 >
-                  {busy
-                    ? 'OPENING CHECKOUT…'
-                    : `PAY ${money(shownAmount)} & RESERVE`}
+                  {busy ? 'SAVING FREE DRAFT…' : 'CONTINUE — FREE UPLOAD'}
                   <ArrowUpRight size={20} />
                 </button>
                 <p className="drop-fineprint">
                   <LockKeyhole size={13} />
-                  Recording access unlocks only after payment is confirmed.
+                  Three new video uploads per account per UTC day. No payment
+                  required to record or upload.
                 </p>
               </>
             )}
@@ -601,7 +637,9 @@ export default function BroadcastPage() {
               <dl>
                 <div>
                   <dt>Status</dt>
-                  <dd>{paid ? 'PAID & RESERVED' : 'AWAITING PAYMENT'}</dd>
+                  <dd>
+                    {paid ? 'PAID BID' : 'FREE UPLOAD · OPTIONAL BID'}
+                  </dd>
                 </div>
                 <div>
                   <dt>Broadcast</dt>
@@ -621,14 +659,14 @@ export default function BroadcastPage() {
                 </div>
                 <div>
                   <dt>Ranking</dt>
-                  <dd>GLOBAL · BY PAID BID</dd>
+                  <dd>GLOBAL · BY PAID AMOUNT</dd>
                 </div>
               </dl>
               <div className="drop-receipt-note">
                 <ShieldCheck size={20} />
                 <p>
-                  Your payment stays with your broadcast. If an upload fails,
-                  return here and pick up where you left off.
+                  Uploading is free. You pay only if you choose to bid for a
+                  ranked position; failed uploads can be resumed here.
                 </p>
               </div>
               {dropId && (
@@ -666,9 +704,11 @@ export default function BroadcastPage() {
                       <small>
                         {item.payment_state === 'paid'
                           ? item.state === 'draft'
-                            ? 'PAID · READY TO RECORD'
+                            ? 'PAID · READY TO PUBLISH'
                             : item.state.toUpperCase()
-                          : item.payment_state.toUpperCase()}
+                          : item.state === 'draft'
+                            ? 'FREE DRAFT · READY TO UPLOAD'
+                            : item.payment_state.toUpperCase()}
                       </small>
                     </span>
                     <ArrowUpRight size={16} />

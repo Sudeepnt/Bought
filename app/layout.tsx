@@ -42,7 +42,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try { if (localStorage.getItem('bought-theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch {}",
+          }}
+        />
+      </head>
       <body
         className={`${inter.variable} ${barlowCondensed.variable} ${jetBrainsMono.variable}`}
       >

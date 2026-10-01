@@ -91,7 +91,7 @@ export function MagazineIssueReader({ issue }: { issue: MagazineIssue }) {
                 </div>
                 <blockquote>
                   “The title, rank, and approved public media are enough to
-                  make a durable issue. Extra bidder information is optional.”
+                  make a durable issue. Extra participant information is optional.”
                 </blockquote>
               </div>
             )}

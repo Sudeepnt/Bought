@@ -15,14 +15,14 @@ const rules = [
   {
     number: '01',
     time: '00:00—12:00 UTC',
-    phase: 'BIDDING WINDOW',
+    phase: 'OPEN WINDOW',
     title: 'ENTER THE AUCTION',
-    copy: 'Choose one category and place your bid. Your paid bid sets your position; the highest total spend leads the daily market.',
+    copy: 'Choose one category and set your amount. Your payment sets your position; the highest total spend leads the daily market.',
     Icon: Trophy,
   },
   {
     number: '02',
-    time: 'WHILE BIDDING IS OPEN',
+    time: 'WHILE THE MARKET IS OPEN',
     phase: 'LIVE POSITIONING',
     title: 'THE ORDER MOVES',
     copy: 'Anyone can outbid you during the twelve-hour auction. Every move is public, and position #1 gets the most visibility.',
@@ -105,7 +105,7 @@ export default function HowItWorksPage() {
               <strong>
                 12H AUCTION <i>→</i> DROP <i>→</i> 12H EXPOSURE
               </strong>
-              <p>Bid for rank. The broadcast drops. Your position stays visible.</p>
+              <p>Set your amount. The broadcast drops. Your position stays visible.</p>
             </div>
 
             <div className="bought-cycle-diagram">
@@ -143,7 +143,7 @@ export default function HowItWorksPage() {
                   <div>
                     <small>00:00—12:00 UTC</small>
                     <strong>AUCTION</strong>
-                    <p>Bids move broadcasts up and down the live order.</p>
+                    <p>Amounts move broadcasts up and down the live order.</p>
                   </div>
                 </li>
                 <li className="is-drop">
@@ -151,7 +151,7 @@ export default function HowItWorksPage() {
                   <div>
                     <small>12:00 UTC</small>
                     <strong>DROP</strong>
-                    <p>Bidding stops. The final broadcast order goes live.</p>
+                    <p>The market closes. The final broadcast order goes live.</p>
                   </div>
                 </li>
                 <li className="is-exposure">
@@ -168,7 +168,7 @@ export default function HowItWorksPage() {
             <div className="bought-cycle-result">
               <div>
                 <CircleDollarSign size={17} aria-hidden="true" />
-                <span><small>YOU DO</small><strong>BID FOR POSITION</strong></span>
+                <span><small>YOU DO</small><strong>SET YOUR AMOUNT</strong></span>
               </div>
               <ArrowRight size={15} aria-hidden="true" />
               <div>

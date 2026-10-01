@@ -8,6 +8,7 @@ import { useBought } from './bought-provider';
 
 const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
 const PREVIEW_SECONDS = 10;
+const REPLAY_DELAY_MS = 5_000;
 
 export function BroadcastThumbnailPreview({
   active,
@@ -23,8 +24,9 @@ export function BroadcastThumbnailPreview({
   const { api } = useBought();
   const muxRef = useRef<MuxPlayerElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const replayTimerRef = useRef<number | null>(null);
+  const waitingToReplayRef = useRef(false);
   const [ready, setReady] = useState(false);
-  const [finished, setFinished] = useState(false);
   const [media, setMedia] = useState<{
     playbackId: string;
     token: string;
@@ -36,6 +38,14 @@ export function BroadcastThumbnailPreview({
     const timer = window.setTimeout(() => setReady(true), delayMs);
     return () => window.clearTimeout(timer);
   }, [active, delayMs]);
+
+  useEffect(() => () => {
+    if (replayTimerRef.current !== null) {
+      window.clearTimeout(replayTimerRef.current);
+      replayTimerRef.current = null;
+    }
+    waitingToReplayRef.current = false;
+  }, [active, dropId, demoSource]);
 
   useEffect(() => {
     if (!active || !dropId) return;
@@ -58,11 +68,25 @@ export function BroadcastThumbnailPreview({
 
   if (!active || (dropId && !media)) return null;
 
+  function pauseThenReplay() {
+    if (waitingToReplayRef.current) return;
+    waitingToReplayRef.current = true;
+    const player = muxRef.current ?? videoRef.current;
+    player?.pause();
+    replayTimerRef.current = window.setTimeout(() => {
+      replayTimerRef.current = null;
+      const currentPlayer = muxRef.current ?? videoRef.current;
+      if (!currentPlayer) return;
+      currentPlayer.currentTime = 0;
+      waitingToReplayRef.current = false;
+      void currentPlayer.play().catch(() => {
+        // A browser may block autoplay; leave the preview still without an error.
+      });
+    }, REPLAY_DELAY_MS);
+  }
+
   function stopAtTenSeconds(currentTime: number) {
-    if (currentTime < PREVIEW_SECONDS) return;
-    muxRef.current?.pause();
-    videoRef.current?.pause();
-    setFinished(true);
+    if (currentTime >= PREVIEW_SECONDS) pauseThenReplay();
   }
 
   return (
@@ -75,7 +99,7 @@ export function BroadcastThumbnailPreview({
           : undefined
       }
     >
-      {ready && !finished && dropId && media ? (
+      {ready && dropId && media ? (
         <Suspense fallback={null}>
           <MuxPlayer
             ref={muxRef}
@@ -92,10 +116,10 @@ export function BroadcastThumbnailPreview({
                 (event.currentTarget as MuxPlayerElement | null)?.currentTime ?? 0,
               )
             }
-            onEnded={() => setFinished(true)}
+            onEnded={pauseThenReplay}
           />
         </Suspense>
-      ) : ready && !finished && !dropId ? (
+      ) : ready && !dropId ? (
         <video
           ref={videoRef}
           src={demoSource}
@@ -106,7 +130,7 @@ export function BroadcastThumbnailPreview({
           onTimeUpdate={(event) =>
             stopAtTenSeconds(event.currentTarget.currentTime)
           }
-          onEnded={() => setFinished(true)}
+          onEnded={pauseThenReplay}
         />
       ) : null}
     </div>

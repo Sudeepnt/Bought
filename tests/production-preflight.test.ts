@@ -44,6 +44,15 @@ void test('production preflight accepts a complete isolated environment', () => 
   assert.match(result.stdout, /Enabled checkout: Stripe/);
 });
 
+void test('production preflight permits free publishing without a checkout provider', () => {
+  const result = preflight({
+    STRIPE_SECRET_KEY: '',
+    STRIPE_WEBHOOK_SECRET: '',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Enabled checkout: none \(free publishing only\)/);
+});
+
 void test('Vercel production builds fail closed through the credential preflight', () => {
   assert.match(
     packageJson.scripts.build,

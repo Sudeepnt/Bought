@@ -235,7 +235,7 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
         .slice(0, 8)
         .map(
           (entry) =>
-            `LIVE ACTIVITY / ${entry.title} took #${entry.position} in ${entry.category} ${money(entry.amount_minor)}`,
+            `LIVE ACTIVITY / ${entry.title} took #${entry.position} in ${entry.category} ${entry.amount_minor > 0 ? money(entry.amount_minor) : 'FREE ENTRY'}`,
         )
     : fallbackFeedItems
         .slice(0, 5)
@@ -244,7 +244,7 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
             `LIVE ACTIVITY / ${name} ${action} ${category}${amount ? ` ${amount}` : ''} ${time}`,
         );
   const tickerItems = [
-    'BIDDING 00:00–12:00 UTC',
+    'OPEN 00:00–12:00 UTC',
     'EXPOSURE 12:00–00:00 UTC',
     'ONE GLOBAL MARKET',
     ...liveActivity,

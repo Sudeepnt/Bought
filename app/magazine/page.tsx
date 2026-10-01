@@ -176,7 +176,7 @@ export default function MagazinePage() {
             <h2 id="placement-title">Your position deserves more than a countdown.</h2>
           </header>
           <div className="magazine-placement-copy">
-            <p>A bid gets you into the drop. A #1 result earns a page that gives your point of view a title, a face, a category, a broadcast, and a public history of the attention it received.</p>
+            <p>Your payment gets you into the drop. A #1 result earns a page that gives your point of view a title, a face, a category, a broadcast, and a public history of the attention it received.</p>
             <p>You are not buying editorial approval. You are choosing to compete for a position worth documenting.</p>
           </div>
         </section>

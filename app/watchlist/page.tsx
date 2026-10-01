@@ -13,7 +13,7 @@ type WatchPosition = {
   name: string;
   handle: string;
   category: string;
-  bid: string;
+  amount: string;
   watching: string;
   movement: string;
   movementPercent: string;
@@ -34,7 +34,7 @@ const watchlist: WatchPosition[] = [
     name: 'Ananya Rao',
     handle: '@ananyabuilds',
     category: 'PRODUCT LAUNCH',
-    bid: '$18,200',
+    amount: '$18,200',
     watching: '8,200',
     movement: '+$1,340',
     movementPercent: '+7.9%',
@@ -53,7 +53,7 @@ const watchlist: WatchPosition[] = [
     name: 'Rahul Kapoor',
     handle: '@rahulbuilds',
     category: 'PRODUCT LAUNCH',
-    bid: '$18,047',
+    amount: '$18,047',
     watching: '8,100',
     movement: '+$920',
     movementPercent: '+5.4%',
@@ -72,7 +72,7 @@ const watchlist: WatchPosition[] = [
     name: 'Karan Verma',
     handle: '@karanv',
     category: 'CONFESSIONS',
-    bid: '$17,832',
+    amount: '$17,832',
     watching: '8,100',
     movement: '-$640',
     movementPercent: '-3.5%',
@@ -91,7 +91,7 @@ const watchlist: WatchPosition[] = [
     name: 'Maya Chen',
     handle: '@mayachen',
     category: 'I WAS WRONG',
-    bid: '$17,741',
+    amount: '$17,741',
     watching: '8,300',
     movement: '+$480',
     movementPercent: '+2.8%',
@@ -110,7 +110,7 @@ const watchlist: WatchPosition[] = [
     name: 'Arjun Sharma',
     handle: '@arjunsays',
     category: 'BUILDING',
-    bid: '$15,620',
+    amount: '$15,620',
     watching: '6,400',
     movement: '+$310',
     movementPercent: '+2.0%',
@@ -129,7 +129,7 @@ const watchlist: WatchPosition[] = [
     name: 'Priya Mehta',
     handle: '@priyamakes',
     category: 'MONEY I SET ON FIRE',
-    bid: '$14,900',
+    amount: '$14,900',
     watching: '5,800',
     movement: '—',
     movementPercent: '0.0%',
@@ -148,7 +148,7 @@ const watchlist: WatchPosition[] = [
     name: 'Ethan Cole',
     handle: '@ethancole',
     category: 'THE PITCH',
-    bid: '$14,240',
+    amount: '$14,240',
     watching: '5,200',
     movement: '+$220',
     movementPercent: '+1.6%',
@@ -167,7 +167,7 @@ const watchlist: WatchPosition[] = [
     name: 'Nia Patel',
     handle: '@niapatel',
     category: 'UNPOPULAR OPINION',
-    bid: '$13,860',
+    amount: '$13,860',
     watching: '4,900',
     movement: '-$410',
     movementPercent: '-2.9%',
@@ -285,7 +285,7 @@ function WatchlistDesk() {
             <span>#</span>
             <span>PERSON</span>
             <span>CATEGORY</span>
-            <span>CURRENT BID</span>
+            <span>CURRENT SPOT</span>
             <span>24H CHANGE</span>
             <span>ATTENTION</span>
             <span>TREND</span>
@@ -319,8 +319,8 @@ function WatchlistDesk() {
                   </span>
 
                   <span className="watchlist-bid">
-                    <small className="watchlist-cell-label">CURRENT BID</small>
-                    <strong>{position.bid}</strong>
+                    <small className="watchlist-cell-label">CURRENT SPOT</small>
+                    <strong>{position.amount}</strong>
                   </span>
 
                   <span className="watchlist-movement-cell">

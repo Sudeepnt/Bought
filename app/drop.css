@@ -486,6 +486,15 @@ html[data-theme='light'] .drop-capture-plan h3 {
   min-height: 58px;
   margin-top: 26px;
 }
+.drop-submit-actions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 26px;
+}
+.drop-submit-actions .drop-submit {
+  margin-top: 0;
+}
 .drop-auth .drop-button {
   margin: 12px 0 0;
   width: 100%;
@@ -1925,6 +1934,10 @@ html[data-theme='light'] .drop-receipt-note {
     grid-template-columns: 1fr;
   }
 
+  .drop-submit-actions {
+    grid-template-columns: 1fr;
+  }
+
   .drop-import-recording {
     grid-template-columns: 1fr;
   }
@@ -2139,4 +2152,8 @@ html[data-theme='light'] .drop-receipt-note {
   to {
     transform: rotate(360deg);
   }
+}
+
+html[data-theme='light'] .drop-payment-methods button:disabled {
+  opacity: 0.72;
 }

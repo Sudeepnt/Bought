@@ -96,7 +96,7 @@ export function parseBid(value: string): number {
   if (!/^\d{1,7}$/.test(value)) throw new Error('Enter a whole dollar amount.');
   const amount = Number(value) * 100;
   if (amount < MIN_BID_MINOR || amount > MAX_BID_MINOR)
-    throw new Error('Your bid must be between $100 and $1,000,000.');
+    throw new Error('Your amount must be between $100 and $1,000,000.');
   return amount;
 }
 

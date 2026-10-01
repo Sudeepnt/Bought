@@ -21,7 +21,7 @@ const previous: MarketNotificationSnapshot = {
   ],
 };
 
-void test('market changes notify an owner when their position slips and a new bid takes #1', () => {
+void test('market changes notify an owner when their position slips and a new entry takes #1', () => {
   const current: MarketNotificationSnapshot = {
     auctionId: '2026-09-23',
     entries: [
@@ -46,19 +46,19 @@ void test('market changes notify an owner when their position slips and a new bi
     {
       type: 'outbid',
       title: 'You were outbid',
-      body: 'Your CHAOS bid moved from #2 to #3.',
+      body: 'Your CHAOS position moved from #2 to #3.',
       href: '/broadcast',
     },
     {
       type: 'leader',
-      title: 'A new bidder took #1',
+      title: 'A new entry took #1',
       body: '“A better question” is now #1 in THE ASK.',
       href: '/categories',
     },
   ]);
 });
 
-void test('the owner is told when their own bid takes the top spot', () => {
+void test('the owner is told when their own entry takes the top spot', () => {
   const current: MarketNotificationSnapshot = {
     auctionId: previous.auctionId,
     entries: [
@@ -77,7 +77,7 @@ void test('the owner is told when their own bid takes the top spot', () => {
     {
       type: 'leader',
       title: 'You took #1',
-      body: 'Your CHAOS bid just moved into the top spot.',
+      body: 'Your CHAOS entry just moved into the top spot.',
       href: '/categories',
     },
   ]);

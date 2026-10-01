@@ -55,6 +55,7 @@ import { ProfileAvatar } from '@/components/profile-avatar';
 import { SocialPlatformIcon } from '@/components/social-brand-icons';
 import { useBought } from '@/components/bought-provider';
 import { appendDirectMessage } from '@/lib/direct-messages';
+import { isNewReelWheelGesture } from '@/lib/reel-wheel-gesture';
 import { portraitVideoAspectRatio } from '@/lib/video-aspect-ratio';
 import {
   FEATURED_CAPTION_LANGUAGES,
@@ -640,6 +641,7 @@ export function BroadcastVideoCard({
   const floatingRef = useRef<HTMLElement>(null);
   const controlsTimerRef = useRef<number | null>(null);
   const lastReelMoveRef = useRef(0);
+  const lastReelWheelEventRef = useRef<number | null>(null);
   const reelTrackRef = useRef<HTMLDivElement>(null);
   const reelMoveTimerRef = useRef<number | null>(null);
   const reelMovingRef = useRef(false);
@@ -805,6 +807,10 @@ export function BroadcastVideoCard({
     videoPositionRef.current = next;
     setVideoPosition(next);
   }
+
+  useEffect(() => {
+    if (!isFullscreen) lastReelWheelEventRef.current = null;
+  }, [isFullscreen]);
 
   const pauseBroadcast = () => {
     setPlayIntent(false);
@@ -1149,6 +1155,13 @@ export function BroadcastVideoCard({
       style={cardStyle}
       onWheel={(event) => {
         if (!isFullscreen || Math.abs(event.deltaY) < 12) return;
+        const now = Date.now();
+        const isNewGesture = isNewReelWheelGesture(
+          now,
+          lastReelWheelEventRef.current,
+        );
+        lastReelWheelEventRef.current = now;
+        if (!isNewGesture) return;
         changeReel(event.deltaY > 0 ? 1 : -1, true);
       }}
       onTouchStart={(event) => {
@@ -1428,10 +1441,10 @@ export function BroadcastVideoCard({
         {isPlaying && mediaPlaying && (
           <div
             className="category-playing-details"
-            aria-label={`Current bid ${broadcast.price}; ${broadcast.views.toLocaleString('en-US')} views; ${broadcast.name}`}
+            aria-label={`Current ${broadcast.price}; ${broadcast.views.toLocaleString('en-US')} views; ${broadcast.name}`}
           >
             <span>
-              <small>CURRENT BID</small>
+              <small>CURRENT SPOT</small>
               <strong>{broadcast.price}</strong>
             </span>
             <span>
@@ -1745,8 +1758,8 @@ export function BroadcastVideoCard({
             <div className="category-lead-bid-panel">
               <div className="category-lead-value">
                 <small>
-                  <span className="category-lead-bid-full">CURRENT BID</span>
-                  <span className="category-lead-bid-compact">BID</span>
+                  <span className="category-lead-bid-full">CURRENT SPOT</span>
+                  <span className="category-lead-bid-compact">CURRENT SPOT</span>
                 </small>
                 <strong>{broadcast.price}</strong>
               </div>
@@ -2217,7 +2230,7 @@ const CategoryPanel = memo(function CategoryPanel({
                         </small>
                       </span>
                       <span className="category-position-bid">
-                        <small>CURRENT BID</small>
+                        <small>CURRENT SPOT</small>
                         <strong>{broadcast.price}</strong>
                       </span>
                       <span
@@ -2499,7 +2512,7 @@ export default function CategoriesPage() {
               type="button"
               role="tab"
               aria-selected={activeIndex === 0}
-              aria-label={`${allCategory.name}, ${allCategory.liveCount} bids`}
+              aria-label={`${allCategory.name}, ${allCategory.liveCount} entries`}
               onClick={() => selectCategory(0)}
               onKeyDown={handleKeyDown}
             >
@@ -2510,7 +2523,7 @@ export default function CategoriesPage() {
                 aria-hidden="true"
               />
               <strong>{allCategory.name}</strong>
-              <span>{allCategory.liveCount} bids</span>
+              <span>{allCategory.liveCount} entries</span>
             </button>
             {categoryTabIndices.slice(1).map((categoryIndex, tabIndex) => {
               const category = categories[categoryIndex];
@@ -2526,7 +2539,7 @@ export default function CategoriesPage() {
                   type="button"
                   role="tab"
                   aria-selected={activeIndex === categoryIndex}
-                  aria-label={`${isTrending ? 'Trending category ' : ''}${category.name}, ${category.liveCount} bids`}
+                  aria-label={`${isTrending ? 'Trending category ' : ''}${category.name}, ${category.liveCount} entries`}
                   onClick={() => selectCategory(categoryIndex)}
                   onKeyDown={handleKeyDown}
                 >
@@ -2537,7 +2550,7 @@ export default function CategoriesPage() {
                     aria-hidden="true"
                   />
                   <strong>{category.name}</strong>
-                  <span>{category.liveCount} bids</span>
+                  <span>{category.liveCount} entries</span>
                   {isTrending && (
                     <span className="homepage-category-trending">TRENDING</span>
                   )}
@@ -2614,7 +2627,6 @@ export default function CategoriesPage() {
           aria-label="Back to top of categories"
         >
           <ArrowUp size={16} strokeWidth={2.4} aria-hidden="true" />
-          <span>TOP</span>
         </button>
       )}
     </main>

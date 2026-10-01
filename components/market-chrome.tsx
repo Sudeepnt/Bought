@@ -150,15 +150,15 @@ export function useMarqueeDuration(trackRef: RefObject<HTMLElement | null>) {
 
 export const fallbackFeedItems: FeedItem[] = [
   ['Ananya Rao', 'took #1 in', 'UNPOPULAR OPINION', '$11,400', 'now'],
-  ['Rahul Kapoor', 'raised a bid in', 'PRODUCT LAUNCH', '$6,200', '8s ago'],
+  ['Rahul Kapoor', 'raised the amount in', 'PRODUCT LAUNCH', '$6,200', '8s ago'],
   ['Priya Mehta', 'shared an opinion on', 'MONEY', '', '14s ago'],
   ['Arjun Sharma', 'claimed #2 in', 'BUILDING', '$8,900', '21s ago'],
   ['Karan Verma', 'was outbid in', 'UNPOPULAR OPINION', '$11,500', '29s ago'],
   ['Maya Khanna', 'published a broadcast in', 'I WAS WRONG', '$4,200', '36s ago'],
-  ['Dev Patel', 'joined the bidding in', 'THE PITCH THAT GOT REJECTED', '$3,900', '43s ago'],
+  ['Dev Patel', 'joined the market in', 'THE PITCH THAT GOT REJECTED', '$3,900', '43s ago'],
   ['Simran Nair', 'shared an opinion on', 'MONEY I SET ON FIRE', '', '51s ago'],
   ['Kabir Joshi', 'climbed to #3 in', 'BUILDING', '$3,200', '1m ago'],
-  ['Aisha Thomas', 'placed a bid in', 'CONFESSIONS', '$2,900', '1m ago'],
+  ['Aisha Thomas', 'set an amount in', 'CONFESSIONS', '$2,900', '1m ago'],
   ['Nia P.', 'took the lead in', 'CONFESSIONS', '$5,700', '2m ago'],
   ['Jon B.', 'had a broadcast approved in', 'BUILDING', '$2,600', '2m ago'],
   ['Rhea D.', 'replied to a broadcast in', 'MONEY I SET ON FIRE', '', '3m ago'],
@@ -227,7 +227,7 @@ export function MarketStatusStrip({
         <div className="countdown-label">
           <strong>{exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
           <span>
-            {exposureLocked ? 'EXPOSURE LOCKED' : 'BIDDING CLOSES IN'}
+            {exposureLocked ? 'EXPOSURE LOCKED' : 'MARKET CLOSES IN'}
           </span>
         </div>
         <div className="countdown-value">
@@ -260,7 +260,7 @@ export function FloatingMarketCountdown({ visible }: { visible: boolean }) {
       <div className="countdown-label floating-market-countdown-label">
         <strong>{exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
         <span>
-          {exposureLocked ? 'EXPOSURE LOCKED' : 'BIDDING CLOSES IN'}
+          {exposureLocked ? 'EXPOSURE LOCKED' : 'MARKET CLOSES IN'}
         </span>
       </div>
       <div className="countdown-value floating-market-countdown-time">
@@ -283,7 +283,7 @@ export function LiveMarketFeed() {
       entry.title,
       entry.position === 1 ? 'took #1 in' : `took #${entry.position} in`,
       entry.category,
-      money(entry.amount_minor),
+      entry.amount_minor > 0 ? money(entry.amount_minor) : 'FREE ENTRY',
       'just now',
     ]);
   const feedItems = [...publishedFeedItems, ...fallbackFeedItems].slice(0, 14);

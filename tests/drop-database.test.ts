@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { PGlite } from '@electric-sql/pglite';
 
-void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and UTC boundaries', async (t) => {
+void test('Postgres enforces free-upload quotas, paid ranking, RLS, replay handling, and UTC boundaries', async (t) => {
   const db = new PGlite();
   await db.exec(`
     create role anon; create role authenticated; create role service_role bypassrls;
@@ -68,16 +68,30 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
     'utf8',
   );
   await db.exec(pushSql.replace(/\bnow\(\)/g, 'public.test_now()'));
+  const freeUploadSql = await readFile(
+    new URL(
+      '../supabase/migrations/20261001090000_free_upload_daily_limit.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  await db.exec(
+    freeUploadSql
+      .replaceAll('clock_timestamp()', 'public.test_now()')
+      .replace(/\bnow\(\)/g, 'public.test_now()'),
+  );
   const owner = '10000000-0000-4000-8000-000000000001';
   const stranger = '10000000-0000-4000-8000-000000000002';
   const moderator = '10000000-0000-4000-8000-000000000003';
+  const quotaOwner = '10000000-0000-4000-8000-000000000004';
   const one = '20000000-0000-4000-8000-000000000001';
   const two = '20000000-0000-4000-8000-000000000002';
   const late = '20000000-0000-4000-8000-000000000003';
-  await db.query('insert into auth.users values($1),($2),($3)', [
+  await db.query('insert into auth.users values($1),($2),($3),($4)', [
     owner,
     stranger,
     moderator,
+    quotaOwner,
   ]);
   const row = async (id = one) =>
     (
@@ -119,10 +133,10 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
       [id, owner, amount, `cs_${id}`],
     );
   };
-  const prepare = async (id: string) => {
-    await db.query('select public.bought_claim_upload($1)', [id]);
-    await db.query(
-      `update public.bought_drops set mux_upload_id=$2,upload_claimed_at=null,media_state='waiting',thumbnail_path=$3,thumbnail_verified=true where id=$1`,
+    const prepare = async (id: string) => {
+      await db.query('select public.bought_claim_upload($1)', [id]);
+      await db.query(
+      `update public.bought_drops set mux_upload_id=$2,mux_upload_url='https://storage.googleapis.com/mux-upload',mux_upload_expires_at='2026-09-08T07:00:00Z',upload_claimed_at=null,upload_quota_date=null,media_state='waiting',thumbnail_path=$3,thumbnail_verified=true where id=$1`,
       [id, `upload_${id}`, `${owner}/${id}/thumb.jpg`],
     );
   };
@@ -140,44 +154,70 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
         );
       },
     );
-    await t.test(
-      'checkout retries are serialized and an ambiguous attempt can reconcile after its lease',
-      async () => {
-        const first = await db.query<{ claimed: boolean }>(
-          'select public.bought_claim_checkout($1) claimed',
-          [one],
-        );
-        const retry = await db.query<{ claimed: boolean }>(
-          'select public.bought_claim_checkout($1) claimed',
-          [one],
-        );
-        assert.equal(first.rows[0].claimed, true);
-        assert.equal(retry.rows[0].claimed, false);
-        await db.exec("set test.now='2026-09-08T05:00:31Z'");
-        const recovery = await db.query<{ claimed: boolean }>(
-          'select public.bought_claim_checkout($1) claimed',
-          [one],
-        );
-        assert.equal(recovery.rows[0].claimed, true);
-        await db.query(
-          "update public.bought_drops set checkout_state='ready',checkout_claimed_at=null where id=$1",
-          [one],
-        );
-        const result = await db.query<{ claimed: boolean }>(
-          'select public.bought_claim_checkout($1) claimed',
-          [one],
-        );
-        assert.equal(result.rows[0].claimed, false);
-        await db.exec("set test.now='2026-09-08T05:00:00Z'");
-      },
-    );
-    await t.test('unpaid drops cannot record, submit, or publish', async () => {
-      await assert.rejects(
-        db.query('select public.bought_claim_upload($1)', [one]),
-        /payment confirmation/,
+    await t.test('unpaid drafts can claim a free upload before bidding', async () => {
+      const { rows } = await db.query<{ claimed: boolean }>(
+        'select public.bought_claim_upload($1) claimed',
+        [one],
       );
-      await assert.rejects(submit(one), /Payment must/);
-      await assert.rejects(publish(one), /not ready/);
+      assert.equal(rows[0].claimed, true);
+      await assert.rejects(
+        db.query('select public.bought_claim_checkout($1)', [one]),
+        /Publish your free broadcast and pass review/,
+      );
+      await db.query(
+        `update public.bought_drops set mux_upload_id=$2,mux_upload_url='https://storage.googleapis.com/mux-upload',mux_upload_expires_at='2026-09-08T07:00:00Z',upload_claimed_at=null,upload_quota_date=null,media_state='waiting' where id=$1`,
+        [one, `upload_${one}`],
+      );
+    });
+    await t.test('each account gets three fresh upload targets per UTC day; retries are free', async () => {
+      const ids = [
+        '20000000-0000-4000-8000-000000000010',
+        '20000000-0000-4000-8000-000000000011',
+        '20000000-0000-4000-8000-000000000012',
+        '20000000-0000-4000-8000-000000000013',
+      ];
+      for (let index = 0; index < ids.length; index += 1) {
+        await db.query(
+          `insert into public.bought_drops(id,user_id,category,title,amount_minor,provider) values($1,$2,'BUILDING','Free draft ${index}',50000,'stripe')`,
+          [ids[index], quotaOwner],
+        );
+      }
+      for (const id of ids.slice(0, 3)) {
+        const { rows } = await db.query<{ claimed: boolean }>(
+          'select public.bought_claim_upload($1) claimed',
+          [id],
+        );
+        assert.equal(rows[0].claimed, true);
+      }
+      await assert.rejects(
+        db.query('select public.bought_claim_upload($1)', [ids[3]]),
+        /3 free video uploads for today/,
+      );
+      await db.query(
+        `update public.bought_drops set mux_upload_id='quota-upload-1',mux_upload_url='https://storage.googleapis.com/mux-upload',mux_upload_expires_at='2026-09-08T07:00:00Z',media_state='waiting' where id=$1`,
+        [ids[0]],
+      );
+      const retry = await db.query<{ claimed: boolean }>(
+        'select public.bought_claim_upload($1) claimed',
+        [ids[0]],
+      );
+      assert.equal(retry.rows[0].claimed, false);
+      await db.exec("set test.now='2026-09-09T00:00:00Z'");
+      const nextDay = await db.query<{ claimed: boolean }>(
+        'select public.bought_claim_upload($1) claimed',
+        [ids[3]],
+      );
+      assert.equal(nextDay.rows[0].claimed, true);
+      assert.deepEqual(
+        (
+          await db.query(
+            'select upload_date,upload_count from public.bought_upload_daily_usage where user_id=$1',
+            [quotaOwner],
+          )
+        ).rows[0],
+        { upload_date: new Date('2026-09-09T00:00:00.000Z'), upload_count: 1 },
+      );
+      await db.exec("set test.now='2026-09-08T05:00:00Z'");
     });
     await t.test(
       'mismatched amount and currency never reserve a position',
@@ -196,18 +236,6 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
           /does not match/,
         );
         assert.equal((await row()).payment_state, 'unpaid');
-      },
-    );
-    await t.test(
-      'a verified payment is idempotent across delivery retries',
-      async () => {
-        await pay(one, 'payment-1');
-        const first = (await row()).paid_at;
-        await db.exec("set test.now='2026-09-08T05:01:00Z'");
-        await pay(one, 'payment-1');
-        await pay(one, 'payment-2');
-        assert.equal((await row()).payment_state, 'paid');
-        assert.deepEqual((await row()).paid_at, first);
       },
     );
     await t.test(
@@ -331,6 +359,61 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
           ]),
           /not ready/,
         );
+        await publish(one);
+        assert.equal((await row()).state, 'published');
+        const ladder = await db.query<{ amount_minor: number }>(
+          'select amount_minor from public.bought_ladder where drop_id=$1',
+          [one],
+        );
+        assert.equal(ladder.rows[0].amount_minor, 0);
+      },
+    );
+    await t.test(
+      'checkout retries are serialized after free publication and review',
+      async () => {
+        const first = await db.query<{ claimed: boolean }>(
+          'select public.bought_claim_checkout($1) claimed',
+          [one],
+        );
+        const retry = await db.query<{ claimed: boolean }>(
+          'select public.bought_claim_checkout($1) claimed',
+          [one],
+        );
+        assert.equal(first.rows[0].claimed, true);
+        assert.equal(retry.rows[0].claimed, false);
+        await db.exec("set test.now='2026-09-08T05:00:31Z'");
+        const recovery = await db.query<{ claimed: boolean }>(
+          'select public.bought_claim_checkout($1) claimed',
+          [one],
+        );
+        assert.equal(recovery.rows[0].claimed, true);
+        await db.query(
+          "update public.bought_drops set checkout_state='ready',checkout_claimed_at=null where id=$1",
+          [one],
+        );
+        const result = await db.query<{ claimed: boolean }>(
+          'select public.bought_claim_checkout($1) claimed',
+          [one],
+        );
+        assert.equal(result.rows[0].claimed, false);
+        await db.exec("set test.now='2026-09-08T05:00:00Z'");
+      },
+    );
+    await t.test(
+      'a verified payment is idempotent and boosts an already-published free entry',
+      async () => {
+        await pay(one, 'payment-1');
+        const first = (await row()).paid_at;
+        await db.exec("set test.now='2026-09-08T05:01:00Z'");
+        await pay(one, 'payment-1');
+        await pay(one, 'payment-2');
+        assert.equal((await row()).payment_state, 'paid');
+        assert.deepEqual((await row()).paid_at, first);
+        const ladder = await db.query<{ amount_minor: number }>(
+          'select amount_minor from public.bought_ladder where drop_id=$1',
+          [one],
+        );
+        assert.equal(ladder.rows[0].amount_minor, 50000);
       },
     );
     await t.test(
@@ -383,11 +466,11 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
       },
     );
     await t.test(
-      'only approved, paid, checked media can reach the public ladder',
+      'only approved, checked media can reach the public ladder',
       async () => {
         assert.equal(
           (await db.query('select * from public.bought_ladder')).rows.length,
-          0,
+          1,
         );
         await publish(one);
         await publish(one);
@@ -445,19 +528,19 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
             user_id: owner,
             kind: 'leader',
             title: 'You took #1',
-            body: 'Your BUILDING bid just moved into the top spot.',
+            body: 'Your BUILDING entry just moved into the top spot.',
           },
           {
             user_id: owner,
             kind: 'leader',
-            title: 'A new bidder took #1',
-            body: 'Your BUILDING bid moved from #1 to #2.',
+            title: 'A new entry took #1',
+            body: 'Your BUILDING position moved from #1 to #2.',
           },
           {
             user_id: stranger,
             kind: 'leader',
             title: 'You took #1',
-            body: 'Your BUILDING bid just moved into the top spot.',
+            body: 'Your BUILDING entry just moved into the top spot.',
           },
         ]);
         const claimed = await db.query<{
@@ -480,14 +563,14 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
           );
           const outbid = (
             await db.query<{ kind: string; title: string; body: string }>(
-              "select kind,title,body from public.bought_push_events where title='You were outbid'",
+              "select kind,title,body from public.bought_push_events where title='Your position changed'",
             )
           ).rows;
           assert.deepEqual(outbid, [
             {
               kind: 'outbid',
-              title: 'You were outbid',
-              body: 'Your BUILDING bid moved from #2 to #3.',
+              title: 'Your position changed',
+              body: 'Your BUILDING position moved from #2 to #3.',
             },
           ]);
         } finally {
@@ -527,6 +610,10 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
           const tied = '20000000-0000-4000-8000-000000000005';
           await db.exec("set test.now='2026-09-08T05:02:00Z'");
           await create(tied);
+          await db.query('update public.bought_drops set user_id=$2 where id=$1', [
+            tied,
+            moderator,
+          ]);
           await pay(tied, 'tied-payment');
           await prepare(tied);
           await ready(tied, 'tied-ready');
@@ -610,6 +697,10 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
       'late processing rolls a paid entry to the next auction and preserves frozen ranks',
       async () => {
         await pay(late, 'pay-late', 90000);
+        await db.query('update public.bought_drops set user_id=$2 where id=$1', [
+          late,
+          stranger,
+        ]);
         await prepare(late);
         await ready(late, 'mux-late');
         await submit(late);
@@ -691,7 +782,7 @@ void test('Postgres enforces the paid-drop lifecycle, RLS, replay handling, and 
         );
         await assert.rejects(
           db.query('select public.bought_claim_upload($1)', [one]),
-          /payment confirmation/,
+          /reversed payment/,
         );
       },
     );

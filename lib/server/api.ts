@@ -107,10 +107,10 @@ async function ownedDrop(id: string, userId: string) {
 }
 
 function editable(drop: Drop) {
-  if (drop.payment_state !== 'paid')
+  if (['refunded', 'disputed'].includes(drop.payment_state))
     throw new HttpError(
       402,
-      'Wait for server payment confirmation before recording.',
+      'A reversed payment cannot be edited.',
     );
   if (!['draft', 'rejected'].includes(drop.state))
     throw new HttpError(409, 'This broadcast has already been submitted.');
@@ -361,7 +361,6 @@ export async function handleApi(request: Request) {
       dbError(marketError);
       if (
         drop.state !== 'published' ||
-        drop.payment_state !== 'paid' ||
         drop.auction_id !== market.auctionId
       )
         throw new HttpError(404, 'Broadcast not found.');
@@ -395,7 +394,6 @@ export async function handleApi(request: Request) {
       dbError(marketError);
       const isPublic =
         drop.state === 'published' &&
-        drop.payment_state === 'paid' &&
         drop.auction_id === market.auctionId;
       const unusedRecordingExpired =
         ['draft', 'rejected'].includes(drop.state) &&
@@ -572,7 +570,7 @@ export async function handleApi(request: Request) {
         body.title.trim().length < 3 ||
         body.title.trim().length > 120
       )
-        throw new HttpError(400, 'Check your category, title, and bid amount.');
+        throw new HttpError(400, 'Check your category, title, and amount.');
       const { error } = await db.from('bought_drops').insert({
         id: body.id,
         user_id: user.id,
@@ -617,6 +615,20 @@ export async function handleApi(request: Request) {
     }
     if (method !== 'POST') throw new HttpError(405, 'Method not allowed.');
     if (path[2] === 'checkout') {
+      if (drop.state !== 'published')
+        throw new HttpError(
+          409,
+          'Publish your free broadcast and pass review before placing an optional boost bid.',
+        );
+      if (
+        !drop.mux_asset_id ||
+        !drop.thumbnail_path ||
+        !['processing', 'ready'].includes(drop.media_state)
+      )
+        throw new HttpError(
+          409,
+          'Upload your video and choose a thumbnail before placing a paid bid.',
+        );
       if (!configuredProviders()[drop.provider])
         throw new HttpError(
           503,
@@ -673,6 +685,7 @@ export async function handleApi(request: Request) {
       );
       dbError(claimError);
       if (claimed) {
+        let muxUploadCreated = false;
         try {
           const { data: upload } = await mux<{ id: string; url: string }>(
             'uploads',
@@ -695,6 +708,7 @@ export async function handleApi(request: Request) {
               },
             },
           );
+          muxUploadCreated = true;
           if (!validMuxUploadTarget(upload.id, upload.url))
             throw new HttpError(
               502,
@@ -708,6 +722,7 @@ export async function handleApi(request: Request) {
               mux_upload_expires_at: new Date(
                 Date.now() + 7200000,
               ).toISOString(),
+              upload_quota_date: null,
               media_state: 'waiting',
               upload_claimed_at: null,
               transcription_status: 'pending',
@@ -726,10 +741,19 @@ export async function handleApi(request: Request) {
             .eq('id', drop.id);
           dbError(error);
         } catch (error) {
-          await db
-            .from('bought_drops')
-            .update({ upload_claimed_at: null })
-            .eq('id', drop.id);
+          if (muxUploadCreated) {
+            await db
+              .from('bought_drops')
+              .update({ upload_claimed_at: null, upload_quota_date: null })
+              .eq('id', drop.id);
+          } else {
+            const { error: releaseError } = await db.rpc(
+              'bought_release_upload_quota',
+              { p_drop_id: drop.id },
+            );
+            if (releaseError)
+              console.error('BOUGHT upload quota release is pending.');
+          }
           throw error;
         }
       }
@@ -783,8 +807,6 @@ export async function handleApi(request: Request) {
       return json({ path: storagePath, token: data.token });
     }
     if (path[2] === 'submit') {
-      if (drop.payment_state !== 'paid')
-        throw new HttpError(402, 'Wait for payment confirmation.');
       if (['draft', 'rejected'].includes(drop.state)) {
         if (!drop.thumbnail_path)
           throw new HttpError(400, 'Choose a thumbnail first.');

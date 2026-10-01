@@ -1,8 +1,8 @@
-# BOUGHT paid broadcasts
+# BOUGHT broadcasts
 
 BOUGHT runs on **React 19 + Vinext + Vite** and deploys to Vercel through Vinext's Nitro adapter. It does not install or run Next.js; Vinext supplies the compatible App Router APIs used by the application. Supabase provides authentication, PostgreSQL, Realtime, and private thumbnail storage. Mux handles direct video uploads, playback, generated captions, and English caption translation. Stripe and Razorpay handle checkout, and Upstash Redis provides distributed write rate limits.
 
-The implementation is configured with **empty service placeholders**. It does not simulate successful payments or unlock a camera in preview mode. `/broadcast` is the broadcast recording journey, and `/review` is the moderator queue. The homepage's older example market content remains explicitly labelled as a preview; those examples are not paid entries.
+`/broadcast` is the free broadcast recording journey, and `/review` is the moderator queue. Each signed-in account gets three new Mux uploads per UTC day. Approved broadcasts are public for free; an optional verified payment boosts rank when checkout is configured. Service credentials are stored outside the repository.
 
 ## Run locally
 
@@ -12,13 +12,13 @@ cp .env.example .env
 npm run dev
 ```
 
-Without credentials, `/broadcast` still shows categories, the bid, payment methods, and a reservation summary. Sign-in, payment, and recording are unavailable. Only public Supabase settings are returned by `/api/bought/config`; all other values stay server-side. Do not prefix secret values with `NEXT_PUBLIC_` or `VITE_`.
+Without credentials, `/broadcast` still shows the form, but sign-in and uploading are unavailable. Only public Supabase settings are returned by `/api/bought/config`; all other values stay server-side. Do not prefix secret values with `NEXT_PUBLIC_` or `VITE_`.
 
 ## Connect the services
 
 1. Create or select the intended **BOUGHT Supabase project**. Apply every file in `supabase/migrations` in filename order using the Supabase CLI migration workflow. The migrations create the tables, restricted server functions, RLS, private thumbnail bucket, Realtime publication entries, and the optimized public snapshot. They have been executed against an isolated PostgreSQL runtime in the test suite, not against an account database.
 2. Set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. Enable email sign-in and configure the email template to display `{{ .Token }}` for the code-entry flow. Set up production SMTP, email rate limits, and the permitted site origin in Supabase Auth.
-3. Set the Stripe and/or Razorpay keys and webhook secrets. Providers are individually enabled only when their credentials and the shared services exist. Start with test-mode accounts. All positions and payment checkouts use **USD**; provider accounts must support USD presentment for the intended customers.
+3. Stripe and Razorpay are optional for free publishing. Add a complete provider key/webhook set only when paid boosts are ready. Start with test-mode accounts. Paid checkouts use **USD**; provider accounts must support USD presentment for the intended customers.
 4. Set Mux API credentials, a webhook secret, and an RSA signing key. The Mux API token needs Video access plus the `robots:*` scope for non-English caption translation. `MUX_SIGNING_PRIVATE_KEY` accepts Mux's base64-encoded PEM or PKCS8 PEM with escaped newlines. Mux uploads use signed playback policies; unpublished media never gets a public playback ID.
 5. Set Upstash Redis REST URL/token. Write rate limits are atomic and fail closed if the limiter is unavailable.
 6. Set `APP_ORIGIN` to the exact HTTPS origin and `CRON_SECRET` to a strong random secret. Store production values in the selected deployment platform's runtime environment. The checked-in `.env.example` contains no credentials.
@@ -36,23 +36,23 @@ Configure **automatic capture** in Razorpay. Authorized-only payments do not unl
 
 ## State and recovery
 
-- A `dropId` owns the broadcast's category, integer USD bid, payment, current Mux upload/asset, thumbnail, moderation result, auction, and exposure period.
+- A `dropId` owns the broadcast's category, integer USD amount, payment, current Mux upload/asset, thumbnail, moderation result, auction, and exposure period.
 - Authenticated clients have read-only access to their own broadcasts. Only the server service role can mutate a payment, submit media, rank entries, or approve publication. Public listings contain no user IDs or payment references.
 - Public market timing and leaderboard rows are delivered together through one short-lived CDN-cached snapshot. Polling pauses in hidden or offline tabs, and Supabase Realtime requests a fresh snapshot when the ladder changes.
-- Camera/microphone permissions are requested only after a fresh authenticated server read confirms `payment_state = paid`. MediaPipe detects one face locally; it is a recording aid, not trusted proof of identity or a server moderation result.
+- Camera/microphone permissions are requested only after a fresh authenticated server read confirms the owner has a draft or rejected broadcast. MediaPipe detects one face locally; it is a recording aid, not trusted proof of identity or a server moderation result.
 - The recorder produces up to two minutes of broadcast media with microphone audio, supports retakes and playback, and captures a JPEG frame. Recording continues when the user switches tabs or apps, but the BOUGHT page must remain open. Users without a camera can record on a phone or another device and import an MP4, MOV, or WebM take (up to 250 MB); screen broadcasts can be imported the same way. Imported media follows the same Mux audio, duration, resolution, and moderator checks. Users can replace the frame with a custom JPEG/PNG/WebP. Browser decoding/re-encoding and server file-signature checks protect the thumbnail flow.
 - Broadcast media bytes travel from the browser straight to Mux using a two-hour resumable upload URL and UpChunk. They never pass through a Worker. New BOUGHT broadcasts use Mux Basic quality, signed playback, and a 1080p encoding cap; Mux automatically serves an adaptive 720p or 1080p stream to each viewer. Thumbnails go directly to private Supabase Storage through a signed upload token, with an immutable, broadcast-specific path and a 5 MB limit. Basic supports on-demand video only.
 - Mux generates a caption track for each take and reports when it is ready. Mux Robots proactively attaches the ten featured translations (English, Mandarin Chinese, Spanish, French, Bengali, Portuguese, Russian, Indonesian, German, and Japanese); the remaining verified languages are generated only when a viewer selects them to keep costs low. The app stores the English transcript and WebVTT for moderator review; the published player shows English by default and offers a top-right language menu with the featured ten first and all other languages alphabetically.
 - Transcription claims are asset-bound, leased, and idempotent. Duplicate Mux deliveries cannot create concurrent work, an older take cannot overwrite a replacement, and moderators can retry a failed rendition or API call. Publication is blocked until the current take has a completed transcript; a human must still verify names, quotations, and meaning against the video.
 - A device-local IndexedDB copy keeps the recording, thumbnail, and associated upload attempt through refreshes. It is not payment or publication authority. If storage is unavailable, the UI offers a downloadable backup. Another device can reopen the paid broadcast and record a new take; it cannot recover unuploaded bytes from the first device.
 - Failed thumbnail uploads reuse one staging object. On submission, the server validates its bytes and copies them to a new immutable object before moderation, so a still-valid staging token cannot replace an approved image. A replaced Mux upload cannot overwrite the latest take. Processing must find valid broadcast media, an audio track, and an acceptable duration/resolution. Then a moderator checks face visibility, audible speech, content, and the thumbnail before publication.
-- Per-user action limits and per-broadcast upload/thumbnail retry budgets bound provider and storage costs. A paid broadcast that exhausts the generous retry budget remains saved for support review instead of creating unbounded provider resources.
+- Per-user action limits, three new video uploads per UTC day, and per-broadcast upload/thumbnail retry budgets bound provider and storage costs. A broadcast that exhausts its retry budget remains saved for support review instead of creating unbounded provider resources.
 - Completed publication clears the local recovery copy. A rejected broadcast keeps the payment and allows a new recording.
 - Refunds/disputes remove the public entry. A delayed capture webhook cannot reactivate a reversed payment. Signed playback URLs expire within ten minutes (or the exposure end, if earlier).
 
 ### Auction policy
 
-Bidding runs **00:00–12:00 UTC**. Published bids can move during that window. At **12:00 UTC**, the current order is frozen for the exposure period, ending at **00:00 UTC**. Higher paid bids rank first; ties use the earliest server payment confirmation, then `dropId`. A payment reserves an entry, not a guaranteed rank.
+The market runs **00:00–12:00 UTC**. Published positions can move during that window. At **12:00 UTC**, the current order is frozen for the exposure period, ending at **00:00 UTC**. Higher paid amounts rank first; ties use the earliest server payment confirmation, then `dropId`. A payment reserves an entry, not a guaranteed rank.
 
 A broadcast whose upload or review finishes after the cutoff is assigned to the next auction without a second payment. It remains accessible in the owner's saved broadcasts until that auction becomes public. Per-auction SQL advisory locks serialize ranking mutations without blocking an unrelated auction. The database clock decides all transitions; browser clocks only display a periodically synchronized countdown.
 
@@ -77,7 +77,7 @@ Before enabling live payments, exercise the full provider test-mode journey over
 
 Run `npm run preflight:production` with the intended Vercel production environment before releasing. It reports missing or structurally unsafe configuration by variable name without printing secret values.
 
-Vercel is the only configured hosting target. The repository includes its security headers, cache policy, serverless build preset, and cron declaration. A Vercel Production build runs `preflight:production` and fails closed if credentials are missing, malformed, reused, exposed to the browser, or use payment test mode; Preview and local builds remain usable without live credentials. Production provider webhooks, Supabase migrations, and a complete test-mode checkout/record/upload/moderation exercise are still required before accepting live payments.
+Vercel is the only configured hosting target. The repository includes its security headers, cache policy, serverless build preset, and cron declaration. A Vercel Production build runs `preflight:production` and fails closed if core credentials are missing or unsafe. No checkout provider is required for free publishing; any configured provider must be complete and live-mode. Production provider webhooks and a complete test-mode checkout exercise are still required before accepting live payments.
 
 ## Reference contracts
 

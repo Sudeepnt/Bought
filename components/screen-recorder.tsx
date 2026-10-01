@@ -156,7 +156,7 @@ export function ScreenRecorder({
   const companion = useRef<RecordingCompanion | null>(null);
   const companionSession = useRef(0);
   const active = useRef(true);
-  const [paymentReady, setPaymentReady] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
   const [ready, setReady] = useState(false);
   const [recording, setRecording] = useState(false);
   const [screenAudio, setScreenAudio] = useState(false);
@@ -218,14 +218,14 @@ export function ScreenRecorder({
       .then(({ drop }) => {
         if (!current) return;
         if (
-          drop.payment_state !== 'paid' ||
+          ['refunded', 'disputed'].includes(drop.payment_state) ||
           !['draft', 'rejected'].includes(drop.state) ||
           drop.capture_mode !== 'screen'
         )
           throw new Error(
-            'A paid screen-share broadcast is required before capture opens.',
+            'A saved screen-share draft is required before capture opens.',
           );
-        setPaymentReady(true);
+        setDraftReady(true);
       })
       .catch((err) => {
         if (current)
@@ -251,7 +251,7 @@ export function ScreenRecorder({
   }, [recording]);
 
   async function setup() {
-    if (!paymentReady || settingUp) return;
+    if (!draftReady || settingUp) return;
     setSettingUp(true);
     setReady(false);
     setCamera(false);
@@ -524,7 +524,7 @@ export function ScreenRecorder({
       if (active.current)
         setError(
           err instanceof DOMException && err.name === 'NotAllowedError'
-            ? 'Screen sharing permission was not granted. Your payment is saved.'
+            ? 'Screen sharing permission was not granted. Your free draft is saved.'
             : err instanceof DOMException && err.name === 'NotFoundError'
               ? 'No screen source was found. You can use Import Video below.'
               : err instanceof Error
@@ -694,7 +694,7 @@ export function ScreenRecorder({
         <button
           className="drop-button primary"
           type="button"
-          disabled={!paymentReady || settingUp}
+          disabled={!draftReady || settingUp}
           onClick={() => void setup()}
         >
           <MonitorUp size={17} />

@@ -559,7 +559,7 @@ function ProfileOverview({
                 >
                   <option value="recent">Recent</option>
                   <option value="oldest">Oldest</option>
-                  <option value="value">Highest bid</option>
+                  <option value="value">Highest amount</option>
                 </select>
                 <ChevronDown size={15} />
               </label>

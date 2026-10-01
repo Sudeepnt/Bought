@@ -111,14 +111,14 @@ function CameraRecorder({
       setFace(false);
       setMic(false);
       try {
-        // This second server read is the permission gate, even after a payment return URL.
+        // This second server read is the draft-state permission gate.
         const { drop } = await api<{ drop: Drop }>(`drops/${dropId}`);
         if (
-          drop.payment_state !== 'paid' ||
+          ['refunded', 'disputed'].includes(drop.payment_state) ||
           !['draft', 'rejected'].includes(drop.state)
         )
           throw new Error(
-            'Payment confirmation is required before opening the camera.',
+            'This saved broadcast cannot be recorded. Refresh and try again.',
           );
         if (!active) return;
         if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder)
@@ -287,7 +287,7 @@ function CameraRecorder({
           } catch {
             /* The preview can capture a replacement frame. */
           }
-          // Save even if navigation interrupts recording; the paid broadcast remains resumable.
+          // Save even if navigation interrupts recording; the free draft remains resumable.
           try {
             await saveTake(dropId, blob, frame);
           } catch {
@@ -304,9 +304,9 @@ function CameraRecorder({
         if (active)
           setError(
             err instanceof DOMException && err.name === 'NotAllowedError'
-              ? 'Camera or microphone access was denied. Allow both in your browser settings, then try again. Your payment is saved.'
+              ? 'Camera or microphone access was denied. Allow both in your browser settings, then try again. Your draft is saved.'
               : err instanceof DOMException && err.name === 'NotFoundError'
-                ? 'No camera was found on this computer. Record on a phone or another device, then use Import Video below. Your payment is saved.'
+                ? 'No camera was found on this computer. Record on a phone or another device, then use Import Video below. Your draft is saved.'
                 : err instanceof Error
                   ? err.message
                   : 'Could not open the camera.',
@@ -401,7 +401,7 @@ function CameraRecorder({
             <strong>
               {error ? 'CAMERA UNAVAILABLE' : 'OPENING YOUR CAMERA'}
             </strong>
-            <span>Your payment is confirmed.</span>
+            <span>Your upload is free. You can bid after it uploads.</span>
           </div>
         )}
         <div className="drop-camera-top">
@@ -710,10 +710,8 @@ export function DropRecorder({
     setProgress(0);
     try {
       const { drop: current } = await api<{ drop: Drop }>(`drops/${drop.id}`);
-      if (current.payment_state !== 'paid')
-        throw new Error(
-          'Payment could not be confirmed. Refresh to check your broadcast.',
-        );
+      if (['refunded', 'disputed'].includes(current.payment_state))
+        throw new Error('A reversed payment cannot be uploaded.');
       if (!['draft', 'rejected'].includes(current.state)) {
         await refresh();
         return;
@@ -761,7 +759,7 @@ export function DropRecorder({
             task.on('error', () =>
               reject(
                 new Error(
-                  'Broadcast upload was interrupted. Your payment and recording are saved. Try Submit Broadcast again.',
+                  'Broadcast upload was interrupted. Your recording is saved. Try the free upload again.',
                 ),
               ),
             );
@@ -784,7 +782,7 @@ export function DropRecorder({
         });
       if (uploadError)
         throw new Error(
-          'Thumbnail upload failed. Your broadcast and payment are saved. Try again.',
+          'Thumbnail upload failed. Your free draft is saved. Try again.',
         );
       setStage('SUBMITTING YOUR BROADCAST');
       await api(`drops/${drop.id}/submit`, {});
@@ -795,7 +793,7 @@ export function DropRecorder({
         setError(
           err instanceof Error
             ? err.message
-            : 'Submission failed. Your paid broadcast is saved.',
+            : 'Upload could not finish. Your free draft is saved.',
         );
     } finally {
       if (mounted.current) {
@@ -814,10 +812,18 @@ export function DropRecorder({
       <div className="drop-confirmed">
         <ShieldCheck size={28} />
         <div>
-          <h2>PAYMENT CONFIRMED</h2>
-          <p>Your position is reserved.</p>
+          <h2>
+            {drop.payment_state === 'paid'
+              ? 'BID PAYMENT CONFIRMED'
+              : 'FREE VIDEO UPLOAD'}
+          </h2>
+          <p>
+            {drop.payment_state === 'paid'
+              ? 'Your ranked position is reserved.'
+              : 'Three new video uploads per account each UTC day.'}
+          </p>
         </div>
-        <span>01 / PAID</span>
+        <span>{drop.payment_state === 'paid' ? 'BID PAID' : 'NO CHARGE'}</span>
       </div>
       {drop.review_reason && (
         <p className="drop-error" role="alert">
@@ -1025,18 +1031,33 @@ export function DropRecorder({
           )}
           {accepted && (
             <>
-              <button
-                className="drop-button primary drop-submit"
-                disabled={busy || !thumbnail}
-                onClick={submit}
-              >
-                {busy ? 'SAVING YOUR BROADCAST…' : 'SUBMIT BROADCAST'}
-                <Upload size={18} />
-              </button>
+              <div className="drop-submit-actions">
+                <button
+                  className="drop-button primary drop-submit"
+                  disabled={
+                    busy ||
+                    !thumbnail ||
+                    !drop.mux_asset_id ||
+                    !drop.thumbnail_path ||
+                    !['processing', 'ready'].includes(drop.media_state)
+                  }
+                  onClick={() => void submit()}
+                >
+                  {busy
+                    ? 'SUBMITTING YOUR BROADCAST…'
+                    : drop.payment_state === 'paid'
+                      ? 'PUBLISH WITH PAID BID'
+                      : 'PUBLISH FREE'}
+                  {drop.payment_state === 'paid' ? (
+                    <Upload size={18} />
+                  ) : (
+                    <ShieldCheck size={18} />
+                  )}
+                </button>
+              </div>
               <p className="drop-fineprint">
-                Your broadcast is processed and reviewed before it goes live.
-                Your rank follows your paid bid; it can change until the auction
-                closes.
+                Publishing is free after review. Once it is public, you can
+                optionally pay to boost its rank.
               </p>
             </>
           )}

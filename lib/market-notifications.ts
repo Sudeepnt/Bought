@@ -63,7 +63,7 @@ export function marketNotificationEvents(
     events.push({
       type: 'outbid',
       title: 'You were outbid',
-      body: `Your ${oldEntry.category} bid moved from #${oldEntry.position} to #${nextEntry.position}.`,
+      body: `Your ${oldEntry.category} position moved from #${oldEntry.position} to #${nextEntry.position}.`,
       href: '/broadcast',
     });
   }
@@ -78,10 +78,10 @@ export function marketNotificationEvents(
       title: isYourBid
         ? 'You took #1'
         : isNewBid
-          ? 'A new bidder took #1'
+          ? 'A new entry took #1'
           : 'The #1 position changed',
       body: isYourBid
-        ? `Your ${newLeader.category} bid just moved into the top spot.`
+        ? `Your ${newLeader.category} entry just moved into the top spot.`
         : isNewBid
           ? `“${newLeader.title}” is now #1 in ${newLeader.category}.`
           : `“${newLeader.title}” moved into #1 in ${newLeader.category}.`,

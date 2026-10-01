@@ -34,9 +34,6 @@ for (const name of requiredCore) {
 const configuredProviders = Object.entries(providers).filter(([, names]) =>
   names.every((name) => value(name)),
 );
-if (configuredProviders.length === 0) {
-  errors.push('Configure every variable for Stripe or Razorpay.');
-}
 for (const [provider, names] of Object.entries(providers)) {
   const configured = names.filter((name) => value(name));
   if (configured.length > 0 && configured.length < names.length) {
@@ -165,6 +162,6 @@ if (errors.length > 0) {
   console.log(
     `Production environment is ready. Enabled checkout: ${configuredProviders
       .map(([provider]) => provider)
-      .join(', ')}.`,
+      .join(', ') || 'none (free publishing only)'}.`,
   );
 }

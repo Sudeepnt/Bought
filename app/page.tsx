@@ -574,7 +574,7 @@ export default function Home() {
                         <strong>{name}</strong>
                         <PulseSparkline path={path} positive={positive} />
                         <span className="category-pulse-bids category-pulse-total">
-                          {bids} BIDS
+                          {bids} ENTRIES
                         </span>
                       </button>
                     );
