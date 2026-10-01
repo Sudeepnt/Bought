@@ -972,6 +972,8 @@ export function BroadcastVideoCard({
     if (!placeholder || !floatingCard) return;
 
     let frame: number | null = null;
+    let dockingTimer: number | null = null;
+    let scrollIsSettling = false;
     const updatePosition = () => {
       const rect = placeholder.getBoundingClientRect();
       floatingCard.style.setProperty('--broadcast-source-top', `${rect.top}px`);
@@ -987,7 +989,14 @@ export function BroadcastVideoCard({
         '--broadcast-source-height',
         `${rect.height}px`,
       );
-      setIsDocked((mediaPlaying || nextCountdown !== null) && rect.bottom <= 0);
+      if (scrollIsSettling) return;
+      const canDock = mediaPlaying || nextCountdown !== null;
+      setIsDocked((currentlyDocked) => {
+        if (!canDock) return false;
+        return currentlyDocked
+          ? rect.top < -24
+          : rect.bottom <= -24;
+      });
     };
     const schedulePosition = () => {
       if (frame !== null) return;
@@ -996,10 +1005,20 @@ export function BroadcastVideoCard({
         updatePosition();
       });
     };
+    const scheduleScrollPosition = () => {
+      scrollIsSettling = true;
+      schedulePosition();
+      if (dockingTimer !== null) window.clearTimeout(dockingTimer);
+      dockingTimer = window.setTimeout(() => {
+        dockingTimer = null;
+        scrollIsSettling = false;
+        updatePosition();
+      }, 220);
+    };
 
     updatePosition();
-    window.addEventListener('scroll', schedulePosition, { passive: true });
-    document.addEventListener('scroll', schedulePosition, {
+    window.addEventListener('scroll', scheduleScrollPosition, { passive: true });
+    document.addEventListener('scroll', scheduleScrollPosition, {
       capture: true,
       passive: true,
     });
@@ -1009,11 +1028,12 @@ export function BroadcastVideoCard({
     if (list && listObserver) listObserver.observe(list);
 
     return () => {
-      window.removeEventListener('scroll', schedulePosition);
-      document.removeEventListener('scroll', schedulePosition, true);
+      window.removeEventListener('scroll', scheduleScrollPosition);
+      document.removeEventListener('scroll', scheduleScrollPosition, true);
       window.removeEventListener('resize', schedulePosition);
       listObserver?.disconnect();
       if (frame !== null) window.cancelAnimationFrame(frame);
+      if (dockingTimer !== null) window.clearTimeout(dockingTimer);
     };
   }, [isPlaying, isFullscreen, mediaAspectRatio, mediaPlaying, nextCountdown, positionCue]);
 
@@ -2145,8 +2165,33 @@ const CategoryPanel = memo(function CategoryPanel({
   const [hoveredBroadcastId, setHoveredBroadcastId] = useState<string | null>(
     null,
   );
+  const lastPageScrollAtRef = useRef(0);
+  const hoverScrollTimerRef = useRef<number | null>(null);
   const loadMarkerRef = useRef<HTMLDivElement>(null);
   const expandedBroadcastRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const closePreviewAfterScroll = () => {
+      lastPageScrollAtRef.current = Date.now();
+      if (hoverScrollTimerRef.current !== null) {
+        window.clearTimeout(hoverScrollTimerRef.current);
+      }
+      hoverScrollTimerRef.current = window.setTimeout(() => {
+        hoverScrollTimerRef.current = null;
+        setHoveredBroadcastId(null);
+      }, 220);
+    };
+
+    window.addEventListener('scroll', closePreviewAfterScroll, {
+      passive: true,
+    });
+    return () => {
+      window.removeEventListener('scroll', closePreviewAfterScroll);
+      if (hoverScrollTimerRef.current !== null) {
+        window.clearTimeout(hoverScrollTimerRef.current);
+      }
+    };
+  }, []);
   const categoryStyle = {
     '--category-accent': category.accent,
   } as CSSProperties;
@@ -2241,15 +2286,18 @@ const CategoryPanel = memo(function CategoryPanel({
               <div
                 className="category-position-item"
                 key={broadcast.id}
-                onPointerEnter={(event) => {
+                onPointerMove={(event) => {
                   if (
                     event.pointerType === 'mouse' &&
-                    window.innerWidth > 680
+                    window.innerWidth > 680 &&
+                    (event.movementX !== 0 || event.movementY !== 0) &&
+                    Date.now() - lastPageScrollAtRef.current > 220
                   ) {
                     setHoveredBroadcastId(broadcast.id);
                   }
                 }}
                 onPointerLeave={() => {
+                  if (Date.now() - lastPageScrollAtRef.current <= 220) return;
                   if (
                     !document.querySelector(
                       '.category-action-dialog[aria-labelledby^="dm-title"], .category-lead-card.is-video-fullscreen',

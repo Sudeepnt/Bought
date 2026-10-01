@@ -291,7 +291,7 @@
   left: auto;
   overflow: visible;
   right: 14px;
-  top: 0;
+  top: 150px;
   width: min(380px, calc(100vw - 28px));
 }
 
@@ -630,10 +630,12 @@
 
 @media (max-width: 700px) {
   .broadcast-floating-root .category-lead-card.is-player-portaled.is-docked {
+    bottom: calc(76px + env(safe-area-inset-bottom));
     border-left: 0;
     border-right: 0;
     left: 0;
     right: 0;
+    top: auto;
     width: 100vw;
   }
 }
@@ -25656,12 +25658,12 @@ html[data-theme='light'] .category-lead-content {
   background:
     linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0.62) 0%,
-      rgba(255, 255, 255, 0.1) 43%,
-      rgba(255, 255, 255, 0.48) 100%
+      rgba(0, 0, 0, 0.62) 0%,
+      rgba(0, 0, 0, 0.1) 43%,
+      rgba(0, 0, 0, 0.48) 100%
     ),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.38), transparent 58%);
-  color: #17211e;
+    linear-gradient(0deg, rgba(0, 0, 0, 0.38), transparent 58%);
+  color: #f0f4f2;
 }
 
 html[data-theme='light'] .category-lead-rank b,
@@ -25670,7 +25672,7 @@ html[data-theme='light'] .category-lead-copy strong,
 html[data-theme='light'] .category-lead-value strong,
 html[data-theme='light'] .category-lead-stat strong,
 html[data-theme='light'] .category-lead-author strong {
-  color: #17211e;
+  color: #f0f4f2;
   text-shadow: none;
 }
 
@@ -25683,24 +25685,24 @@ html[data-theme='light'] .category-lead-stat small,
 html[data-theme='light'] .category-lead-stat.category-lead-outbid,
 html[data-theme='light'] .category-lead-stat.category-lead-outbid small,
 html[data-theme='light'] .category-lead-author small {
-  color: #465650 !important;
+  color: #bdc6c3 !important;
 }
 
 html[data-theme='light'] .category-lead-rank em small {
-  color: #68766f;
+  color: #9da8a5;
 }
 
 html[data-theme='light'] .category-lead-stat > svg {
-  color: #26332e;
+  color: #f0f4f2;
 }
 
 html[data-theme='light'] .category-lead-stat::before {
-  background: rgba(23, 33, 30, 0.35);
+  background: rgba(255, 255, 255, 0.39);
 }
 
 html[data-theme='light'] .category-lead-copy > span {
-  background: rgba(255, 255, 255, 0.62);
-  color: #26332e;
+  background: rgba(0, 0, 0, 0.62);
+  color: #f0f4f2;
 }
 
 html[data-theme='light'] .category-lead-mic {
@@ -25710,15 +25712,15 @@ html[data-theme='light'] .category-lead-mic {
 }
 
 html[data-theme='light'] .category-lead-media-actions button {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(23, 33, 30, 0.38);
-  color: #17211e;
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.48);
+  color: #fff;
 }
 
 html[data-theme='light'] .category-lead-media-actions button:hover,
 html[data-theme='light'] .category-lead-media-actions button:focus-visible {
-  background: #fff;
-  border-color: #68766f;
+  background: rgba(0, 0, 0, 0.48);
+  border-color: rgba(255, 255, 255, 0.9);
 }
 
 /* The Review cover is artwork; the reader around it follows the selected theme. */
@@ -25771,4 +25773,64 @@ html[data-theme='light'] .category-position-expanded .category-broadcast-video m
 html[data-theme='light'] .category-position-expanded {
   background: #fff;
   border-radius: 0;
+}
+
+/* The floating clock is a compact pill on phones. Keep its layout separate
+   from the full-size market status card's shared countdown selectors. */
+@media (max-width: 700px) {
+  .dashboard-shell:not(.category-carousel-page) .floating-market-countdown {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    grid-template-columns: none;
+    height: auto;
+    max-width: calc(100vw - 16px);
+    padding: 8px 10px;
+    right: 8px;
+    width: max-content;
+  }
+
+  .dashboard-shell:not(.category-carousel-page) .floating-market-countdown .floating-market-countdown-icon svg {
+    display: block;
+    height: 20px;
+    width: 20px;
+  }
+
+  .dashboard-shell:not(.category-carousel-page) .floating-market-countdown .floating-market-countdown-label {
+    display: none;
+  }
+
+  .dashboard-shell:not(.category-carousel-page) .floating-market-countdown .floating-market-countdown-time {
+    min-width: 0;
+    width: auto;
+  }
+
+  .dashboard-shell:not(.category-carousel-page) .floating-market-countdown .countdown-segments {
+    align-items: center;
+    column-gap: 0;
+    display: flex;
+    justify-content: flex-start;
+    width: auto;
+  }
+
+  .dashboard-shell:not(.category-carousel-page) .floating-market-countdown .countdown-segment {
+    flex: 0 0 auto;
+    gap: 0;
+    min-width: 0;
+    width: auto;
+  }
+
+  .dashboard-shell:not(.category-carousel-page) .floating-market-countdown .countdown-value strong {
+    font-size: clamp(16px, 4.8vw, 22px);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .dashboard-shell:not(.category-carousel-page) .floating-market-countdown .countdown-segment small {
+    display: none;
+  }
+
+  .dashboard-shell:not(.category-carousel-page) .floating-market-countdown .countdown-separator {
+    margin-inline: 0.12ch;
+  }
 }

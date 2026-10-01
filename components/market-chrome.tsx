@@ -78,8 +78,8 @@ function useMarketCountdown() {
       .padStart(2, '0'),
     seconds: (totalSeconds % 60).toString().padStart(2, '0'),
   };
-  const countdownReady = market !== null && serverTime !== null;
-  const exposureLocked = market?.phase === 'exposure';
+  const countdownReady = marketFresh && market !== null && serverTime !== null;
+  const exposureLocked = countdownReady && market.phase === 'exposure';
 
   return {
     countdown,
@@ -218,16 +218,16 @@ export function MarketStatusStrip({
         className={`status-countdown dashboard-panel ${countdownIsUrgent ? 'is-urgent' : ''} ${countdownIsCritical ? 'is-critical' : ''}`}
       >
         <div className="countdown-icon">
-          {exposureLocked ? (
+          {!countdownReady ? null : exposureLocked ? (
             <LockKeyhole size={40} strokeWidth={1.8} />
           ) : (
             <Timer size={40} strokeWidth={1.8} />
           )}
         </div>
         <div className="countdown-label">
-          <strong>{exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
+          <strong>{!countdownReady ? 'MARKET STATUS' : exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
           <span>
-            {exposureLocked ? 'EXPOSURE LOCKED' : 'MARKET CLOSES IN'}
+            {!countdownReady ? 'SYNCING' : exposureLocked ? 'EXPOSURE LOCKED' : 'MARKET CLOSES IN'}
           </span>
         </div>
         <div className="countdown-value">
@@ -243,24 +243,25 @@ export function MarketStatusStrip({
 
 export function FloatingMarketCountdown({ visible }: { visible: boolean }) {
   const { countdown, countdownReady, exposureLocked } = useMarketCountdown();
+  const showCountdown = visible && countdownReady;
 
   return (
     <aside
-      className={`floating-market-countdown ${visible ? 'is-visible' : ''}`}
-      aria-label="Persistent market countdown"
-      aria-hidden={!visible}
+      className={`floating-market-countdown ${showCountdown ? 'is-visible' : ''}`}
+      aria-label={!countdownReady ? 'Market status syncing' : exposureLocked ? 'Exposure locked, final positions countdown' : 'Next drop countdown'}
+      aria-hidden={!showCountdown}
     >
       <span className="floating-market-countdown-icon" aria-hidden="true">
-        {exposureLocked ? (
+        {!countdownReady ? null : exposureLocked ? (
           <LockKeyhole size={28} strokeWidth={1.8} />
         ) : (
           <Timer size={28} strokeWidth={1.8} />
         )}
       </span>
       <div className="countdown-label floating-market-countdown-label">
-        <strong>{exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
+        <strong>{!countdownReady ? 'MARKET STATUS' : exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
         <span>
-          {exposureLocked ? 'EXPOSURE LOCKED' : 'MARKET CLOSES IN'}
+          {!countdownReady ? 'SYNCING' : exposureLocked ? 'EXPOSURE LOCKED' : 'MARKET CLOSES IN'}
         </span>
       </div>
       <div className="countdown-value floating-market-countdown-time">
