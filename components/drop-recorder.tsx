@@ -1034,13 +1034,7 @@ export function DropRecorder({
               <div className="drop-submit-actions">
                 <button
                   className="drop-button primary drop-submit"
-                  disabled={
-                    busy ||
-                    !thumbnail ||
-                    !drop.mux_asset_id ||
-                    !drop.thumbnail_path ||
-                    !['processing', 'ready'].includes(drop.media_state)
-                  }
+                  disabled={busy || !thumbnail}
                   onClick={() => void submit()}
                 >
                   {busy
