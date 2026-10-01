@@ -11,7 +11,6 @@ void test('Postgres enforces free-upload quotas, paid ranking, RLS, replay handl
     create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('test.user_id',true),'')::uuid $$;
     create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
     grant usage on schema auth,public,storage to anon,authenticated,service_role;
-    grant select on auth.users to service_role;
     create function public.test_now() returns timestamptz language sql as $$ select current_setting('test.now')::timestamptz $$;
     set test.now='2026-09-08T05:00:00Z';
   `);
@@ -77,6 +76,18 @@ void test('Postgres enforces free-upload quotas, paid ranking, RLS, replay handl
   );
   await db.exec(
     freeUploadSql
+      .replaceAll('clock_timestamp()', 'public.test_now()')
+      .replace(/\bnow\(\)/g, 'public.test_now()'),
+  );
+  const currentFreeSql = await readFile(
+    new URL(
+      '../supabase/migrations/20261001150000_free_public_current_auction.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  await db.exec(
+    currentFreeSql
       .replaceAll('clock_timestamp()', 'public.test_now()')
       .replace(/\bnow\(\)/g, 'public.test_now()'),
   );
@@ -763,6 +774,48 @@ void test('Postgres enforces free-upload quotas, paid ranking, RLS, replay handl
           /permission denied/,
         );
         await db.exec('reset role');
+      },
+    );
+    await t.test(
+      'approved free video appears in the current exposure phase with its real title and creator',
+      async () => {
+        const free = '20000000-0000-4000-8000-000000000099';
+        await db.exec('begin');
+        try {
+          await db.exec("set test.now='2026-09-08T18:00:00Z'");
+          await db.query(
+            `insert into public.bought_drops(id,user_id,category,title,creator_name,amount_minor,provider,state,media_state,mux_asset_id,thumbnail_path,thumbnail_verified,submitted_at)
+             values($1,$2,'BUILDING','Actual free broadcast','Test Creator',50000,'stripe','review','ready',$3,$4,true,public.test_now())`,
+            [free, owner, `asset_${free}`, `${owner}/${free}/thumb.jpg`],
+          );
+          await publish(free);
+          const saved = await row(free);
+          assert.equal(
+            new Date(saved.auction_id as string).toISOString().slice(0, 10),
+            '2026-09-08',
+          );
+          assert.equal(saved.state, 'published');
+          const { rows } = await db.query<{
+            snapshot: {
+              market: { auctionId: string; phase: string };
+              entries: Array<{
+                drop_id: string;
+                title: string;
+                amount_minor: number;
+                creator_name: string;
+              }>;
+            };
+          }>('select public.bought_snapshot() snapshot');
+          assert.equal(rows[0].snapshot.market.phase, 'exposure');
+          const entry = rows[0].snapshot.entries.find((item) => item.drop_id === free);
+          assert.deepEqual(
+            entry && [entry.title, entry.amount_minor, entry.creator_name],
+            ['Actual free broadcast', 0, 'Test Creator'],
+          );
+        } finally {
+          await db.exec('rollback');
+          await db.exec("set test.now='2026-09-08T05:00:00Z'");
+        }
       },
     );
     await t.test(

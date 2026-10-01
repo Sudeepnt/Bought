@@ -78,6 +78,7 @@ export type PublishedEntry = {
   position: number;
   category: string;
   title: string;
+  creator_name?: string;
   amount_minor: number;
   published_at: string;
   exposure_ends_at: string;

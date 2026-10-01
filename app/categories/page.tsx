@@ -54,6 +54,7 @@ import { BroadcastThumbnailPreview } from '@/components/broadcast-thumbnail-prev
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { SocialPlatformIcon } from '@/components/social-brand-icons';
 import { useBought } from '@/components/bought-provider';
+import type { PublishedEntry } from '@/lib/drop-domain';
 import { appendDirectMessage } from '@/lib/direct-messages';
 import { isNewReelWheelGesture } from '@/lib/reel-wheel-gesture';
 import { portraitVideoAspectRatio } from '@/lib/video-aspect-ratio';
@@ -87,6 +88,7 @@ type CategoryDefinition = {
 
 export type CategoryBroadcast = Creator & {
   id: string;
+  dropId?: string;
   categoryName: string;
   rank: number;
   title: string;
@@ -381,6 +383,42 @@ const allBroadcasts = categoryLists
   }));
 const categoryBroadcasts = [allBroadcasts, ...categoryLists];
 
+function liveBroadcastsForCategory(
+  entries: PublishedEntry[],
+  category: CategoryDefinition,
+): CategoryBroadcast[] {
+  const selected =
+    category.name === 'ALL'
+      ? entries
+      : entries.filter((entry) => entry.category === category.name);
+  return selected.map((entry, index) => {
+    const amount = entry.amount_minor / 100;
+    const name = entry.creator_name?.trim() || 'BOUGHT creator';
+    return {
+      id: `LIVE-${category.name}-${entry.drop_id}`,
+      dropId: entry.drop_id,
+      categoryName: entry.category,
+      rank: category.name === 'ALL' ? entry.position : index + 1,
+      title: entry.title,
+      price: formatPrice(amount),
+      takePrice: formatPrice(Math.max(100, amount + 100)),
+      change: 0,
+      views: 0,
+      shares: 0,
+      outbidCount: 0,
+      topRankedAt: 'now',
+      name,
+      handle: `@creator-${entry.drop_id.slice(0, 8)}`,
+      initials: name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(),
+      duration: '',
+      imagePosition: 'center',
+      socialPlatform: '',
+      profileType: 'Creator',
+      location: '',
+    };
+  });
+}
+
 const initialBroadcastCount = 10;
 const broadcastBatchSize = 20;
 
@@ -405,15 +443,37 @@ function VideoThumbnail({
   prominent?: boolean;
   shouldLoad?: boolean;
 }) {
+  const { api } = useBought();
+  const [liveThumbnail, setLiveThumbnail] = useState('');
+  useEffect(() => {
+    if (!broadcast.dropId || !shouldLoad) return;
+    let active = true;
+    void api<{ thumbnail: string }>(`media/${broadcast.dropId}`)
+      .then(({ thumbnail }) => {
+        if (active) setLiveThumbnail(thumbnail);
+      })
+      .catch(() => {
+        // The player can still load after a transient thumbnail failure.
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, broadcast.dropId, shouldLoad]);
   const prominentImage = prominent
-    ? broadcast.rank === 2
+    ? broadcast.dropId
+      ? null
+      : broadcast.rank === 2
       ? '/zero-to-one-book-review-poster.jpg'
       : '/category-feature-poster.jpg'
     : null;
   const style = shouldLoad
-    ? prominentImage
-      ? undefined
-      : {
+    ? broadcast.dropId
+      ? liveThumbnail
+        ? { backgroundImage: `url(${liveThumbnail})`, backgroundSize: 'cover' }
+        : { backgroundColor: '#050505' }
+      : prominentImage
+        ? undefined
+        : {
           backgroundImage: 'url(/leaderboard-portraits.png)',
           backgroundPosition: broadcast.imagePosition,
           backgroundSize: '500% auto',
@@ -440,7 +500,7 @@ function VideoThumbnail({
         <span className="category-thumbnail-deferred">
           <ProfileAvatar
             initials={broadcast.initials}
-            imageSrc="/leaderboard-portraits.png"
+            imageSrc={broadcast.dropId ? undefined : '/leaderboard-portraits.png'}
             imagePosition={broadcast.imagePosition}
             className="category-deferred-avatar"
           />
@@ -670,7 +730,8 @@ export function BroadcastVideoCard({
   const isPlaying = isFullscreen
     ? reelPlaybackActive
     : playingId === selectedBroadcast.id;
-  const hasLocalDemo = !dropId && (useSharedDemoVideo || broadcast.rank === 1);
+  const activeDropId = broadcast.dropId ?? dropId;
+  const hasLocalDemo = !activeDropId && (useSharedDemoVideo || broadcast.rank === 1);
   const isBookReviewDemo = hasLocalDemo && broadcast.rank === 2;
   const mediaAspectRatio = measuredAspectRatio;
   const demoSource = isBookReviewDemo
@@ -679,7 +740,7 @@ export function BroadcastVideoCard({
   const demoPoster = isBookReviewDemo
     ? '/zero-to-one-book-review-poster.jpg'
     : '/category-feature-poster.jpg';
-  const canPlay = hasLocalDemo || Boolean(dropId);
+  const canPlay = hasLocalDemo || Boolean(activeDropId);
   const showFloatingPlayer =
     isPlaying &&
     (mediaPlaying || nextCountdown !== null) &&
@@ -1055,7 +1116,7 @@ export function BroadcastVideoCard({
           name: broadcast.name,
           handle: broadcast.handle,
           initials: broadcast.initials,
-          imageSrc: '/leaderboard-portraits.png',
+          imageSrc: broadcast.dropId ? undefined : '/leaderboard-portraits.png',
           imagePosition: broadcast.imagePosition,
         },
         context: {
@@ -1257,10 +1318,10 @@ export function BroadcastVideoCard({
         />
         {(autoPreview || thumbnailPreview) && !isPlaying && !isFullscreen && (
           <BroadcastThumbnailPreview
-            key={dropId ?? 'demo'}
+            key={activeDropId ?? 'demo'}
             active
             delayMs={thumbnailPreview ? 2000 : 0}
-            dropId={dropId}
+            dropId={activeDropId}
             demoSource={demoSource}
           />
         )}
@@ -1341,11 +1402,11 @@ export function BroadcastVideoCard({
             </video>
           </div>
         )}
-        {isPlaying && !hasLocalDemo && dropId && (
+        {isPlaying && !hasLocalDemo && activeDropId && (
           <div className="category-on-demand-player">
             <DropPlayer
               key={broadcast.id}
-              dropId={dropId}
+              dropId={activeDropId}
               onPlayingChange={setMediaPlaying}
               onAspectRatioChange={handleMediaAspectChange}
               onProgressChange={updateVideoPosition}
@@ -1794,24 +1855,26 @@ export function BroadcastVideoCard({
                 <Send size={11} aria-hidden="true" />
                 {`MESSAGE ${broadcast.name.toUpperCase()}`}
               </button>
-              <a
-                className="category-lead-author-platform"
-                href={socialSearchUrl(
-                  broadcast.socialPlatform,
-                  broadcast.handle,
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`Find ${broadcast.handle} on ${broadcast.socialPlatform}`}
-                aria-label={`Find ${broadcast.handle} on ${broadcast.socialPlatform}`}
-              >
-                <SocialPlatformIcon
-                  platform={broadcast.socialPlatform}
-                  size={16}
-                  aria-label={`${broadcast.socialPlatform} profile`}
-                  aria-hidden={false}
-                />
-              </a>
+              {broadcast.socialPlatform && (
+                <a
+                  className="category-lead-author-platform"
+                  href={socialSearchUrl(
+                    broadcast.socialPlatform,
+                    broadcast.handle,
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Find ${broadcast.handle} on ${broadcast.socialPlatform}`}
+                  aria-label={`Find ${broadcast.handle} on ${broadcast.socialPlatform}`}
+                >
+                  <SocialPlatformIcon
+                    platform={broadcast.socialPlatform}
+                    size={16}
+                    aria-label={`${broadcast.socialPlatform} profile`}
+                    aria-hidden={false}
+                  />
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -2045,7 +2108,7 @@ export function BroadcastVideoCard({
 
 const CategoryPanel = memo(function CategoryPanel({
   category,
-  categoryIndex,
+  broadcasts,
   playingId,
   onPlay,
   selectedBroadcastId,
@@ -2057,7 +2120,7 @@ const CategoryPanel = memo(function CategoryPanel({
   dropIdsByRank,
 }: {
   category: CategoryDefinition;
-  categoryIndex: number;
+  broadcasts: CategoryBroadcast[];
   playingId: string | null;
   onPlay: (id: string) => void;
   selectedBroadcastId: string | null;
@@ -2072,7 +2135,6 @@ const CategoryPanel = memo(function CategoryPanel({
   onLoadMore: (categoryName: string) => void;
   dropIdsByRank: Record<number, string>;
 }) {
-  const broadcasts = categoryBroadcasts[categoryIndex];
   const leader = broadcasts[0];
   const featuredBroadcast =
     broadcasts.find(({ id }) => id === selectedBroadcastId) ?? leader;
@@ -2115,6 +2177,20 @@ const CategoryPanel = memo(function CategoryPanel({
     });
   }, [selectedBroadcastId]);
 
+  if (!leader) {
+    return (
+      <article className="category-market-panel is-active" style={categoryStyle}>
+        <div className="category-market-panel-inner">
+          <div className="category-market-list-head">
+            <strong>LIVE POSITIONS</strong>
+            <span>0 OF 0</span>
+          </div>
+          <p>No broadcasts in this category yet. Be the first to publish for free.</p>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article
       className="category-market-panel is-active"
@@ -2146,7 +2222,7 @@ const CategoryPanel = memo(function CategoryPanel({
                     playingId={playingId}
                     onPlay={onPlay}
                     loadThumbnail
-                    dropId={dropIdsByRank[broadcast.rank] ?? null}
+                    dropId={broadcast.dropId ?? dropIdsByRank[broadcast.rank] ?? null}
                     reelBroadcasts={broadcasts}
                     onReelExit={onReelExit}
                     initialPlaybackTime={
@@ -2193,7 +2269,7 @@ const CategoryPanel = memo(function CategoryPanel({
                         onPlay(id);
                       }}
                       loadThumbnail
-                      dropId={dropIdsByRank[broadcast.rank] ?? null}
+                      dropId={broadcast.dropId ?? dropIdsByRank[broadcast.rank] ?? null}
                       reelBroadcasts={broadcasts}
                       onReelExit={onReelExit}
                       useSharedDemoVideo
@@ -2218,7 +2294,7 @@ const CategoryPanel = memo(function CategoryPanel({
                       </span>
                       <ProfileAvatar
                         initials={broadcast.initials}
-                        imageSrc="/leaderboard-portraits.png"
+                        imageSrc={broadcast.dropId ? undefined : '/leaderboard-portraits.png'}
                         imagePosition={broadcast.imagePosition}
                         className="category-position-avatar"
                         alt={broadcast.name}
@@ -2285,6 +2361,15 @@ CategoryPanel.displayName = 'CategoryPanel';
 
 export default function CategoriesPage() {
   const { entries } = useBought();
+  const visibleBroadcasts = useMemo(
+    () =>
+      entries.length > 0
+        ? categories.map((category) =>
+            liveBroadcastsForCategory(entries, category),
+          )
+        : categoryBroadcasts,
+    [entries],
+  );
   const [activeIndex, setActiveIndex] = useState(0);
   const [featuredBroadcastId, setFeaturedBroadcastId] = useState<string | null>(
     null,
@@ -2329,7 +2414,7 @@ export default function CategoriesPage() {
     );
     const selectedIndex = requestedIndex >= 0 ? requestedIndex : 0;
     const requestedBroadcast = params.get('broadcast');
-    const matchingBroadcast = categoryBroadcasts[selectedIndex].find(
+    const matchingBroadcast = visibleBroadcasts[selectedIndex].find(
       ({ id }) => id === requestedBroadcast,
     );
     if (requestedIndex <= 0 && !matchingBroadcast) return;
@@ -2349,7 +2434,7 @@ export default function CategoriesPage() {
       scrollToCategory(selectedIndex, 'auto');
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [scrollToCategory]);
+  }, [scrollToCategory, visibleBroadcasts]);
 
   useEffect(() => {
     tabRefs.current[categoryTabIndices.indexOf(activeIndex)]?.scrollIntoView({
@@ -2444,10 +2529,10 @@ export default function CategoriesPage() {
       ...current,
       [categoryName]: Math.min(
         (current[categoryName] ?? initialBroadcastCount) + broadcastBatchSize,
-        categoryBroadcasts[categoryIndex].length,
+        visibleBroadcasts[categoryIndex].length,
       ),
     }));
-  }, []);
+  }, [visibleBroadcasts]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
@@ -2512,7 +2597,7 @@ export default function CategoriesPage() {
               type="button"
               role="tab"
               aria-selected={activeIndex === 0}
-              aria-label={`${allCategory.name}, ${allCategory.liveCount} entries`}
+              aria-label={`${allCategory.name}, ${entries.length ? visibleBroadcasts[0].length : allCategory.liveCount} entries`}
               onClick={() => selectCategory(0)}
               onKeyDown={handleKeyDown}
             >
@@ -2523,10 +2608,13 @@ export default function CategoriesPage() {
                 aria-hidden="true"
               />
               <strong>{allCategory.name}</strong>
-              <span>{allCategory.liveCount} entries</span>
+              <span>{entries.length ? visibleBroadcasts[0].length : allCategory.liveCount} entries</span>
             </button>
             {categoryTabIndices.slice(1).map((categoryIndex, tabIndex) => {
               const category = categories[categoryIndex];
+              const entryCount = entries.length
+                ? visibleBroadcasts[categoryIndex].length
+                : category.liveCount;
               const isTrending = categoryIndex === trendingCategoryIndex;
               const Icon = isTrending ? Flame : category.icon;
               return (
@@ -2539,7 +2627,7 @@ export default function CategoriesPage() {
                   type="button"
                   role="tab"
                   aria-selected={activeIndex === categoryIndex}
-                  aria-label={`${isTrending ? 'Trending category ' : ''}${category.name}, ${category.liveCount} entries`}
+                  aria-label={`${isTrending ? 'Trending category ' : ''}${category.name}, ${entryCount} entries`}
                   onClick={() => selectCategory(categoryIndex)}
                   onKeyDown={handleKeyDown}
                 >
@@ -2550,7 +2638,7 @@ export default function CategoriesPage() {
                     aria-hidden="true"
                   />
                   <strong>{category.name}</strong>
-                  <span>{category.liveCount} entries</span>
+                  <span>{entryCount} entries</span>
                   {isTrending && (
                     <span className="homepage-category-trending">TRENDING</span>
                   )}
@@ -2590,7 +2678,7 @@ export default function CategoriesPage() {
                 {position === 'active' && (
                   <CategoryPanel
                     category={category}
-                    categoryIndex={index}
+                    broadcasts={visibleBroadcasts[index]}
                     playingId={playingId}
                     onPlay={toggleBroadcast}
                     selectedBroadcastId={featuredBroadcastId}

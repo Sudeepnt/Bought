@@ -577,6 +577,13 @@ export async function handleApi(request: Request) {
         category: body.category,
         capture_mode: captureModeForCategory(body.category),
         title: body.title.trim(),
+        creator_name: [
+          user.user_metadata?.display_name,
+          user.user_metadata?.full_name,
+        ]
+          .find((name): name is string => typeof name === 'string' && name.trim().length > 0)
+          ?.trim()
+          .slice(0, 80) ?? 'BOUGHT creator',
         amount_minor: body.amountMinor,
         provider: body.provider,
       });
