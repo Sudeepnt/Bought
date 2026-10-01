@@ -77,17 +77,18 @@ export default function TermsPage() {
             <section id="service">
               <h2>01 / The BOUGHT service</h2>
               <p>
-                BOUGHT is a paid broadcast platform. You choose a category,
-                record a short video, and attach a payment to reserve a place in the
-                next auction. Approved broadcasts appear on the public floor,
-                where higher paid amounts rank above lower paid amounts.
+                BOUGHT lets you upload up to three videos per UTC day for free.
+                Approved broadcasts appear on the public floor without payment.
+                An optional paid bid can boost a broadcast’s rank when checkout
+                is available.
               </p>
               <p>
                 BOUGHT is not an editorial publication, investment product,
                 endorsement, certification, or promise of audience, customers,
-                revenue, or any particular outcome. A payment buys a place in the
-                BOUGHT auction process, not guaranteed attention or a permanent
-                position.
+                revenue, or any particular outcome. An optional payment boosts
+                rank in the BOUGHT auction process, not guaranteed attention or
+                a permanent position. Free publication does not promise a
+                particular rank.
               </p>
             </section>
 
@@ -116,16 +117,17 @@ export default function TermsPage() {
                 which ends at 00:00 UTC.
               </p>
               <p>
-                Higher paid amounts rank first. When amounts are equal, the earlier
-                server-side payment confirmation ranks first; if that is also
-                equal, BOUGHT uses the broadcast identifier as a final
-                tiebreaker. The database clock controls auction transitions, not
-                the clock on your device.
+                Higher paid amounts rank first; free broadcasts have a zero
+                paid bid. When amounts are equal, the earlier server-side
+                confirmation or publication ranks first; if that is also equal,
+                BOUGHT uses the broadcast identifier as a final tiebreaker. The
+                database clock controls auction transitions, not your device.
               </p>
               <p>
-                A payment reserves an entry and does not guarantee a specific
-                rank. A broadcast that finishes upload or review after the
-                cutoff may move to the next auction without an additional payment.
+                A payment can boost an already-published entry but does not
+                guarantee a specific rank. A broadcast that finishes upload or
+                review after the cutoff may move to the next auction without a
+                payment.
               </p>
             </section>
 

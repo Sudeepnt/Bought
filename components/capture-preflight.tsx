@@ -152,7 +152,7 @@ export function CapturePreflight({
       <p>
         {mode === 'screen'
           ? 'Test the streamer layout here. Your shared screen fills the video and a real camera appears in a round bottom-right bubble. Camera, microphone, and shared-tab audio are used when available.'
-          : 'Test your camera here. If this computer has no camera, record on your phone or another device and import the finished video after checkout.'}
+          : 'Test your camera here. If this computer has no camera, record on your phone or another device and import the finished video after creating your free draft.'}
       </p>
       {supported === false && (
         <p className="drop-capture-warning" role="alert">

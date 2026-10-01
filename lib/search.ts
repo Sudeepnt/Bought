@@ -137,7 +137,7 @@ const sitePages: SearchResult[] = [
   ['watchlist', 'WATCHLIST', 'MARKET PAGE', 'Tracked positions', '/watchlist'],
   ['magazine', 'MAGAZINE', 'MARKET PAGE', 'BOUGHT Review', '/magazine'],
   ['how-it-works', 'HOW IT WORKS', 'MARKET PAGE', 'Auction rules', '/how-it-works'],
-  ['broadcast', 'MAKE A BROADCAST', 'ACTION', 'Start a paid broadcast', '/broadcast'],
+  ['broadcast', 'MAKE A BROADCAST', 'ACTION', 'Publish a free broadcast', '/broadcast'],
   ['profile', 'PROFILE', 'ACCOUNT', 'Your BOUGHT profile', '/profile'],
   ['review', 'REVIEW', 'MARKET PAGE', 'Moderator queue', '/review'],
   ['terms', 'TERMS', 'MARKET PAGE', 'Terms and conditions', '/terms'],

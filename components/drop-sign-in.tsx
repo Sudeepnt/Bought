@@ -34,7 +34,7 @@ function GoogleMark() {
 
 export function DropSignIn({
   title = 'YOUR ACCOUNT',
-  description = 'Sign in to keep your payment and recordings together. You can resume your broadcast on any device.',
+  description = 'Sign in to keep your broadcasts and recordings together. You can resume your broadcast on any device.',
   showGoogle = false,
   mode = 'default',
   onSignedIn,
