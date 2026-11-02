@@ -12,7 +12,6 @@ import {
   Square,
   Upload,
 } from 'lucide-react';
-import { MarketTopbar } from '@/components/market-topbar';
 import { MAX_VIDEO_SECONDS } from '@/lib/drop-domain';
 import { normalizeThumbnail, videoFrame } from '@/lib/local-recording';
 import {
@@ -242,8 +241,7 @@ export default function CaptureTestPage() {
   }
 
   return (
-    <main className="market-shell dashboard-shell">
-      <MarketTopbar active="broadcast" />
+    <main className="market-shell dashboard-shell paper-page">
       <div className="drop-page">
         <header className="drop-page-heading">
           <div>

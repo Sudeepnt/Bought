@@ -142,7 +142,6 @@ export default function ChatPage() {
 
   return (
     <MarketPageShell
-      active="chat"
       eyebrow="DIRECT MESSAGES"
       title="Your conversations"
       description="Continue the private conversations you started from a broadcast."

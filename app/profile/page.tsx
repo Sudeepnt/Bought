@@ -1440,7 +1440,6 @@ function ProfileExperience({
 
   return (
     <MarketPageShell
-      active="profile"
       eyebrow="PROFILE"
       title="Profile"
       description=""
@@ -1488,11 +1487,24 @@ function ProfileExperience({
 export default function ProfilePage() {
   const { session, authReady } = useBought();
 
-  useEffect(() => {
-    if (authReady && !session) window.location.replace('/');
-  }, [authReady, session]);
-
-  if (!session) return null;
+  if (!session) {
+    // Keep the page chrome in place instead of blanking and redirecting home;
+    // the top bar's Profile link opens sign-in for visitors who are signed out.
+    return (
+      <MarketPageShell
+        eyebrow="PROFILE"
+        title="Your profile."
+        description={authReady ? 'Sign in to see your profile.' : 'Loading your profile…'}
+        showIntro={false}
+      >
+        <output className="profile-signed-out">
+          {authReady
+            ? 'Sign in to see your profile. Use the Profile link in the menu.'
+            : 'Loading your profile…'}
+        </output>
+      </MarketPageShell>
+    );
+  }
 
   return (
     <ProfileExperience

@@ -37,7 +37,6 @@ function SearchDetailContent() {
   if (!result) {
     return (
       <MarketPageShell
-        active="floor"
         eyebrow="SEARCH / NOT FOUND"
         title="That result is no longer on the board."
         description="Try another search or explore today’s active categories."
@@ -54,7 +53,6 @@ function SearchDetailContent() {
   const action = resultAction(result);
   return (
     <MarketPageShell
-      active="floor"
       eyebrow={`SEARCH / ${result.type.toUpperCase()}`}
       title={result.title}
       description={resultDescription(result)}

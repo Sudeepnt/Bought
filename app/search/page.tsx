@@ -32,7 +32,6 @@ function SearchResultsContent() {
 
   return (
     <MarketPageShell
-      active="floor"
       eyebrow="GLOBAL SEARCH / MARKET INDEX"
       title={query ? `Results for “${query}”.` : 'Search the room.'}
       description="Search broadcasts, people, companies, and categories across the global floor."

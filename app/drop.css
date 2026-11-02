@@ -2005,7 +2005,7 @@ html[data-theme='light'] .drop-receipt-note {
 }
 
 /* English captions and editorial notes turn each approved broadcast into a
-   reviewable magazine source without leaving the moderation workspace. */
+   reviewable source without leaving the moderation workspace. */
 .review-transcript {
   border: 1px solid var(--line-strong);
   background: color-mix(in srgb, var(--ink) 92%, var(--hot) 8%);

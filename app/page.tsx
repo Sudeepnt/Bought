@@ -1,32 +1,22 @@
 'use client';
 
 import { useEffect, useState, type SyntheticEvent } from 'react';
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  Building2,
-  Crown,
-  DollarSign,
-  FileText,
-  Flame,
-  MessageCircle,
-  Radio,
-  Rocket,
-  Undo2,
-  type LucideIcon,
-} from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import Image from 'next/image';
 import Link from '@/components/site-link';
 
-import { MarketFooter } from '@/components/market-chrome';
-import { MarketTopbar } from '@/components/market-topbar';
+import {
+  MarketFooter,
+  TodayBar,
+} from '@/components/market-chrome';
 import { useBought } from '@/components/bought-provider';
-import { ProfileAvatar } from '@/components/profile-avatar';
-import { latestIssue } from '@/lib/magazine';
 import {
   BroadcastVideoCard,
   type CategoryBroadcast,
 } from '@/app/categories/page';
+import { money } from '@/lib/drop-domain';
+
+import './today.css';
 
 type LeaderboardRow = [string, string, string, string, string, string];
 
@@ -60,10 +50,6 @@ const leaderboard: LeaderboardRow[] = [
 const leaderboardMovementSeeds = [
   1_340, 920, -640, 480, 360, -280, 220, -180, 140, -100,
 ] as const;
-const leaderboardMovementPercentSeeds = [
-  7.9, 5.4, -3.5, 2.8, 2.4, -1.8, 1.4, -1.2, 0.9, -0.7,
-] as const;
-
 function getLeaderboardMovement(index: number, pulse: number) {
   const seed =
     leaderboardMovementSeeds[index % leaderboardMovementSeeds.length];
@@ -72,18 +58,6 @@ function getLeaderboardMovement(index: number, pulse: number) {
   const direction = (pulse + index) % 2 === 0 ? 1 : -1;
   const scale = 0.72 + ((pulse + index) % 5) * 0.08;
   return direction * Math.max(120, Math.round(Math.abs(seed) * scale));
-}
-
-function getLeaderboardMovementPercent(index: number, pulse: number) {
-  const seed =
-    leaderboardMovementPercentSeeds[
-      index % leaderboardMovementPercentSeeds.length
-    ];
-  if (pulse === 0) return seed;
-
-  const direction = (pulse + index) % 2 === 0 ? 1 : -1;
-  const scale = 0.74 + ((pulse + index) % 5) * 0.07;
-  return direction * Math.max(0.4, Number((Math.abs(seed) * scale).toFixed(1)));
 }
 
 type LeaderboardSelection = {
@@ -136,7 +110,7 @@ const globalLeadBroadcast: CategoryBroadcast = {
   shares: 327,
   outbidCount: 6,
   takePrice: '$11,500',
-  topRankedAt: 'LIVE',
+  topRankedAt: 'now',
 };
 
 const homeCategories = [
@@ -149,17 +123,6 @@ const homeCategories = [
   ['BUILDING', '69'],
   ['PRODUCT LAUNCH', '42'],
 ] as const;
-
-const homeCategoryIcons: Record<string, LucideIcon> = {
-  ALL: Flame,
-  'UNPOPULAR OPINION': Radio,
-  'I WAS WRONG': Undo2,
-  CONFESSIONS: MessageCircle,
-  'MONEY I SET ON FIRE': DollarSign,
-  'THE PITCH THAT GOT REJECTED': FileText,
-  BUILDING: Building2,
-  'PRODUCT LAUNCH': Rocket,
-};
 
 const categoryLeaderBidCaps: Record<string, number> = {
   'UNPOPULAR OPINION': 11_400,
@@ -207,137 +170,37 @@ const categoryLeaderboards: Record<string, LeaderboardRow[]> =
   );
 
 const categoryPulse = [
-  {
-    name: 'Unpopular Opinion',
-    key: 'UNPOPULAR OPINION',
-    bids: '1,420',
-    positive: true,
-    path: 'M2 15 C8 13 8 8 13 11 S19 9 24 5 S29 8 34 4',
-  },
-  {
-    name: 'Money',
-    key: 'MONEY I SET ON FIRE',
-    bids: '980',
-    positive: true,
-    path: 'M2 16 C8 16 7 13 12 13 S17 8 22 10 S27 5 34 5',
-  },
-  {
-    name: 'Building',
-    key: 'BUILDING',
-    bids: '760',
-    positive: true,
-    path: 'M2 15 C8 12 7 14 12 11 S18 12 21 8 S27 9 34 6',
-  },
-  {
-    name: 'Product Launch',
-    key: 'PRODUCT LAUNCH',
-    bids: '420',
-    positive: true,
-    path: 'M2 16 C8 13 9 14 13 10 S18 12 22 8 S28 9 34 5',
-  },
+  { name: 'Unpopular Opinion', key: 'UNPOPULAR OPINION', bids: '1,420' },
+  { name: 'Money', key: 'MONEY I SET ON FIRE', bids: '980' },
+  { name: 'Building', key: 'BUILDING', bids: '760' },
+  { name: 'Product Launch', key: 'PRODUCT LAUNCH', bids: '420' },
 ] as const;
 
-const trending = [
-  [
-    'I switched from Notion to Anytype. Here’s why.',
-    '$9,200',
-    'WHY I SWITCHED',
-    '1:36',
-    'RK',
-    'blue',
-  ],
-  [
-    'We spent $50,000 on LinkedIn ads. Here are the results.',
-    '$7,800',
-    'SHOW THE RECEIPTS',
-    '2:12',
-    'PM',
-    'orange',
-  ],
-  [
-    'Is Claude still worth $30 when Kimi K3 does it for $3?',
-    '$6,400',
-    'WORTH IT?',
-    '1:48',
-    'EC',
-    'green',
-  ],
-  [
-    'Roast my landing page. Be brutal.',
-    '$5,900',
-    'TEARDOWN',
-    '2:05',
-    'AS',
-    'coral',
-  ],
-  [
-    'You said AI can replace SDRs. Prove it.',
-    '$5,900',
-    'PROVE IT?',
-    '1:22',
-    'KV',
-    'purple',
-  ],
-  [
-    "Reacting to Y Combinator's new AI fund.",
-    '$4,600',
-    'REACT',
-    '3:14',
-    'AR',
-    'blue',
-  ],
-];
+const portraitPositions: Record<string, string> = {
+  ...leaderboardPortraitPositions,
+  SJ: '25% 0%',
+  EC: '50% 0%',
+};
 
-function Avatar({
+function Portrait({
   initials,
-  tone = 'coral',
-  showCrown = false,
+  className = '',
 }: {
   initials: string;
-  tone?: string;
-  showCrown?: boolean;
+  className?: string;
 }) {
-  const portraitPositions: Record<string, string> = {
-    AR: '25% 0%',
-    AS: '0% 0%',
-    PM: '75% 0%',
-    RK: '100% 0%',
-    KV: '50% 0%',
-    MK: '0% 100%',
-    DP: '25% 100%',
-    SN: '50% 100%',
-    KJ: '75% 100%',
-    AT: '100% 100%',
-    SJ: '25% 0%',
-    EC: '50% 0%',
-  };
-
   return (
     <span
-      className={showCrown ? 'leaderboard-avatar-wrap has-crown' : undefined}
-    >
-      <ProfileAvatar
-        initials={initials}
-        className={`dashboard-avatar avatar-${tone}`}
-        imageSrc="/leaderboard-portraits.png"
-        imagePosition={portraitPositions[initials] ?? '50% 50%'}
-      />
-      {showCrown && (
-        <Crown
-          className="leaderboard-crown"
-          size={22}
-          strokeWidth={2}
-          fill="currentColor"
-          aria-label="Current leader"
-        />
-      )}
-    </span>
+      className={`today-portrait ${className}`}
+      style={{ backgroundPosition: portraitPositions[initials] ?? '50% 50%' }}
+      aria-hidden="true"
+    />
   );
 }
 
 type LeaderboardMarketState = 'live' | 'exposure' | 'syncing';
 
-function LeaderboardMovement({
+function BoardMovement({
   state,
   index,
   pulse,
@@ -347,64 +210,47 @@ function LeaderboardMovement({
   pulse: number;
 }) {
   if (state !== 'live') {
-    const label = state === 'exposure' ? 'EXPOSURE PERIOD' : 'SYNCING';
     return (
-      <span
-        className={`leaderboard-movement is-${state}`}
-        aria-label={
-          state === 'exposure' ? 'Exposure period' : 'Market syncing'
-        }
-      >
-        <span>—</span>
-        <small>{label}</small>
-      </span>
+      <small className="today-board-move is-flat">
+        {state === 'exposure' ? 'Exposure period' : 'Syncing'}
+      </small>
     );
   }
 
   const movement = getLeaderboardMovement(index, pulse);
-  const percentage = getLeaderboardMovementPercent(index, pulse);
   const down = movement < 0;
   const amount = `${down ? '-' : '+'}$${Math.abs(movement).toLocaleString('en-US')}`;
-  const percent = `${percentage < 0 ? '-' : '+'}${Math.abs(percentage).toFixed(1)}%`;
 
   return (
-    <span
-      className={`leaderboard-movement ${down ? 'is-down' : 'is-up'}`}
-      aria-label={`${amount}, ${percent}`}
+    <small
+      className={`today-board-move ${down ? 'is-down' : 'is-up'}`}
+      aria-label={`${amount} since the last update`}
     >
-      {down ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
-      <span>
-        <strong>{amount}</strong>
-        <small>{percent}</small>
-      </span>
-    </span>
+      {down ? <ArrowDownRight size={11} /> : <ArrowUpRight size={11} />}
+      {amount}
+    </small>
   );
 }
 
-function PulseSparkline({
-  path,
-  positive,
-}: {
-  path: string;
-  positive: boolean;
-}) {
-  return (
-    <svg
-      className={`category-pulse-sparkline ${positive ? 'is-up' : 'is-down'}`}
-      viewBox="0 0 36 20"
-      aria-hidden="true"
-    >
-      <path
-        d={path}
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </svg>
-  );
+function useEditionDate() {
+  const [date, setDate] = useState('');
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() =>
+      setDate(
+        new Intl.DateTimeFormat('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          timeZone: 'UTC',
+        }).format(new Date()),
+      ),
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+  return date;
 }
+
 
 export default function Home() {
   const { entries, market, marketFresh } = useBought();
@@ -418,6 +264,43 @@ export default function Home() {
   const [reviewSent, setReviewSent] = useState(false);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [leaderboardPulse, setLeaderboardPulse] = useState(0);
+  const editionDate = useEditionDate();
+  const moreEntries = entries.slice(1, 7);
+  const moreKey = moreEntries.map((entry) => entry.drop_id).join(',');
+  const [moreThumbnails, setMoreThumbnails] = useState<
+    Record<string, string>
+  >({});
+  useEffect(() => {
+    const ids = moreKey ? moreKey.split(',') : [];
+    if (ids.length === 0) return;
+    let cancelled = false;
+    const load = () => {
+      void Promise.all(
+        ids.map(async (id) => {
+          try {
+            const response = await fetch(`/api/bought/media/${id}`);
+            if (!response.ok) return null;
+            const media = (await response.json()) as { thumbnail?: string };
+            return media.thumbnail ? ([id, media.thumbnail] as const) : null;
+          } catch {
+            return null;
+          }
+        }),
+      ).then((pairs) => {
+        if (cancelled) return;
+        setMoreThumbnails(
+          Object.fromEntries(pairs.filter((pair) => pair !== null)),
+        );
+      });
+    };
+    load();
+    // Signed thumbnail links last 10 minutes.
+    const refresh = window.setInterval(load, 8 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(refresh);
+    };
+  }, [moreKey]);
   const leaderboardAuctionActive = marketFresh && market?.phase === 'bidding';
   const leaderboardMarketState: LeaderboardMarketState =
     leaderboardAuctionActive
@@ -445,7 +328,7 @@ export default function Home() {
         views: Math.max(1200, 14201 - selectedLeaderboard.rank * 640),
         shares: Math.max(80, 327 - selectedLeaderboard.rank * 18),
         outbidCount: Math.max(1, 7 - selectedLeaderboard.rank),
-        topRankedAt: 'LIVE',
+        topRankedAt: 'now',
       }
     : globalLeadBroadcast;
 
@@ -505,216 +388,270 @@ export default function Home() {
   }
 
   return (
-    <main className="market-shell dashboard-shell">
-      <div className="scanlines" aria-hidden="true" />
-      <MarketTopbar active="floor" />
+    <main className="market-shell dashboard-shell today-home">
 
-      <div className="dashboard-wrap homepage-content-wrap">
-        <section className="dashboard-main-grid">
-          <div className="dashboard-primary-stack">
-            <article className="leader-spot dashboard-panel homepage-broadcast-panel">
-              <div className="dashboard-section-head">
+      <div className="today-page">
+        <header className="today-masthead">
+          <div className="today-dateline">
+            <span>{editionDate || "Today's edition"}</span>
+            <span>The Bought Spotlight</span>
+            <span>Global edition</span>
+          </div>
+          <div className="today-title">
+            <h1>
+              Today&rsquo;s Spotlight<span aria-hidden="true">.</span>
+            </h1>
+            <p>
+              Bid for a place in the Bought Spotlight, the broadcast slot
+              inside our daily newspaper. The highest bid holds the top
+              position.
+            </p>
+          </div>
+        </header>
+
+        <TodayBar />
+
+        <div className="today-grid">
+          <div className="today-main">
+            <section className="today-lead" aria-label="The Lead Spotlight">
+              <div className="today-label">
                 <span>
                   {selectedLeaderboard
-                    ? 'SELECTED BROADCAST'
-                    : 'TOP POSITION RIGHT NOW'}{' '}
-                  <i /> {selectedLeaderboard ? 'FROM LEADERBOARD' : 'LIVE'}
+                    ? `Position #${selectedLeaderboard.rank} on the board`
+                    : 'The Lead Spotlight'}
+                  <i aria-hidden="true" />
                 </span>
-                {selectedLeaderboard && (
+                {selectedLeaderboard ? (
                   <button
-                    className="leader-clear-selection"
                     type="button"
                     onClick={() => setSelectedLeaderboard(null)}
                   >
-                    BACK TO TOP POSITION
+                    Back to the lead
                   </button>
+                ) : (
+                  <span className="today-label-note">Live now</span>
                 )}
               </div>
-              <BroadcastVideoCard
-                key={leadBroadcast.id}
-                broadcast={leadBroadcast}
-                playingId={playingBroadcastId}
-                onPlay={(id) =>
-                  setPlayingBroadcastId((current) =>
-                    current === id ? null : id,
-                  )
-                }
-                loadThumbnail
-                dropId={
-                  selectedLeaderboard
-                    ? selectedLeaderboard.dropId
-                    : (entries[0]?.drop_id ?? null)
-                }
-                autoPreview={!selectedLeaderboard || selectedLeaderboard.rank === 1}
-              />
-            </article>
+              <div className="today-plate">
+                <BroadcastVideoCard
+                  key={leadBroadcast.id}
+                  broadcast={leadBroadcast}
+                  playingId={playingBroadcastId}
+                  onPlay={(id) =>
+                    setPlayingBroadcastId((current) =>
+                      current === id ? null : id,
+                    )
+                  }
+                  loadThumbnail
+                  dropId={
+                    selectedLeaderboard
+                      ? selectedLeaderboard.dropId
+                      : (entries[0]?.drop_id ?? null)
+                  }
+                  autoPreview={
+                    !selectedLeaderboard || selectedLeaderboard.rank === 1
+                  }
+                />
+              </div>
+            </section>
 
-            <div className="dashboard-primary-lower-grid">
-              <section className="category-pulse-dashboard dashboard-panel">
-                <div className="dashboard-section-head">
-                  <span>CATEGORY PULSE</span>
-                  <Link href="/categories">
-                    VIEW ALL <ArrowUpRight size={11} />
-                  </Link>
+            <div className="today-lower">
+              <section className="today-sections" aria-label="Sections">
+                <div className="today-label">
+                  <span>Sections</span>
+                  <Link href="/categories">All sections</Link>
                 </div>
-                <div className="category-pulse-list">
-                  {categoryPulse.map(({ name, key, bids, positive, path }) => {
-                    const Icon = homeCategoryIcons[key];
-                    return (
-                      <button
-                        className="category-pulse-row"
-                        key={key}
-                        type="button"
-                        aria-pressed={activeCategory === key}
-                        onClick={() => selectCategory(key)}
-                      >
-                        <span className="category-pulse-icon">
-                          <Icon size={15} strokeWidth={2.2} />
-                        </span>
-                        <strong>{name}</strong>
-                        <PulseSparkline path={path} positive={positive} />
-                        <span className="category-pulse-bids category-pulse-total">
-                          {bids} ENTRIES
-                        </span>
-                      </button>
-                    );
-                  })}
+                <div className="today-section-list">
+                  {categoryPulse.map(({ name, key, bids }) => (
+                    <button
+                      className="today-section-row"
+                      key={key}
+                      type="button"
+                      aria-pressed={activeCategory === key}
+                      onClick={() => selectCategory(key)}
+                    >
+                      <strong>{name}</strong>
+                      <span className="today-leader" aria-hidden="true" />
+                      <small>{bids} entries</small>
+                    </button>
+                  ))}
                 </div>
+                {activeCategory !== 'ALL' && (
+                  <button
+                    className="today-section-reset"
+                    type="button"
+                    onClick={() => selectCategory('ALL')}
+                  >
+                    Show every section
+                  </button>
+                )}
               </section>
 
               <Link
-                className="homepage-magazine-dashboard dashboard-panel"
-                href="/magazine"
-                aria-label={`Open Magazine: yesterday's number one, ${latestIssue.title}`}
+                className="today-paper"
+                href="/newspaper"
+                aria-label="Open today's newspaper"
               >
-                <div className="dashboard-section-head">
-                  <span>MAGAZINE</span>
-                  <span className="homepage-magazine-open-label">
-                    OPEN <ArrowUpRight size={11} />
-                  </span>
-                  <span className="homepage-magazine-view-label">
-                    VIEW ALL <ArrowUpRight size={11} />
+                <div className="today-label">
+                  <span>Today&rsquo;s paper</span>
+                  <span className="today-label-note">
+                    Read <ArrowUpRight size={11} />
                   </span>
                 </div>
-                <div className="homepage-magazine-feature">
-                  <Image
-                    src={latestIssue.image}
-                    alt={`${latestIssue.person}, yesterday's number one`}
-                    fill
-                    sizes="(max-width: 700px) 100vw, (max-width: 1365px) 32vw, 22vw"
-                  />
-                  <span className="homepage-magazine-wash" aria-hidden="true" />
-                  <div className="homepage-magazine-copy">
-                    <span>
-                      YESTERDAY&apos;S #1 / ISSUE {latestIssue.number}
-                    </span>
-                    <strong>{latestIssue.title}</strong>
-                    <p>{latestIssue.person}</p>
+                <div className="today-paper-body">
+                  <div className="today-paper-image">
+                    <Image
+                      src="/newspaper/assets/swipe-rocket.jpg"
+                      alt=""
+                      fill
+                      sizes="(max-width: 700px) 40vw, 160px"
+                    />
                   </div>
-                  <p className="homepage-magazine-deck">
-                    Attention is a currency. Here&apos;s what it really costs.
-                  </p>
+                  <div className="today-paper-copy">
+                    <span className="today-kicker">Today&rsquo;s issue · 50 stories</span>
+                    <h3>The daily newspaper</h3>
+                    <p>
+                      Tech, AI, business and startups, with the Spotlight
+                      broadcasts placed between the stories.
+                    </p>
+                  </div>
                 </div>
               </Link>
             </div>
           </div>
 
-          <section className="leaderboard-panel dashboard-panel">
-            <div className="dashboard-section-head leaderboard-section-head">
-              <span>
-                {activeCategory === 'ALL'
-                  ? 'GLOBAL LEADERBOARD'
-                  : `${activeCategory} LEADERBOARD`}
-              </span>
-              <span
-                className={`leaderboard-market-state is-${leaderboardMarketState}`}
-              >
-                <i />
-                {leaderboardMarketState === 'live'
-                  ? 'LIVE AUCTION'
-                  : leaderboardMarketState === 'exposure'
-                    ? 'EXPOSURE PERIOD'
-                    : 'MARKET SYNCING'}
-              </span>
-            </div>
-            <div className="leaderboard-list">
-              {displayedLeaderboard.map((row, index) => {
-                const [name, handle, category, price, initials, tone] = row;
-                return (
-                  <button
-                    className="leaderboard-row"
-                    type="button"
-                    key={name}
-                    onClick={() => openLeaderboardBroadcast(row, index)}
-                    aria-label={`Watch ${name}'s ${category} broadcast at position ${index + 1}`}
-                  >
-                    <span className="leaderboard-rank">{index + 1}</span>
-                    <Avatar
-                      initials={initials}
-                      tone={tone}
-                      showCrown={index === 0}
-                    />
-                    <span className="leaderboard-person">
-                      <strong>{name}</strong>
-                      <small>{handle}</small>
-                    </span>
-                    <span className="leaderboard-category">{category}</span>
-                    <LeaderboardMovement
-                      state={leaderboardMarketState}
-                      index={index}
-                      pulse={leaderboardPulse}
-                    />
-                    <strong className="leaderboard-price">{price}</strong>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+          <aside className="today-rail">
+            <section className="today-board" aria-label="Spotlight Board">
+              <div className="today-label">
+                <span>
+                  {activeCategory === 'ALL'
+                    ? 'The Spotlight Board'
+                    : `${activeCategory} board`}
+                </span>
+                <span
+                  className={`today-state is-${leaderboardMarketState}`}
+                >
+                  <i aria-hidden="true" />
+                  {leaderboardMarketState === 'live'
+                    ? 'Auction live'
+                    : leaderboardMarketState === 'exposure'
+                      ? 'Exposure period'
+                      : 'Syncing'}
+                </span>
+              </div>
+              <ol className="today-board-list">
+                {displayedLeaderboard.map((row, index) => {
+                  const [name, , category, price, initials] = row;
+                  const selected = selectedLeaderboard?.rank === index + 1;
+                  return (
+                    <li key={name}>
+                      <button
+                        className="today-board-row"
+                        type="button"
+                        aria-current={selected ? 'true' : undefined}
+                        onClick={() => openLeaderboardBroadcast(row, index)}
+                        aria-label={`Watch ${name}'s ${category} broadcast at position ${index + 1}`}
+                      >
+                        <span className="today-board-rank">{index + 1}</span>
+                        <Portrait initials={initials} />
+                        <span className="today-board-person">
+                          <strong>{name}</strong>
+                          <small>
+                            {index === 0 && <b>Lead · </b>}
+                            {category.toLowerCase()}
+                          </small>
+                        </span>
+                        <span className="today-board-bid">
+                          <strong>{price}</strong>
+                          <BoardMovement
+                            state={leaderboardMarketState}
+                            index={index}
+                            pulse={leaderboardPulse}
+                          />
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
 
-          <div className="dashboard-activity-stack">
-            <section className="club-dashboard dashboard-panel">
-              <span className="club-crown" aria-hidden="true">
-                ♛
-              </span>
-              <strong>THE BOUGHT CLUB</strong>
+            <section className="today-club" aria-label="The Bought Club">
+              <span className="today-kicker">Membership</span>
+              <h3>The Bought Club</h3>
               <p>
                 Founding members get monthly slots, priority access and a
                 permanent badge.
               </p>
-              <span className="club-price">
-                $— <small>/ MONTH</small>
-              </span>
-              <span className="club-coming-soon">COMING SOON...</span>
+              <div className="today-club-foot">
+                <span>
+                  $&mdash; <small>/ month</small>
+                </span>
+                <span className="today-club-soon">Coming soon</span>
+              </div>
             </section>
 
-            <article className="review-dashboard dashboard-panel">
-              <div className="review-dashboard-body">
-                <ProfileAvatar
-                  initials="JB"
-                  className="review-avatar"
-                  alt="Arnav, Indie Hacker"
-                />
-                <div className="review-copy">
-                  <p>
-                    &ldquo;This platform cuts through the fake noise. Love
-                    it.&rdquo;
-                  </p>
-                  <span>— Arnav, Indie Hacker</span>
-                </div>
-              </div>
+            <section className="today-letter" aria-label="From the readers">
+              <span className="today-kicker">From the readers</span>
+              <blockquote>
+                &ldquo;This platform cuts through the fake noise. Love it.&rdquo;
+              </blockquote>
+              <cite>Arnav, Indie Hacker</cite>
               <button
-                className="review-add-trigger"
                 type="button"
                 onClick={() => {
                   setReviewSent(false);
                   setReviewOpen(true);
                 }}
               >
-                ADD A REVIEW
+                Write a review
               </button>
-            </article>
-          </div>
-        </section>
+            </section>
+          </aside>
+        </div>
+
+        {moreEntries.length > 0 && (
+          <section
+            className="today-more"
+            aria-label="More from today's Spotlight"
+          >
+            <div className="today-label">
+              <span>More from today&rsquo;s Spotlight</span>
+              <Link href="/categories">View all</Link>
+            </div>
+            <div className="today-more-row">
+              {moreEntries.map((entry) => (
+                <article className="today-more-card" key={entry.drop_id}>
+                  <div className="today-more-thumb">
+                    {moreThumbnails[entry.drop_id] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        className="today-more-photo"
+                        src={moreThumbnails[entry.drop_id]}
+                        alt=""
+                      />
+                    ) : (
+                      <span className="today-more-photo" aria-hidden="true" />
+                    )}
+                  </div>
+                  <span className="today-kicker is-red">
+                    {entry.category.toLowerCase()}
+                  </span>
+                  <h3>{entry.title}</h3>
+                  <p>
+                    {entry.amount_minor > 0 ? (
+                      <>
+                        Bid <strong>{money(entry.amount_minor)}</strong>
+                      </>
+                    ) : (
+                      <strong>Free entry</strong>
+                    )}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
 
         {reviewOpen && (
           <div
@@ -771,26 +708,6 @@ export default function Home() {
             </dialog>
           </div>
         )}
-
-        <section className="trending-dashboard dashboard-panel">
-          <div className="dashboard-section-head">
-            <span>TRENDING BROADCASTS</span>
-            <Link href="/categories">VIEW ALL</Link>
-          </div>
-          <div className="trending-row">
-            {trending.map(([title, price, tag, duration, initials, tone]) => (
-              <article className="trending-card" key={title}>
-                <div className={`trend-thumb avatar-${tone}`}>
-                  <Avatar initials={initials} tone={tone} />
-                  <span>{duration}</span>
-                </div>
-                <h3>{title}</h3>
-                <span className={`trend-tag tone-${tone}`}>{tag}</span>
-                <strong>{price}</strong>
-              </article>
-            ))}
-          </div>
-        </section>
 
         <MarketFooter />
       </div>

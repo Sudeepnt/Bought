@@ -219,7 +219,6 @@ function TrendSparkline({ position }: { position: WatchPosition }) {
 export default function WatchlistPage() {
   return (
     <MarketPageShell
-      active="watchlist"
       eyebrow="YOUR WATCHLIST / 08 POSITIONS"
       title="Your market watch desk."
       description="See what moved, where attention is building, and which positions need a closer look."

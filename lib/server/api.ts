@@ -108,10 +108,7 @@ async function ownedDrop(id: string, userId: string) {
 
 function editable(drop: Drop) {
   if (['refunded', 'disputed'].includes(drop.payment_state))
-    throw new HttpError(
-      402,
-      'A reversed payment cannot be edited.',
-    );
+    throw new HttpError(402, 'A reversed payment cannot be edited.');
   if (!['draft', 'rejected'].includes(drop.state))
     throw new HttpError(409, 'This broadcast has already been submitted.');
 }
@@ -178,7 +175,7 @@ async function expireUnusedRecordings() {
       'id,state,mux_asset_id,mux_upload_expires_at,created_at,submitted_at',
     )
     .in('state', ['draft', 'rejected'])
-    .eq('media_state', 'ready')
+    .in('media_state', ['ready', 'errored'])
     .not('mux_asset_id', 'is', null)
     .order('created_at', { ascending: true })
     .limit(50);
@@ -359,10 +356,7 @@ export async function handleApi(request: Request) {
       const { data: market, error: marketError } =
         await db.rpc('bought_advance');
       dbError(marketError);
-      if (
-        drop.state !== 'published' ||
-        drop.auction_id !== market.auctionId
-      )
+      if (drop.state !== 'published' || drop.auction_id !== market.auctionId)
         throw new HttpError(404, 'Broadcast not found.');
       if (
         drop.media_state !== 'ready' ||
@@ -393,8 +387,7 @@ export async function handleApi(request: Request) {
         await db.rpc('bought_advance');
       dbError(marketError);
       const isPublic =
-        drop.state === 'published' &&
-        drop.auction_id === market.auctionId;
+        drop.state === 'published' && drop.auction_id === market.auctionId;
       const unusedRecordingExpired =
         ['draft', 'rejected'].includes(drop.state) &&
         recordingSavedAt({
@@ -577,13 +570,14 @@ export async function handleApi(request: Request) {
         category: body.category,
         capture_mode: captureModeForCategory(body.category),
         title: body.title.trim(),
-        creator_name: [
-          user.user_metadata?.display_name,
-          user.user_metadata?.full_name,
-        ]
-          .find((name): name is string => typeof name === 'string' && name.trim().length > 0)
-          ?.trim()
-          .slice(0, 80) ?? 'BOUGHT creator',
+        creator_name:
+          [user.user_metadata?.display_name, user.user_metadata?.full_name]
+            .find(
+              (name): name is string =>
+                typeof name === 'string' && name.trim().length > 0,
+            )
+            ?.trim()
+            .slice(0, 80) ?? 'BOUGHT creator',
         amount_minor: body.amountMinor,
         provider: body.provider,
       });
@@ -641,6 +635,16 @@ export async function handleApi(request: Request) {
           503,
           'Payments are not available yet. Your draft is saved.',
         );
+      // A boost only changes the ladder of the auction the broadcast sits in.
+      // Charging for one from a finished auction would take money for nothing.
+      const { data: market, error: marketError } =
+        await db.rpc('bought_advance');
+      dbError(marketError);
+      if (drop.auction_id !== market.auctionId)
+        throw new HttpError(
+          409,
+          'Boost bids are only open for broadcasts in today’s market.',
+        );
       const { data: claimed, error: claimError } = await db.rpc(
         'bought_claim_checkout',
         { p_drop_id: drop.id },
@@ -686,6 +690,7 @@ export async function handleApi(request: Request) {
     }
     if (path[2] === 'upload') {
       editable(drop);
+      const replacedAssetId = drop.mux_asset_id;
       const { data: claimed, error: claimError } = await db.rpc(
         'bought_claim_upload',
         { p_drop_id: drop.id, p_replace: body.replace === true },
@@ -747,6 +752,13 @@ export async function handleApi(request: Request) {
             })
             .eq('id', drop.id);
           dbError(error);
+          if (replacedAssetId) {
+            // The claim detached the previous take; remove it from Mux so
+            // abandoned retakes do not accumulate storage.
+            await deleteMuxAsset(replacedAssetId).catch(() =>
+              console.error('BOUGHT replaced recording cleanup is pending.'),
+            );
+          }
         } catch (error) {
           if (muxUploadCreated) {
             await db

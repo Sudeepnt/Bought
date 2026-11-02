@@ -614,6 +614,7 @@ export function DropRecorder({
     if (importing) return;
     setImporting(true);
     setError('');
+    setNotice('');
     const url = URL.createObjectURL(file);
     try {
       const metadata = await new Promise<{
@@ -833,6 +834,11 @@ export function DropRecorder({
       {notice && <p className="drop-notice">{notice}</p>}
       {!blob ? (
         <>
+          {error && (
+            <p className="drop-error" role="alert">
+              {error}
+            </p>
+          )}
           {drop.capture_mode === 'screen' ? (
             <ScreenRecorder dropId={drop.id} onRecorded={onRecorded} />
           ) : (
@@ -874,7 +880,7 @@ export function DropRecorder({
           <div className="drop-camera drop-recorded">
             <video
               ref={preview}
-              src={videoUrl}
+              src={videoUrl || undefined}
               controls
               playsInline
               aria-label="Preview your recorded broadcast"

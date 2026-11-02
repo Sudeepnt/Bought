@@ -28,6 +28,7 @@
     "out/**",
     "build/**",
     "dist/**",
+    "public/newspaper/**",
     "coverage/**",
     "public/mediapipe/**",
     "next-env.d.ts"

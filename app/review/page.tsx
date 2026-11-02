@@ -5,7 +5,6 @@ import { FileText, Quote, RefreshCw } from 'lucide-react';
 import { useBought } from '@/components/bought-provider';
 import { DropSignIn } from '@/components/drop-sign-in';
 import { DropPlayer } from '@/components/drop-player';
-import { MarketTopbar } from '@/components/market-topbar';
 import { money, type Drop } from '@/lib/drop-domain';
 
 function TranscriptPanel({
@@ -33,7 +32,7 @@ function TranscriptPanel({
       <header>
         <div>
           <FileText size={17} />
-          <span>MAGAZINE TRANSCRIPT / ENGLISH</span>
+          <span>BROADCAST TRANSCRIPT / ENGLISH</span>
         </div>
         <strong data-state={drop.transcription_status}>{statusLabel}</strong>
       </header>
@@ -150,8 +149,7 @@ export default function ReviewPage() {
     }
   }
   return (
-    <main className="market-shell dashboard-shell">
-      <MarketTopbar active="review" />
+    <main className="market-shell dashboard-shell paper-page">
       <div className="drop-page">
         <header className="drop-page-heading">
           <div>

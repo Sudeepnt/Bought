@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from '@/components/site-link';
 
 import { MarketFooter } from '@/components/market-chrome';
-import { MarketTopbar } from '@/components/market-topbar';
 
 export const metadata: Metadata = {
   title: 'Terms of Service — BOUGHT',
@@ -24,8 +23,7 @@ const sections = [
 
 export default function TermsPage() {
   return (
-    <main className="market-shell dashboard-shell legal-shell">
-      <MarketTopbar active="terms" />
+    <main className="market-shell dashboard-shell paper-page legal-shell">
       <div className="legal-page">
         <header className="legal-hero">
           <div>
@@ -62,7 +60,7 @@ export default function TermsPage() {
               These Terms of Service (the “Terms”) govern access to and use of
               BOUGHT (the “Service”), including the public floor,
               broadcast recording and publishing flow, profiles, watchlists,
-              magazine, and checkout. By accessing BOUGHT, creating an account,
+              newspaper, and checkout. By accessing BOUGHT, creating an account,
               submitting a broadcast, or completing a payment, you agree to these
               Terms.
             </p>

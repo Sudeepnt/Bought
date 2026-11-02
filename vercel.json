@@ -68,7 +68,7 @@
       ]
     },
     {
-      "source": "/magazine/(.*)",
+      "source": "/newspaper/assets/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

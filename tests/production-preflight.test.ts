@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const script = new URL('../scripts/check-production-env.mjs', import.meta.url);
@@ -32,7 +33,7 @@ const validEnvironment = {
 };
 
 function preflight(overrides: Record<string, string> = {}) {
-  return spawnSync(process.execPath, [script.pathname], {
+  return spawnSync(process.execPath, [fileURLToPath(script)], {
     encoding: 'utf8',
     env: { ...validEnvironment, ...overrides } as NodeJS.ProcessEnv,
   });
@@ -50,7 +51,10 @@ void test('production preflight permits free publishing without a checkout provi
     STRIPE_WEBHOOK_SECRET: '',
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /Enabled checkout: none \(free publishing only\)/);
+  assert.match(
+    result.stdout,
+    /Enabled checkout: none \(free publishing only\)/,
+  );
 });
 
 void test('Vercel production builds fail closed through the credential preflight', () => {

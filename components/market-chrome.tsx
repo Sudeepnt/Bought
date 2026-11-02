@@ -5,15 +5,15 @@ import {
   BarChart3,
   Eye,
   LockKeyhole,
-  Radio,
   Timer,
   Users,
 } from 'lucide-react';
 import Link from '@/components/site-link';
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import { BrandLogo } from './brand-logo';
 import { useBought } from './bought-provider';
 import { money } from '@/lib/drop-domain';
+import '@/app/today.css';
 
 type FeedItem = readonly [
   name: string,
@@ -24,10 +24,10 @@ type FeedItem = readonly [
 ];
 
 const MARKET_MARQUEE_PIXELS_PER_SECOND = 60;
-const FALLBACK_BOARD_TOTAL_MINOR = 5_530_000;
-const FALLBACK_BOARD_BROADCASTS = 10;
+export const FALLBACK_BOARD_TOTAL_MINOR = 5_530_000;
+export const FALLBACK_BOARD_BROADCASTS = 10;
 
-function useMarketCountdown() {
+export function useMarketCountdown() {
   const { market, serverTime, marketFresh, entries } = useBought();
   const [previewSeconds, setPreviewSeconds] = useState<number | null>(null);
 
@@ -92,33 +92,46 @@ function useMarketCountdown() {
   };
 }
 
-function CountdownSegments({
+export function BidClock({
   countdown,
   countdownReady,
+  exposureLocked,
+  className = '',
 }: {
   countdown: { hours: string; minutes: string; seconds: string };
   countdownReady: boolean;
+  exposureLocked: boolean;
+  className?: string;
 }) {
   return (
-    <div className="countdown-segments">
-      <span className="countdown-segment">
-        <strong>{countdownReady ? countdown.hours : '--'}</strong>
-        <small>HOURS</small>
+    <div className={`bid-clock ${className}`}>
+      <span className="bid-clock-icon" aria-hidden="true">
+        {exposureLocked ? (
+          <LockKeyhole size={34} strokeWidth={1.8} />
+        ) : (
+          <Timer size={34} strokeWidth={1.8} />
+        )}
       </span>
-      <strong className="countdown-separator" aria-hidden="true">
-        :
-      </strong>
-      <span className="countdown-segment is-pulsing">
-        <strong>{countdownReady ? countdown.minutes : '--'}</strong>
-        <small>MINUTES</small>
-      </span>
-      <strong className="countdown-separator" aria-hidden="true">
-        :
-      </strong>
-      <span className="countdown-segment is-pulsing">
-        <strong>{countdownReady ? countdown.seconds : '--'}</strong>
-        <small>SECONDS</small>
-      </span>
+      <div className="bid-clock-text">
+        <span className="bid-clock-kicker">
+          {exposureLocked ? 'Final positions' : 'Bidding closes in'}
+        </span>
+        <strong
+          className="bid-clock-time"
+          aria-label={
+            countdownReady
+              ? `${countdown.hours} hours ${countdown.minutes} minutes ${countdown.seconds} seconds`
+              : 'Syncing'
+          }
+        >
+          {countdownReady
+            ? `${countdown.hours}:${countdown.minutes}:${countdown.seconds}`
+            : '--:--:--'}
+        </strong>
+        <small>
+          {exposureLocked ? 'Exposure locked' : 'Hours · minutes · seconds'}
+        </small>
+      </div>
     </div>
   );
 }
@@ -165,77 +178,38 @@ export const fallbackFeedItems: FeedItem[] = [
   ['Leo M.', 'moved into the top five in', 'PRODUCT LAUNCH', '$2,300', '3m ago'],
 ];
 
-export function MarketStatusStrip({
-  eyebrow = 'THE OPEN POSITION',
-  title = 'BE THE NEXT #1',
-}: {
-  eyebrow?: string;
-  title?: string;
-}) {
-  const {
-    countdown,
-    countdownReady,
-    countdownIsCritical,
-    countdownIsUrgent,
-    entries,
-    exposureLocked,
-  } = useMarketCountdown();
-  const hasPublishedEntries = entries.length > 0;
-  const totalAmount = hasPublishedEntries
-    ? entries.reduce((sum, entry) => sum + entry.amount_minor, 0)
-    : FALLBACK_BOARD_TOTAL_MINOR;
-  const broadcastCount = hasPublishedEntries
-    ? entries.length
-    : FALLBACK_BOARD_BROADCASTS;
+export function TodayBar() {
+  const { entries } = useBought();
+  const { countdown, countdownReady, exposureLocked } = useMarketCountdown();
+  const totalAmount =
+    entries.length > 0
+      ? entries.reduce((sum, entry) => sum + entry.amount_minor, 0)
+      : FALLBACK_BOARD_TOTAL_MINOR;
+  const broadcastCount =
+    entries.length > 0 ? entries.length : FALLBACK_BOARD_BROADCASTS;
 
   return (
-    <section
-      className="dashboard-status-row dashboard-status-panel"
-      aria-label="Market status"
-    >
-      <div className="total-panel dashboard-panel">
-        <div>
-          <span className="dashboard-eyebrow">TODAY&apos;S TOTAL</span>
-          <strong>{money(totalAmount)}</strong>
-        </div>
-        <div>
-          <span className="dashboard-delta">
-            <ArrowUpRight size={13} /> {broadcastCount} BROADCASTS
-          </span>
-        </div>
+    <section className="today-bar" aria-label="Auction status">
+      <div className="today-bar-cell">
+        <span className="today-kicker">Bids placed today</span>
+        <strong className="today-figure">{money(totalAmount)}</strong>
+        <small>
+          {broadcastCount} {broadcastCount === 1 ? 'broadcast' : 'broadcasts'}
+        </small>
       </div>
-      <div className="next-position dashboard-panel">
-        <div>
-          <span className="dashboard-eyebrow">{eyebrow}</span>
-          <strong>{title}</strong>
-        </div>
-        <div className="next-position-mark">
-          <Radio size={17} />
-          <Link href="/broadcast">MAKE A BROADCAST</Link>
-        </div>
+      <div className="today-bar-cell today-bar-action">
+        <span className="today-kicker">Your turn</span>
+        <Link className="today-cta" href="/broadcast">
+          Make a broadcast <ArrowUpRight size={14} />
+        </Link>
       </div>
-      <div
-        className={`status-countdown dashboard-panel ${countdownIsUrgent ? 'is-urgent' : ''} ${countdownIsCritical ? 'is-critical' : ''}`}
-      >
-        <div className="countdown-icon">
-          {exposureLocked ? (
-            <LockKeyhole size={40} strokeWidth={1.8} />
-          ) : (
-            <Timer size={40} strokeWidth={1.8} />
-          )}
-        </div>
-        <div className="countdown-label">
-          <strong>{exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
-          <span>
-            {exposureLocked ? 'EXPOSURE LOCKED' : 'MARKET CLOSES IN'}
-          </span>
-        </div>
-        <div className="countdown-value">
-          <CountdownSegments
-            countdown={countdown}
-            countdownReady={countdownReady}
-          />
-        </div>
+      <div className="today-bar-cell today-bar-clock">
+        <BidClock
+          className="today-bid-clock"
+          countdown={countdown}
+          countdownReady={countdownReady}
+          exposureLocked={exposureLocked}
+        />
       </div>
     </section>
   );
@@ -250,74 +224,12 @@ export function FloatingMarketCountdown({ visible }: { visible: boolean }) {
       aria-label="Persistent market countdown"
       aria-hidden={!visible}
     >
-      <span className="floating-market-countdown-icon" aria-hidden="true">
-        {exposureLocked ? (
-          <LockKeyhole size={28} strokeWidth={1.8} />
-        ) : (
-          <Timer size={28} strokeWidth={1.8} />
-        )}
-      </span>
-      <div className="countdown-label floating-market-countdown-label">
-        <strong>{exposureLocked ? 'FINAL POSITIONS' : 'NEXT DROP'}</strong>
-        <span>
-          {exposureLocked ? 'EXPOSURE LOCKED' : 'MARKET CLOSES IN'}
-        </span>
-      </div>
-      <div className="countdown-value floating-market-countdown-time">
-        <CountdownSegments
-          countdown={countdown}
-          countdownReady={countdownReady}
-        />
-      </div>
+      <BidClock
+        countdown={countdown}
+        countdownReady={countdownReady}
+        exposureLocked={exposureLocked}
+      />
     </aside>
-  );
-}
-
-export function LiveMarketFeed() {
-  const { entries } = useBought();
-  const trackRef = useRef<HTMLDivElement>(null);
-  const marqueeDuration = useMarqueeDuration(trackRef);
-  const publishedFeedItems: FeedItem[] = entries
-    .slice(0, 8)
-    .map((entry) => [
-      entry.title,
-      entry.position === 1 ? 'took #1 in' : `took #${entry.position} in`,
-      entry.category,
-      entry.amount_minor > 0 ? money(entry.amount_minor) : 'FREE ENTRY',
-      'just now',
-    ]);
-  const feedItems = [...publishedFeedItems, ...fallbackFeedItems].slice(0, 14);
-  const feedLoop = [...feedItems, ...feedItems];
-
-  return (
-    <div className="live-feed dashboard-panel">
-      <span className="live-feed-label">
-        <i /> LIVE FEED
-      </span>
-      <div
-        className="live-feed-viewport"
-        aria-label="Continuously updating live feed"
-      >
-        <div
-          className="live-feed-track"
-          ref={trackRef}
-          style={
-            marqueeDuration ? { animationDuration: marqueeDuration } : undefined
-          }
-        >
-          {feedLoop.map(([name, action, category, amount, time], index) => (
-            <span
-              aria-hidden={index >= feedItems.length ? true : undefined}
-              key={`${name}-${action}-${time}-${index}`}
-            >
-              <b>{name}</b> {action} <strong>{category}</strong>
-              {amount && <em> · {amount}</em>}
-              <small> · {time}</small>
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -348,7 +260,7 @@ export function MarketFooter() {
       <div className="footer-links">
         <Link href="/how-it-works">How it works</Link>
         <Link href="/categories">Categories</Link>
-        <Link href="/magazine">Magazine</Link>
+        <Link href="/newspaper">Newspaper</Link>
         <Link href="/terms">Terms</Link>
       </div>
     </footer>

@@ -37,8 +37,7 @@ import {
 import {
   fallbackFeedItems,
   FloatingMarketCountdown,
-  LiveMarketFeed,
-  MarketStatusStrip,
+  TodayBar,
   useMarqueeDuration,
 } from './market-chrome';
 import { money } from '@/lib/drop-domain';
@@ -51,7 +50,7 @@ import {
 export type MarketPage =
   | 'floor'
   | 'watchlist'
-  | 'magazine'
+  | 'newspaper'
   | 'rules'
   | 'categories'
   | 'chat'
@@ -63,7 +62,7 @@ export type MarketPage =
 const navigation: Array<{ key: MarketPage; label: string; href: string }> = [
   { key: 'floor', label: 'TODAY', href: '/' },
   { key: 'categories', label: 'CATEGORIES', href: '/categories' },
-  { key: 'magazine', label: 'MAGAZINE', href: '/magazine' },
+  { key: 'newspaper', label: 'NEWSPAPER', href: '/newspaper' },
   { key: 'watchlist', label: 'WATCHLIST', href: '/watchlist' },
   { key: 'rules', label: 'HOW IT WORKS', href: '/how-it-works' },
   { key: 'profile', label: 'PROFILE', href: '/profile' },
@@ -82,7 +81,7 @@ const mobileNavigation: Array<{
     href: '/categories',
     icon: LayoutGrid,
   },
-  { key: 'magazine', label: 'Magazine', href: '/magazine', icon: Newspaper },
+  { key: 'newspaper', label: 'Newspaper', href: '/newspaper', icon: Newspaper },
   { key: 'watchlist', label: 'Watchlist', href: '/watchlist', icon: Bookmark },
   { key: 'profile', label: 'Profile', href: '/profile', icon: CircleUser },
 ];
@@ -102,13 +101,13 @@ function subscribeToTheme(onStoreChange: () => void) {
 }
 
 function getStoredTheme(): Theme {
-  return window.localStorage.getItem('bought-theme') === 'light'
-    ? 'light'
-    : 'dark';
+  return window.localStorage.getItem('bought-theme') === 'dark'
+    ? 'dark'
+    : 'light';
 }
 
 function getServerTheme(): Theme {
-  return 'dark';
+  return 'light';
 }
 
 function utcTime(date: Date) {
@@ -260,7 +259,7 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
 
     const updateFloatingCountdown = () => {
       frame = null;
-      const countdown = chromeRef.current?.querySelector('.status-countdown');
+      const countdown = document.querySelector('.today-bar-clock');
       const stickyHeader = chromeRef.current?.querySelector(
         '.market-sticky-header',
       );
@@ -369,6 +368,7 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
                 className={`top-navigation-link ${active === item.key ? 'is-active' : ''}`}
                 href={item.href}
                 key={`${item.label}-${index}`}
+                onClick={item.key === 'profile' ? openProfile : undefined}
                 aria-current={
                   active === item.key && item.label !== 'PRICE INDEX'
                     ? 'page'
@@ -440,18 +440,18 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
                       <dd>$0.00</dd>
                     </div>
                   </dl>
+                  <button
+                    className="wallet-deposit-button"
+                    type="button"
+                    onClick={openDeposit}
+                    aria-haspopup="dialog"
+                    aria-expanded={addFundsOpen}
+                  >
+                    <ArrowDownToLine size={15} strokeWidth={2} />
+                    <span>Deposit</span>
+                  </button>
                 </dialog>
               </div>
-              <button
-                className="deposit-button"
-                type="button"
-                onClick={openDeposit}
-                aria-haspopup="dialog"
-                aria-expanded={addFundsOpen}
-              >
-                <ArrowDownToLine size={15} strokeWidth={2} />
-                <span>Deposit</span>
-              </button>
               <div
                 className="market-notification-menu"
                 ref={notificationMenuRef}
@@ -708,10 +708,7 @@ export function MarketTopbar({ active }: { active: MarketPage }) {
         })}
       </nav>
       <div className="dashboard-wrap market-status-wrap">
-        <MarketStatusStrip />
-      </div>
-      <div className="dashboard-wrap market-live-feed-wrap">
-        <LiveMarketFeed />
+        <TodayBar />
       </div>
       <FloatingMarketCountdown visible={floatingCountdownVisible} />
       {addFundsOpen && <AddFundsModal onClose={closeAddFunds} />}

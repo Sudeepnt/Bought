@@ -48,7 +48,7 @@ import {
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
 
-import { MarketTopbar } from '@/components/market-topbar';
+import '../today.css';
 import { DropPlayer } from '@/components/drop-player';
 import { BroadcastThumbnailPreview } from '@/components/broadcast-thumbnail-preview';
 import { ProfileAvatar } from '@/components/profile-avatar';
@@ -2384,27 +2384,11 @@ export default function CategoriesPage() {
     {},
   );
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const slotRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const stageRef = useRef<HTMLElement | null>(null);
   const activeIndexRef = useRef(0);
-  const scrollFrame = useRef<number | null>(null);
   const pageScrollFrame = useRef<number | null>(null);
 
   const allCategory = categories[0];
   const AllCategoryIcon = allCategory.icon;
-  const activeVisualIndex = categoryTabIndices.indexOf(activeIndex);
-
-  const scrollToCategory = useCallback(
-    (index: number, behavior: ScrollBehavior = 'auto') => {
-      const stage = stageRef.current;
-      const slot = slotRefs.current[index];
-      if (!stage || !slot) return;
-
-      const left = slot.offsetLeft - (stage.clientWidth - slot.offsetWidth) / 2;
-      stage.scrollTo({ left, behavior });
-    },
-    [],
-  );
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -2431,10 +2415,9 @@ export default function CategoriesPage() {
           ),
         }));
       }
-      scrollToCategory(selectedIndex, 'auto');
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [scrollToCategory, visibleBroadcasts]);
+  }, [visibleBroadcasts]);
 
   useEffect(() => {
     tabRefs.current[categoryTabIndices.indexOf(activeIndex)]?.scrollIntoView({
@@ -2443,14 +2426,6 @@ export default function CategoriesPage() {
       inline: 'center',
     });
   }, [activeIndex]);
-
-  useEffect(
-    () => () => {
-      if (scrollFrame.current !== null)
-        window.cancelAnimationFrame(scrollFrame.current);
-    },
-    [],
-  );
 
   useEffect(() => {
     function handlePageScroll() {
@@ -2485,7 +2460,6 @@ export default function CategoriesPage() {
     setFeaturedBroadcastId(null);
     setPlayingId(null);
     setReelResume(null);
-    scrollToCategory(nextIndex, 'auto');
   }
 
   const toggleBroadcast = useCallback((id: string) => {
@@ -2544,40 +2518,9 @@ export default function CategoriesPage() {
     selectCategory(categoryTabIndices[nextTabIndex]);
   }
 
-  function handleScroll() {
-    if (scrollFrame.current !== null) return;
-
-    scrollFrame.current = window.requestAnimationFrame(() => {
-      scrollFrame.current = null;
-      const stage = stageRef.current;
-      if (!stage) return;
-
-      const viewportCenter = stage.scrollLeft + stage.clientWidth / 2;
-      let nearestIndex = activeIndexRef.current;
-      let nearestDistance = Number.POSITIVE_INFINITY;
-
-      slotRefs.current.forEach((slot, index) => {
-        if (!slot) return;
-        const slotCenter = slot.offsetLeft + slot.offsetWidth / 2;
-        const distance = Math.abs(slotCenter - viewportCenter);
-        if (distance >= nearestDistance) return;
-        nearestIndex = index;
-        nearestDistance = distance;
-      });
-
-      if (nearestIndex === activeIndexRef.current) return;
-      activeIndexRef.current = nearestIndex;
-      setActiveIndex(nearestIndex);
-      setFeaturedBroadcastId(null);
-      setPlayingId(null);
-      setReelResume(null);
-    });
-  }
-
   return (
-    <main className="market-shell dashboard-shell category-carousel-page">
+    <main className="market-shell dashboard-shell today-edition category-carousel-page">
       <div className="scanlines" aria-hidden="true" />
-      <MarketTopbar active="categories" />
 
       <div className="dashboard-wrap category-carousel-filter-wrap">
         <section
@@ -2651,59 +2594,39 @@ export default function CategoriesPage() {
 
       <div className="dashboard-wrap category-carousel-wrap">
         <section
-          ref={stageRef}
-          className="category-carousel-stage"
-          aria-label="Category leaderboard carousel"
-          aria-roledescription="carousel"
-          aria-live="polite"
-          onScroll={handleScroll}
+          className="category-single-stage"
+          aria-label="Category leaderboard"
         >
-          {categoryTabIndices.map((index, visualIndex) => {
-            const category = categories[index];
-            const position =
-              index === activeIndex
-                ? 'active'
-                : visualIndex < activeVisualIndex
-                  ? 'previous'
-                  : 'next';
-
+          {(() => {
+            const category = categories[activeIndex];
             return (
-              <div
-                ref={(element) => {
-                  slotRefs.current[index] = element;
-                }}
-                className={`category-carousel-slot is-${position}`}
+              <CategoryPanel
                 key={category.name}
-              >
-                {position === 'active' && (
-                  <CategoryPanel
-                    category={category}
-                    broadcasts={visibleBroadcasts[index]}
-                    playingId={playingId}
-                    onPlay={toggleBroadcast}
-                    selectedBroadcastId={featuredBroadcastId}
-                    onSelectBroadcast={selectBroadcast}
-                    onReelExit={exitReel}
-                    reelResume={reelResume}
-                    visibleCount={
-                      visibleCounts[category.name] ?? initialBroadcastCount
-                    }
-                    onLoadMore={loadMoreBroadcasts}
-                    dropIdsByRank={Object.fromEntries(
-                      category.name === 'ALL'
-                        ? entries.map((entry) => [entry.position, entry.drop_id])
-                        : entries
-                            .filter(
-                              (entry) =>
-                                entry.category.toUpperCase() === category.name,
-                            )
-                            .map((entry, position) => [position + 1, entry.drop_id]),
-                    )}
-                  />
+                category={category}
+                broadcasts={visibleBroadcasts[activeIndex]}
+                playingId={playingId}
+                onPlay={toggleBroadcast}
+                selectedBroadcastId={featuredBroadcastId}
+                onSelectBroadcast={selectBroadcast}
+                onReelExit={exitReel}
+                reelResume={reelResume}
+                visibleCount={
+                  visibleCounts[category.name] ?? initialBroadcastCount
+                }
+                onLoadMore={loadMoreBroadcasts}
+                dropIdsByRank={Object.fromEntries(
+                  category.name === 'ALL'
+                    ? entries.map((entry) => [entry.position, entry.drop_id])
+                    : entries
+                        .filter(
+                          (entry) =>
+                            entry.category.toUpperCase() === category.name,
+                        )
+                        .map((entry, position) => [position + 1, entry.drop_id]),
                 )}
-              </div>
+              />
             );
-          })}
+          })()}
         </section>
       </div>
 

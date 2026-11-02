@@ -1,8 +1,14 @@
 import type { Metadata } from 'next';
-import { Barlow_Condensed, Inter, JetBrains_Mono } from 'next/font/google';
+import {
+  Barlow_Condensed,
+  Inter,
+  JetBrains_Mono,
+  Newsreader,
+} from 'next/font/google';
 import './globals.css';
 import './drop.css';
 import { BoughtProvider } from '@/components/bought-provider';
+import { MarketFrame } from '@/components/market-frame';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -19,6 +25,12 @@ const jetBrainsMono = JetBrains_Mono({
   variable: '--font-jetbrains',
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
+});
+
+const newsreader = Newsreader({
+  variable: '--font-newsreader',
+  subsets: ['latin'],
+  style: ['normal', 'italic'],
 });
 
 export const metadata: Metadata = {
@@ -47,14 +59,16 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try { if (localStorage.getItem('bought-theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch {}",
+              "try { if (localStorage.getItem('bought-theme') !== 'dark') document.documentElement.dataset.theme = 'light'; } catch { document.documentElement.dataset.theme = 'light'; }",
           }}
         />
       </head>
       <body
-        className={`${inter.variable} ${barlowCondensed.variable} ${jetBrainsMono.variable}`}
+        className={`${inter.variable} ${barlowCondensed.variable} ${jetBrainsMono.variable} ${newsreader.variable}`}
       >
-        <BoughtProvider>{children}</BoughtProvider>
+        <BoughtProvider>
+          <MarketFrame>{children}</MarketFrame>
+        </BoughtProvider>
       </body>
     </html>
   );

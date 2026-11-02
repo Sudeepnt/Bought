@@ -41,7 +41,6 @@ const rules = [
 export default function HowItWorksPage() {
   return (
     <MarketPageShell
-      active="rules"
       eyebrow="THE BOUGHT MODEL"
       title="One auction. One market."
       description="The same global market resolves in UTC, regardless of where someone joins the room."

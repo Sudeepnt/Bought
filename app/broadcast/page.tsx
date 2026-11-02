@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   Video,
 } from 'lucide-react';
-import { MarketTopbar } from '@/components/market-topbar';
 import { useBought } from '@/components/bought-provider';
 import { DropSignIn } from '@/components/drop-sign-in';
 import { DropRecorder } from '@/components/drop-recorder';
@@ -251,7 +250,13 @@ export default function BroadcastPage() {
         currency: string;
       }>(`drops/${dropId}/checkout`, {});
       if (payment.provider === 'stripe' && payment.url) {
-        window.location.assign(payment.url);
+        const target = new URL(payment.url);
+        if (
+          target.protocol !== 'https:' ||
+          target.hostname !== 'checkout.stripe.com'
+        )
+          throw new Error('Payment checkout is unavailable. Try again.');
+        window.location.assign(target.href);
         return;
       }
       await razorpayScript();
@@ -312,8 +317,7 @@ export default function BroadcastPage() {
   const currentStep = submitted ? 3 : drop ? 1 : 0;
 
   return (
-    <main className="market-shell dashboard-shell">
-      <MarketTopbar active="broadcast" />
+    <main className="market-shell dashboard-shell paper-page">
       <div className="drop-page">
         <Link href="/" className="drop-back">
           <ArrowLeft size={15} /> BACK TO THE FLOOR
@@ -363,8 +367,8 @@ export default function BroadcastPage() {
             <div>
               <strong>FREE VIDEO UPLOADS ARE OPEN</strong>
               <p>
-                Upload at no charge: three videos per account each UTC day.
-                Paid bids open when checkout is configured.
+                Upload at no charge: three videos per account each UTC day. Paid
+                bids open when checkout is configured.
               </p>
             </div>
           </output>
@@ -379,15 +383,10 @@ export default function BroadcastPage() {
             {notice && <output className="drop-notice">{notice}</output>}
             {!queryReady || (loading && session) ? (
               <div className="drop-loading">Loading your saved broadcast…</div>
-            ) :
-              drop &&
+            ) : drop &&
               ['draft', 'rejected'].includes(drop.state) &&
               !['refunded', 'disputed'].includes(drop.payment_state) ? (
-                <DropRecorder
-                  key={drop.id}
-                  drop={drop}
-                  refresh={refresh}
-                />
+              <DropRecorder key={drop.id} drop={drop} refresh={refresh} />
             ) : submitted && drop ? (
               <div className="drop-submitted">
                 <div className="drop-success-icon">
@@ -425,7 +424,9 @@ export default function BroadcastPage() {
                 <div className="drop-progress-list">
                   <span>
                     <Check size={17} />
-                    {paid ? 'Optional bid payment verified' : 'Free upload · no charge'}
+                    {paid
+                      ? 'Optional bid payment verified'
+                      : 'Free upload · no charge'}
                   </span>
                   <span>
                     <Check size={17} />
@@ -637,9 +638,7 @@ export default function BroadcastPage() {
               <dl>
                 <div>
                   <dt>Status</dt>
-                  <dd>
-                    {paid ? 'PAID BID' : 'FREE UPLOAD · OPTIONAL BID'}
-                  </dd>
+                  <dd>{paid ? 'PAID BID' : 'FREE UPLOAD · OPTIONAL BID'}</dd>
                 </div>
                 <div>
                   <dt>Broadcast</dt>
