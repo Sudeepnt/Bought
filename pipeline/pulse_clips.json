@@ -1,0 +1,215 @@
+[
+ {
+  "slug": "deepseek",
+  "category": "AI",
+  "headline": "DeepSeek nears a $15B round at a $75B valuation",
+  "beats": [
+   "DeepSeek is close to a fifteen billion dollar round.",
+   "That would value the company at seventy five billion.",
+   "Stop and think about that number.",
+   "A few years ago, this lab barely existed on most investors' radar.",
+   "Now money is lining up to back it.",
+   "Why? Because the AI race is not slowing down.",
+   "Every lab needs more chips, more data, and more cash.",
+   "A round this size buys all three.",
+   "It also sends a signal to every rival.",
+   "The question is whether the valuation holds.",
+   "Because at this price, the pressure to deliver is huge.",
+   "DeepSeek, fifteen billion, seventy five valuation. Watch it again."
+  ],
+  "images": [
+   "public/assets/swipe-robotics.jpg",
+   "public/assets/swipe-data-center.jpg",
+   "public/assets/grok-story-hero.png",
+   "public/assets/swipe-founders.jpg",
+   "public/assets/podcast-earth.jpg",
+   "public/assets/swipe-rocket.jpg"
+  ],
+  "stats": {
+   "0": "$15B",
+   "1": "$75B",
+   "9": "$75B"
+  }
+ },
+ {
+  "slug": "apple-duo",
+  "category": "Product Launches",
+  "headline": "Apple's foldable iPhone Duo goes on sale at $1,999",
+  "beats": [
+   "Apple's foldable iPhone Duo is on sale now.",
+   "The price? One thousand, nine hundred and ninety nine dollars.",
+   "Yes, that is a phone you can fold.",
+   "Apple waited while others went first.",
+   "Now it is betting that its version feels better.",
+   "At this price, it is not for everyone.",
+   "It is a statement product.",
+   "If people buy it, every rival has to answer.",
+   "If they don't, foldables stay a niche.",
+   "Would you pay two thousand dollars for a phone that folds?",
+   "Apple's iPhone Duo. Watch again, then decide."
+  ],
+  "images": [
+   "public/assets/swipe-battery.jpg",
+   "public/assets/swipe-founders.jpg",
+   "public/assets/grok-story-hero.png",
+   "public/assets/swipe-robotics.jpg",
+   "public/assets/swipe-rocket.jpg",
+   "public/assets/podcast-earth.jpg"
+  ],
+  "stats": {
+   "1": "$1,999",
+   "8": "$1,999"
+  }
+ },
+ {
+  "slug": "kimi",
+  "category": "AI",
+  "headline": "Moonshot's Kimi K3.1 Pro beats GPT-6 Astra on a key coding test",
+  "beats": [
+   "A new model just beat GPT-6 Astra at coding.",
+   "It is Kimi K3.1 Pro, from Moonshot.",
+   "The test is a key coding benchmark.",
+   "And on it, Kimi came out ahead.",
+   "That matters, because coding is where AI earns real money.",
+   "Developers pick whichever model writes better code.",
+   "So a lead here can move a lot of users.",
+   "One benchmark does not decide the race.",
+   "But it shows the gap is closing fast.",
+   "The leaders can't relax.",
+   "Kimi K3.1 Pro versus GPT-6 Astra. Watch it again."
+  ],
+  "images": [
+   "public/assets/swipe-robotics.jpg",
+   "public/assets/grok-story-hero.png",
+   "public/assets/swipe-data-center.jpg",
+   "public/assets/swipe-battery.jpg",
+   "public/assets/swipe-founders.jpg",
+   "public/assets/swipe-rocket.jpg"
+  ],
+  "stats": {
+   "0": "BEATS GPT-6",
+   "3": "#1"
+  }
+ },
+ {
+  "slug": "amazon-cloud",
+  "category": "Tech Business",
+  "headline": "Amazon's cloud is sold out through 2027, Andy Jassy says",
+  "beats": [
+   "Amazon's cloud is sold out.",
+   "Not for this month. Through twenty twenty seven.",
+   "That is what CEO Andy Jassy says.",
+   "Demand for computing power is bigger than supply.",
+   "Everyone wants servers to train and run AI.",
+   "And you can't build data centers overnight.",
+   "So customers are booking capacity years in advance.",
+   "That is great news for Amazon's revenue.",
+   "It also shows how tight the whole industry is.",
+   "Whoever has the capacity has the power.",
+   "Amazon cloud, sold out through twenty twenty seven. Watch again."
+  ],
+  "images": [
+   "public/assets/swipe-data-center.jpg",
+   "public/assets/podcast-earth.jpg",
+   "public/assets/grok-story-hero.png",
+   "public/assets/swipe-battery.jpg",
+   "public/assets/swipe-robotics.jpg",
+   "public/assets/swipe-rocket.jpg"
+  ],
+  "stats": {
+   "1": "2027",
+   "10": "2027"
+  }
+ },
+ {
+  "slug": "flapping-airplanes",
+  "category": "Founders & Startups",
+  "headline": "Year-old Flapping Airplanes raises $1B at a $6B valuation",
+  "beats": [
+   "A one year old startup just raised a billion dollars.",
+   "It is called Flapping Airplanes.",
+   "The valuation is six billion.",
+   "Twelve months ago, it did not exist.",
+   "Investors are not waiting for a track record anymore.",
+   "They are betting on the team and the moment.",
+   "That is how hot this market is.",
+   "But a big cheque is not a big business.",
+   "Now comes the hard part, delivering.",
+   "Is this the next giant, or a bubble?",
+   "Flapping Airplanes, one billion raised. Watch again."
+  ],
+  "images": [
+   "public/assets/swipe-founders.jpg",
+   "public/assets/swipe-rocket.jpg",
+   "public/assets/swipe-robotics.jpg",
+   "public/assets/grok-story-hero.png",
+   "public/assets/swipe-battery.jpg",
+   "public/assets/swipe-data-center.jpg"
+  ],
+  "stats": {
+   "0": "$1B",
+   "2": "$6B",
+   "3": "1 YEAR"
+  }
+ },
+ {
+  "slug": "chipmakers-2nm",
+  "category": "Technology",
+  "headline": "Chipmakers race to ship 2nm processors in volume",
+  "beats": [
+   "Chipmakers are racing to ship two nanometer chips.",
+   "In volume. That is the hard part.",
+   "Making one is a lab win.",
+   "Making millions is a factory win.",
+   "The whole industry is watching who delivers at scale.",
+   "Whoever ships first gets the best customers.",
+   "Whoever slips gets left behind.",
+   "Analysts say the next few weeks will show whether the shift holds.",
+   "Smaller chips mean faster phones, and cheaper AI.",
+   "So this race touches everything you use.",
+   "Two nanometer chips. Watch again."
+  ],
+  "images": [
+   "public/assets/swipe-data-center.jpg",
+   "public/assets/swipe-battery.jpg",
+   "public/assets/swipe-robotics.jpg",
+   "public/assets/grok-story-hero.png",
+   "public/assets/podcast-earth.jpg",
+   "public/assets/swipe-founders.jpg"
+  ],
+  "stats": {
+   "0": "2nm",
+   "4": "2nm"
+  }
+ },
+ {
+  "slug": "chip-map",
+  "category": "Tech Geopolitics",
+  "headline": "Countries redraw the map for advanced chips",
+  "beats": [
+   "Countries are redrawing the map for advanced chips.",
+   "Chips are now a national priority.",
+   "Whoever makes them has leverage.",
+   "Whoever depends on others has a risk.",
+   "So governments are changing where chips get built.",
+   "New factories are moving closer to home.",
+   "Supply chains are being reshaped.",
+   "Alliances are forming around who can make what.",
+   "It is not just trade. It is security.",
+   "And the map keeps changing.",
+   "The new chip map. Watch it again."
+  ],
+  "images": [
+   "public/assets/podcast-earth.jpg",
+   "public/assets/swipe-data-center.jpg",
+   "public/assets/swipe-rocket.jpg",
+   "public/assets/grok-story-hero.png",
+   "public/assets/swipe-robotics.jpg",
+   "public/assets/swipe-founders.jpg"
+  ],
+  "stats": {
+   "0": "CHIPS",
+   "8": "SECURITY"
+  }
+ }
+]

@@ -61,8 +61,8 @@ const headlines = episode
     title,
     start: start ?? Math.round(210 + (index - 6) * (213 / 43)),
   }));
-const audio = episode ? new Audio() : null;
-if (audio) {
+const audio = episode ? (window.boughtAudio = window.boughtAudio || new Audio()) : null;   // survives edition switches (nav.js)
+if (audio && !audio.src) {
   audio.preload = 'none';                                 // nothing is downloaded until someone presses play
   audio.src = episode.audio_url;
 }
@@ -198,6 +198,15 @@ list.addEventListener('click', (event) => {
 });
 
 if (audio) {
+  const resumed = audio.currentTime > 0 || !audio.paused;  // coming back from the newspaper edition
+  if (resumed) {
+    setPosition(audio.currentTime);
+    setPlaying(!audio.paused);
+    speedIndex = Math.max(0, speeds.indexOf(audio.playbackRate));
+    speedButton.textContent = `${speeds[speedIndex]}×`;
+    speedButton.setAttribute('aria-label', `Playback speed, ${speeds[speedIndex]} times`);
+    revealCurrentHeadline();
+  }
   audio.addEventListener('timeupdate', () => setPosition(audio.currentTime));
   audio.addEventListener('play', () => setPlaying(true));
   audio.addEventListener('pause', () => setPlaying(false));

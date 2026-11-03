@@ -223,6 +223,9 @@ const glanceStories = [
   { category: 'Technology', title: 'Search starts to answer the next question', deck: 'Answer engines are moving from matching queries to anticipating useful follow-ups.', matters: 'Finding information could take fewer searches and less manual sorting.' },
   { category: 'Technology', title: 'Private data becomes useful context', deck: 'Personal context can make assistants more useful when access stays clear and controlled.', matters: 'Trust will depend on people knowing what data an assistant can use.' },
   { category: 'Technology', title: 'Clear controls make complex tools easier to trust', deck: 'Visible permissions help people understand what an agent can access and do.', matters: 'Clear limits make it easier to hand software a real task.' },
+  { category: 'AI', title: 'Smaller models move onto the phone', deck: 'Compact models are running on everyday devices, answering without a round trip to the cloud.', matters: 'Faster, more private answers could change which tasks people hand to an assistant.' },
+  { category: 'Tech business', title: 'Data center power becomes the bottleneck', deck: 'Operators are signing long power deals as new capacity is limited by the grid, not by chips.', matters: 'Access to electricity may decide who can train and serve the next generation of models.' },
+  { category: 'Founders & startups', title: 'Early customers shape the first product', deck: 'Founders are building alongside a handful of paying users before writing a full roadmap.', matters: 'Paid pilots give small teams real signal long before a public launch.' },
 ];
 
 const articleDetails = [
@@ -382,6 +385,153 @@ const categoryClass = (category) => `cat-${String(category).toLowerCase().replac
 
 const microphoneIcon = '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="12" y="4" width="8" height="16" rx="4"/><path d="M8 15a8 8 0 0 0 16 0M16 23v5M11 28h10"/></svg>';
 
+// Ten Spotlight placements, spread evenly so none sit next to each other or a section heading:
+// 5 in The Prime, 1 after the swipe cards, 3 in World at a glance, 1 at the end of the issue.
+// Positions scale with the story count, so they still land well when the live feed has more or fewer stories.
+const SPOTLIGHT_PRIME = 5;
+const SPOTLIGHT_GLANCE = 3;
+function spotlightSlots(count, slots) {
+  const after = new Map(); // 1-based story number -> placement number within this section
+  for (let k = 1; k <= slots; k += 1) {
+    let at = Math.max(4, Math.round((count * k) / (slots + 1)));   // never right under the top stories
+    while (after.has(at) && at < count - 1) at += 1;
+    if (at >= 1 && at < count) after.set(at, k);
+  }
+  return after;
+}
+
+// "The day in numbers" and the classifieds under it close each of the three sections (Prime, Swipe cards, At a glance).
+// SAMPLE CONTENT: these figures and listings are placeholders for the layout. `story` is the 1-based story inside that
+// section that the number opens. Replace with figures taken from each story (pipeline) and real classifieds.
+const dayNumbers = {
+  prime: [
+    { value: '$15B', label: 'DeepSeek’s reported funding round', story: 1 },
+    { value: '$220B', label: 'Amazon’s planned 2026 capex', story: 3 },
+    { value: '5,000', label: 'Barclays planned job cuts', story: 6 },
+    { value: '22×', label: 'Jio Platforms IPO oversubscription', story: 9 },
+    { value: '$25B', label: 'Meta’s New Mexico court penalty', story: 12 },
+  ],
+  swipe: [
+    { value: '30 min', label: 'Starship booster turnaround target', story: 1 },
+    { value: '3×', label: 'Data center compute demand by 2028', story: 2 },
+    { value: '40%', label: 'Routine factory tasks in robot trials', story: 3 },
+    { value: '+20%', label: 'Capacity gain the new cell targets', story: 5 },
+    { value: '45°C', label: 'Server inlet limit in new cooling designs', story: 7 },
+  ],
+  glance: [
+    { value: '$40B', label: 'Chipmakers’ planned fab spend by 2027', story: 1 },
+    { value: '1 in 3', label: 'Teams now testing AI agents at work', story: 2 },
+    { value: '2×', label: 'Faster from prototype to launch', story: 3 },
+    { value: '5', label: 'New AI device types shown this year', story: 4 },
+    { value: '12', label: 'Countries with national chip plans', story: 5 },
+  ],
+};
+const classifiedSets = {
+  prime: [
+    ['Hiring', 'Founding engineer for a seed-stage logistics startup. Remote, equity.', 'jobs@northwind.example', 'https://example.com/classifieds/jobs-northwind-example'],
+    ['For hire', 'Freelance motion designer for product launches and explainers.', '@framebyframe', 'https://example.com/classifieds/framebyframe'],
+    ['Office', 'Two desks free in a quiet Bengaluru studio, month to month.', 'desks@studio.example', 'https://example.com/classifieds/desks-studio-example'],
+  ],
+  swipe: [
+    ['Hiring', 'Hardware lead for a battery start-up. Lab in Pune.', 'team@cellworks.example', 'https://example.com/classifieds/team-cellworks-example'],
+    ['For sale', 'Used rack servers, tested and ready to ship. Bulk prices.', 'sales@racks.example', 'https://example.com/classifieds/sales-racks-example'],
+    ['Wanted', 'Co-founder with robotics experience for a warehouse pilot.', '@pilotseeker', 'https://example.com/classifieds/pilotseeker'],
+  ],
+  glance: [
+    ['Hiring', 'Community manager for a builders’ network. Part-time.', 'join@builders.example', 'https://example.com/classifieds/join-builders-example'],
+    ['Services', 'Fractional CFO for early-stage companies. First call free.', 'cfo@fractional.example', 'https://example.com/classifieds/cfo-fractional-example'],
+    ['For sale', 'Domain names for AI tools, priced to move.', '@namesforsale', 'https://example.com/classifieds/namesforsale'],
+  ],
+};
+
+// PULSE: short 9:16 voice-over clips (rendered by pipeline/pulse.py into public/pulse/<clip>.pulse.mp4 + .jpg).
+// `ad: true` is the paid "Clip break" slot from the auction.
+const pulseClips = [
+  { category: 'AI', title: 'DeepSeek nears a $15B round at a $75B valuation', clip: 'deepseek', happened: 'DeepSeek is reportedly nearing a $15B funding round at a $75B valuation.', matters: 'A round this size buys chips, data and talent as the AI race speeds up.', length: '0:32' },
+  { category: 'Product Launches', title: 'Apple’s foldable iPhone Duo goes on sale at $1,999', clip: 'apple-duo', happened: 'Apple’s foldable iPhone Duo is now on sale at $1,999.', matters: 'It tests whether buyers will pay a premium for a phone that folds.', length: '0:26' },
+  { category: 'AI', title: 'Moonshot’s Kimi K3.1 Pro beats GPT-6 Astra on a key coding test', clip: 'kimi', happened: 'Moonshot’s Kimi K3.1 Pro beat GPT-6 Astra on a key coding test.', matters: 'Coding is where AI earns its money, so a lead can move developers.', length: '0:28' },
+  { ad: true, title: 'Every street, mapped', length: '0:24', won: 'Won at $520 today' },
+  { category: 'Tech Business', title: 'Amazon’s cloud is sold out through 2027, Andy Jassy says', clip: 'amazon-cloud', happened: 'CEO Andy Jassy says Amazon’s cloud capacity is sold out through 2027.', matters: 'Demand for AI computing is outrunning supply, so customers book years ahead.', length: '0:27' },
+  { category: 'Founders & Startups', title: 'Year-old Flapping Airplanes raises $1B at a $6B valuation', clip: 'flapping-airplanes', happened: 'Year-old Flapping Airplanes raised $1B at a $6B valuation.', matters: 'Investors are backing teams early, which shows how hot the market is.', length: '0:24' },
+  { category: 'Technology', title: 'Chipmakers race to ship 2nm processors in volume', clip: 'chipmakers-2nm', happened: 'Chipmakers are racing to ship 2nm processors in volume.', matters: 'Smaller chips mean faster devices and cheaper AI, so who ships first matters.', length: '0:25' },
+  { category: 'Tech Geopolitics', title: 'Countries redraw the map for advanced chips', clip: 'chip-map', happened: 'Countries are redrawing the map for advanced chips.', matters: 'Chips are now a national priority tied to trade and security.', length: '0:22' },
+];
+
+function renderPulse() {
+  const playIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5.5v13l11-6.5z"/></svg>';
+  const cards = pulseClips.map((clip, index) => clip.ad ? `
+      <li class="pulse-item">
+        <div class="pulse-card is-ad" role="group" aria-label="Advertisement: ${escapeStoryText(clip.title)}">
+          <span class="pulse-tag">Ad · ${clip.length}</span>
+          <strong class="pulse-title">${escapeStoryText(clip.title)}</strong>
+          <span class="pulse-play" aria-hidden="true">${playIcon}</span>
+        </div>
+        <span class="pulse-won">${escapeStoryText(clip.won)}</span>
+      </li>` : `
+      <li class="pulse-item">
+        <div class="pulse-card ${categoryClass(clip.category)}" role="group" aria-label="Clip: ${escapeStoryText(clip.title)}">
+          <video class="pulse-video" src="pulse/${clip.clip}.pulse.mp4?v=3" poster="pulse/${clip.clip}.pulse.jpg?v=3" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload noremoteplayback" tabindex="-1" aria-hidden="true"></video>
+          <button class="pulse-hit" type="button" data-pulse-clip aria-label="Play or mute clip: ${escapeStoryText(clip.title)}"></button>
+          <span class="pulse-play" aria-hidden="true">${playIcon}</span>
+          <div class="swipe-copy pulse-copy">
+            <span class="swipe-tags"><span class="swipe-category">${escapeStoryText(clip.category)}</span></span>
+            <h2 class="pulse-headline">${escapeStoryText(clip.title)}</h2>
+            <div class="swipe-facts">
+              <div><h3>What happened</h3><p>${escapeStoryText(clip.happened)}</p></div>
+              <div><h3>Why it matters</h3><p>${escapeStoryText(clip.matters)}</p></div>
+            </div>
+            <div class="swipe-byline-row">${renderByline({}, true, clip.length + ' watch')}</div>
+          </div>
+        </div>
+      </li>`).join('');
+  return `
+    <section class="pulse-block" aria-labelledby="pulse-heading">
+      <div class="section-break" aria-hidden="true"><span></span><span></span><span></span></div>
+      <header class="section-marker"><h2 id="pulse-heading">Pulse</h2>${storyCount(pulseClips.filter((c) => !c.ad).length, 'clip', 'clips')}</header>
+      <ul class="pulse-rail" tabindex="0" aria-label="Short video clips. Swipe or scroll sideways.">${cards}</ul>
+    </section>`;
+}
+
+function renderDayNumbers(key, firstStoryNumber, storyCount) {
+  const items = dayNumbers[key]
+    .filter((item) => item.story <= storyCount)
+    .map((item) => `
+      <li><button class="day-number" type="button" data-open-story="${firstStoryNumber + item.story - 1}">
+        <strong>${escapeStoryText(item.value)}</strong><span>${escapeStoryText(item.label)}</span>
+      </button></li>`).join('');
+  if (!items) return '';
+  return `
+    <section class="day-numbers" aria-labelledby="day-numbers-${key}">
+      <header><h3 id="day-numbers-${key}">The day in numbers</h3><span class="day-numbers-hint">tap a number for the story</span></header>
+      <ul>${items}</ul>
+    </section>`;
+}
+
+// A listing's website is typed by the advertiser, so only http(s) addresses are ever linked (never javascript: and the like).
+function safeWebsite(value) {
+  try {
+    const text = String(value).trim();
+    const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `https://${text}`);   // "shop.com" means https://shop.com
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
+  } catch (e) { return ''; }
+}
+
+function renderClassifieds(key) {
+  const items = classifiedSets[key].map(([tag, text, contact, website]) => {
+    const href = safeWebsite(website);
+    const body = href
+      ? `<a class="classified-link" href="${escapeStoryText(href)}" target="_blank" rel="noopener noreferrer sponsored">${escapeStoryText(text)}<span class="classified-out" aria-hidden="true"> ↗</span><span class="sr-only"> (opens the advertiser’s website)</span></a>`
+      : escapeStoryText(text);
+    return `
+      <li><span class="classified-tag">${escapeStoryText(tag)}</span><p>${body}</p><span class="classified-contact">${escapeStoryText(contact)}</span></li>`;
+  }).join('');
+  return `
+    <section class="classifieds" aria-labelledby="classifieds-${key}">
+      <header><h3 id="classifieds-${key}">Classifieds</h3></header>
+      <ul>${items}</ul>
+    </section>`;
+}
+
 function renderSpotlightPlacement(number) {
   return `
     <figure class="spotlight-placement" id="spotlight-${number}" aria-label="Bought Spotlight placement">
@@ -390,9 +540,10 @@ function renderSpotlightPlacement(number) {
     </figure>`;
 }
 
+const PRIME_COUNT = 20;   // how many Prime stories one issue carries
 // When the content pipeline's feed is available (see index.html loader), its prime stories replace the samples.
 if (window.liveFeed && window.liveFeed.prime && window.liveFeed.prime.length) {
-  sampleStories.splice(0, sampleStories.length, ...window.liveFeed.prime.map((item) => ({
+  sampleStories.splice(0, sampleStories.length, ...window.liveFeed.prime.slice(0, PRIME_COUNT).map((item) => ({
     category: item.category,
     title: item.headline,
     deck: item.summary,
@@ -410,6 +561,32 @@ if (window.liveFeed && window.liveFeed.prime && window.liveFeed.prime.length) {
 }
 
 const JOURNALIST_NAME = 'Nastya';
+const storyCount = (count, one = 'story', many = 'stories') => `<span class="section-count">${count} ${count === 1 ? one : many}</span>`;
+
+// Who presents the story and where it comes from: [N] Nastya · source. Swipe cards and glances have no presenter, so
+// they only show the source, and only when the story has one.
+function renderByline(story, withPresenter, readTime = '') {
+  const source = story.source
+    ? (story.link ? `<a class="byline-source" href="${escapeStoryText(story.link)}" target="_blank" rel="noopener noreferrer">${escapeStoryText(story.source)}</a>` : `<span class="byline-source">${escapeStoryText(story.source)}</span>`)
+    : '';
+  if (!withPresenter && !source && !readTime) return '';
+  const presenter = withPresenter
+    ? `<i class="byline-avatar" aria-hidden="true">${escapeStoryText(JOURNALIST_NAME.charAt(0))}</i><span class="byline-name">${escapeStoryText(JOURNALIST_NAME)}</span>`
+    : '';
+  const dot = withPresenter && source ? '<span class="byline-dot" aria-hidden="true">·</span>' : '';
+  const read = readTime ? `${presenter || source ? '<span class="byline-dot" aria-hidden="true">·</span>' : ''}<span class="story-readtime">${escapeStoryText(readTime)}</span>` : '';
+  return `<span class="story-byline">${presenter}${dot}${source}${read}</span>`;
+}
+
+// Reading time from the text we hold for the story (about 200 words a minute, never under 1 minute).
+function readMinutes(...parts) {
+  const words = parts.filter(Boolean).join(' ').split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+function readTimeLabel(number, story) {
+  const detail = story.link ? [] : articleDetails[number - 1] || [story.happened, story.matters];
+  return `${readMinutes(story.deck, story.happened, story.matters, ...detail)} min read`;
+}
 
 function renderStory(story, number, saveKey = number) {
   const loading = number === 1 ? 'eager' : 'lazy';
@@ -436,7 +613,7 @@ function renderStory(story, number, saveKey = number) {
 
       <div class="story-copy">
         <div class="story-meta">
-          <span class="story-tags"><span class="story-section">${escapeStoryText(story.category)}</span>${renderBadges(story.badges)}<span class="story-byline">By ${JOURNALIST_NAME}</span></span>
+          <span class="story-tags"><span class="story-section">${escapeStoryText(story.category)}</span>${renderBadges(story.badges)}</span>
           <div class="story-actions">
             <button class="story-action" type="button" data-action="save" aria-label="Save story ${number}" aria-pressed="false" title="Save story">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 4.5h12v15l-6-4-6 4z" /></svg>
@@ -448,6 +625,7 @@ function renderStory(story, number, saveKey = number) {
         </div>
         <h2 id="story-title-${number}"><button class="story-title-button" type="button" data-open-story="${number}" aria-label="Read full story: ${escapeStoryText(story.title)}">${escapeStoryText(story.title)}</button></h2>
         <p class="story-deck">${escapeStoryText(story.deck)}</p>
+        <div class="story-byline-row">${renderByline(story, true, readTimeLabel(number, story))}</div>
         ${story.link
           ? ''
           : `<div class="story-facts">
@@ -466,12 +644,13 @@ function renderImageCarousel() {
         <img class="swipe-image" src="${story.image}" alt="${escapeStoryText(story.alt)}" loading="lazy" draggable="false">
         <span class="swipe-story-number" aria-label="Story ${number} of 50">${number} / 50</span>
         <div class="swipe-copy">
-          <span class="swipe-tags"><span class="swipe-category">${escapeStoryText(story.category)}</span>${renderBadges(story.badges)}</span>
+          <span class="swipe-tags"><span class="swipe-category">${escapeStoryText(story.category)}</span>${renderBadges(story.badges)}${renderByline(story, false)}</span>
           <h2 id="swipe-title-${number}"><button class="story-title-button" type="button" data-open-story="${number}" aria-label="Read full story: ${escapeStoryText(story.title)}">${escapeStoryText(story.title)}</button></h2>
           <div class="swipe-facts">
             <div><h3>What happened</h3><p>${escapeStoryText(story.deck)}</p></div>
             <div><h3>Why it matters</h3><p>${escapeStoryText(story.matters)}</p></div>
           </div>
+          <div class="swipe-byline-row">${renderByline(story, true, readTimeLabel(number, story))}</div>
         </div>
       </article>`;
   }).join('');
@@ -482,7 +661,7 @@ function renderImageCarousel() {
   return `
     <section class="image-swipe-block" aria-label="Image news stories">
       <div class="section-break" aria-hidden="true"><span></span><span></span><span></span></div>
-      <header class="section-marker"><h2 data-i18n="sec.swipe">Swipe cards</h2></header>
+      <header class="section-marker"><h2 data-i18n="sec.swipe">Swipe cards</h2>${storyCount(imageStories.length)}</header>
       <div class="image-swipe-card" tabindex="0" aria-roledescription="carousel" aria-label="Image news stories. Swipe or tap the sides to change stories.">
         <div class="swipe-track">${slides}</div>
         <div class="swipe-progress" aria-label="Image story navigation">${progress}</div>
@@ -492,6 +671,7 @@ function renderImageCarousel() {
 }
 
 function renderGlances() {
+  const glanceSpotlights = spotlightSlots(glanceStories.length, SPOTLIGHT_GLANCE);
   const visualCounts = {};
   const items = glanceStories.map((story, index) => {
     const number = sampleStories.length + imageStories.length + index + 1;
@@ -504,33 +684,43 @@ function renderGlances() {
       <article class="glance-item ${categoryClass(story.category)}${story.deck ? '' : ' is-brief'} is-image-${imageSide}${index === 0 ? ' is-feature' : index === 5 ? ' is-wide' : ''}" id="story-${number}" aria-labelledby="glance-title-${number}">
         <div class="glance-visual" aria-hidden="true"><img src="${image}" alt="" loading="${index < 4 ? 'eager' : 'lazy'}"><span class="glance-image-number">${number} / 50</span></div>
         <div class="glance-copy">
-          <div class="glance-meta"><span class="glance-tags"><span class="glance-category">${escapeStoryText(story.category)}</span>${renderBadges(story.badges)}</span><span class="sr-only">Story ${number} of 50</span></div>
+          <div class="glance-meta"><span class="glance-tags"><span class="glance-category">${escapeStoryText(story.category)}</span>${renderBadges(story.badges)}${renderByline(story, false)}</span><span class="sr-only">Story ${number} of 50</span></div>
           <h3 id="glance-title-${number}"><button class="story-title-button" type="button" data-open-story="${number}" aria-label="Read full story: ${escapeStoryText(story.title)}">${escapeStoryText(story.title)}</button></h3>
         </div>
         <div class="glance-facts">
           <div><h4>What happened</h4><p>${escapeStoryText(story.deck)}</p></div>
           <div><h4>Why it matters</h4><p>${escapeStoryText(story.matters)}</p></div>
+          <div class="glance-byline-row">${renderByline(story, true, readTimeLabel(number, story))}</div>
         </div>
       </article>`;
-    return item + (index === 4 ? renderSpotlightPlacement(4) : '');
+    return item + (glanceSpotlights.has(index + 1) ? renderSpotlightPlacement(SPOTLIGHT_PRIME + 1 + glanceSpotlights.get(index + 1)) : '');
   }).join('');
 
   return `<section class="glance-section" aria-labelledby="glance-heading">
     <div class="section-break" aria-hidden="true"><span></span><span></span><span></span></div>
-    <header class="section-marker"><h2 id="glance-heading" data-i18n="sec.glance">World at a glance</h2></header>
+    <header class="section-marker"><h2 id="glance-heading" data-i18n="sec.glance">World at a glance</h2>${storyCount(glanceStories.length)}</header>
     ${items}
+    ${renderDayNumbers('glance', sampleStories.length + imageStories.length + 1, glanceStories.length)}
+    ${renderClassifieds('glance')}
   </section>`;
 }
 
 const storiesRoot = document.querySelector('#edition-stories');
+const primeSpotlights = spotlightSlots(sampleStories.length, SPOTLIGHT_PRIME);
 storiesRoot.innerHTML = [
   `<section class="prime-section" aria-labelledby="prime-heading">
-    <header class="section-marker prime-marker"><h2 id="prime-heading" data-i18n="sec.prime">The Prime</h2></header>
-    ${sampleStories.map((story, index) => renderStory(story, index + 1) + (index === 4 ? renderSpotlightPlacement(1) : index === 9 ? renderSpotlightPlacement(2) : '')).join('')}
+    <header class="section-marker prime-marker"><h2 id="prime-heading" data-i18n="sec.prime">The Prime</h2>${storyCount(sampleStories.length)}</header>
+    ${sampleStories.map((story, index) => renderStory(story, index + 1) + (primeSpotlights.has(index + 1) ? renderSpotlightPlacement(primeSpotlights.get(index + 1)) : '')).join('')}
+    ${renderDayNumbers('prime', 1, sampleStories.length)}
+    ${renderClassifieds('prime')}
   </section>`,
   renderImageCarousel(),
-  renderSpotlightPlacement(3),
+  renderDayNumbers('swipe', sampleStories.length + 1, imageStories.length),
+  renderClassifieds('swipe'),
+  renderPulse(),
+  renderSpotlightPlacement(SPOTLIGHT_PRIME + 1),
   renderGlances(),
+  renderSpotlightPlacement(SPOTLIGHT_PRIME + SPOTLIGHT_GLANCE + 2),
 ].join('');
 
 const allStories = [...sampleStories, ...imageStories, ...glanceStories];
@@ -558,7 +748,7 @@ function openFullStory(number, opener) {
   articleOverlayContent.innerHTML = `
     <div class="article-overlay-top">
       <span class="article-overlay-category">${escapeStoryText(story.category)}</span>
-      <span class="article-overlay-number">${number} / 50</span>
+      <span class="article-overlay-number">${readTimeLabel(number, story)} · ${number} / 50</span>
       <button class="article-overlay-close" type="button" aria-label="Close full story">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19"/></svg>
       </button>
@@ -743,6 +933,30 @@ function showActionFeedback(message) {
   feedbackTimeout = setTimeout(() => { actionFeedback.hidden = true; }, 2200);
 }
 
+// Pulse: like Reels, nothing plays until you tap. Tap a clip to play it (with sound), tap again to pause.
+// The only control on screen is the progress bar that is part of the picture; there are no media controls or mute button.
+const pulseVideos = () => [...storiesRoot.querySelectorAll('.pulse-video')];
+function pausePulse(except) { pulseVideos().forEach((v) => { if (v !== except) { v.pause(); v.closest('.pulse-card').classList.remove('is-playing'); } }); }
+storiesRoot.addEventListener('click', (event) => {
+  const hit = event.target.closest('[data-pulse-clip]');
+  if (!hit) return;
+  const card = hit.closest('.pulse-card');
+  const v = card.querySelector('.pulse-video');
+  if (v.paused) {
+    pausePulse(v);
+    v.muted = false;
+    v.play().then(() => card.classList.add('is-playing')).catch(() => { v.muted = true; v.play().then(() => card.classList.add('is-playing')).catch(() => {}); });
+  } else { v.pause(); card.classList.remove('is-playing'); }
+});
+// leaving the page or scrolling a clip out of view stops it
+document.addEventListener('visibilitychange', () => { if (document.hidden) pausePulse(null); });
+if ('IntersectionObserver' in window) {
+  const leave = new IntersectionObserver((entries) => entries.forEach((en) => {
+    if (en.intersectionRatio < 0.3 && !en.target.paused) { en.target.pause(); en.target.closest('.pulse-card').classList.remove('is-playing'); }
+  }), { threshold: [0, 0.3] });
+  pulseVideos().forEach((v) => leave.observe(v));
+}
+
 async function copyStoryText(text) {
   if (navigator.clipboard?.writeText) {
     try {
@@ -772,7 +986,8 @@ async function shareStory(article) {
   const shareData = { title: `${title} — Bought. Spotlight`, text: summary };
   if (location.protocol === 'https:' || location.protocol === 'http:') {
     const url = new URL(location.href);
-    url.hash = article.id;
+    // Stories from the feed are shared by their own id (steady from day to day); the built-in samples by position.
+    url.hash = article.dataset.storyId ? `s-${article.dataset.storyId}` : article.id;
     shareData.url = url.href;
   }
 
@@ -982,3 +1197,40 @@ async function applyStoryLanguage(locale, name = '', announce = false) {
 document.addEventListener('bought:language', (event) => applyStoryLanguage(event.detail.locale, event.detail.name, true));
 window.applyUiText();
 if (window.boughtLanguage && window.boughtLanguage.locale !== 'en') applyStoryLanguage(window.boughtLanguage.locale);
+
+// ---- Shared links: the page opens at the story that was shared ----
+// #s-<id> is a feed story, #story-<n> a story by position (swipe cards and glance stories included).
+function findLinkedStory() {
+  const key = decodeURIComponent(location.hash.replace(/^#/, ''));
+  if (/^s-[\w-]+$/.test(key)) return [...storiesRoot.querySelectorAll('[data-story-id]')].find((el) => el.dataset.storyId === key.slice(2)) || null;
+  if (/^story-\d+$/.test(key)) return storiesRoot.querySelector(`#${key}`);
+  return null;
+}
+
+let linkedFlashTimer;
+function openLinkedStory(flash) {
+  const target = findLinkedStory();
+  if (!target) return false;
+  const slide = target.closest('.swipe-slide');
+  if (slide) showImageStory(swipeSlides.indexOf(slide));                 // bring that card to the front of the swipe row
+  const place = slide ? slide.closest('.image-swipe-block') : target;    // the swipe row fills the screen: show all of it
+  place.scrollIntoView({ block: 'start', behavior: 'auto' });            // headers are sticky; scroll-margin keeps it clear of them
+  if (flash && !slide) {
+    target.classList.add('is-linked');
+    clearTimeout(linkedFlashTimer);
+    linkedFlashTimer = setTimeout(() => target.classList.remove('is-linked'), 2600);
+  }
+  return true;
+}
+
+if (location.hash && openLinkedStory(true)) {
+  // Pictures and videos above the story keep loading and push it down: settle on it again, unless the reader has started scrolling.
+  let readerMoved = false;
+  const stop = () => { readerMoved = true; };
+  ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach((type) => window.addEventListener(type, stop, { once: true, passive: true }));
+  const settle = () => { if (!readerMoved) openLinkedStory(false); };
+  window.addEventListener('load', settle, { once: true });
+  setTimeout(settle, 700);
+  setTimeout(settle, 1800);
+}
+window.addEventListener('hashchange', () => openLinkedStory(true));

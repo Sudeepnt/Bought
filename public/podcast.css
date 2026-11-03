@@ -122,3 +122,19 @@ body.podcast-body { overflow: hidden; }
   .headline-title { font-size: 1.1875rem; }
   .headline-time { font-size: .8125rem; }
 }
+
+/* Dark theme */
+html[data-theme="dark"] .brief-player { border-color: var(--rule); box-shadow: none; }
+html[data-theme="dark"] .player-controls button, html[data-theme="dark"] .lineup h2, html[data-theme="dark"] .brief-facts strong { color: var(--ink); }
+html[data-theme="dark"] .play-main { background: var(--ink) !important; color: var(--paper) !important; }
+html[data-theme="dark"] .player-times, html[data-theme="dark"] .brief-facts small, html[data-theme="dark"] .lineup-kicker span:last-child { color: var(--quiet-ink); }
+html[data-theme="dark"] .player-progress { background: linear-gradient(to right, var(--ink) 0 var(--played, 10%), #3d3a34 var(--played, 10%) 100%); }
+html[data-theme="dark"] .player-progress::-moz-range-track { background: #3d3a34; }
+html[data-theme="dark"] .player-progress::-moz-range-progress, html[data-theme="dark"] .player-progress::-moz-range-thumb { background: var(--ink); }
+html[data-theme="dark"] .lineup-rule { background: #4a463f; }
+html[data-theme="dark"] .headline-row { border-top-color: var(--rule); }
+html[data-theme="dark"] .headline-rail::before { background: #4a463f; }
+html[data-theme="dark"] .lineup-kicker { color: #e0766b; }
+html[data-theme="dark"] .headline-title { color: var(--ink); }
+html[data-theme="dark"] .headline-time { color: var(--quiet-ink); }
+html[data-theme="dark"] .headline-category { color: #e0766b; }
