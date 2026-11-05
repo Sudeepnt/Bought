@@ -522,6 +522,7 @@ function safeWebsite(value) {
   } catch (e) { return ''; }
 }
 
+const CLASSIFIED_MARKET = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? `${location.protocol}//${location.hostname}:3000/` : '/';   // same address as the end-of-issue classifieds
 function renderClassifieds(key) {
   const items = classifiedSets[key].map(([tag, text, contact, website]) => {
     const href = safeWebsite(website);
@@ -529,12 +530,13 @@ function renderClassifieds(key) {
       ? `<a class="classified-link" href="${escapeStoryText(href)}" target="_blank" rel="noopener noreferrer sponsored">${escapeStoryText(text)}<span class="classified-out" aria-hidden="true"> ↗</span><span class="sr-only"> (opens the advertiser’s website)</span></a>`
       : escapeStoryText(text);
     return `
-      <li><span class="classified-tag">${escapeStoryText(tag)}</span><p>${body}</p><span class="classified-contact">${escapeStoryText(contact)}</span></li>`;
+      <li><span class="classified-tag">${escapeStoryText(tag)}</span><p>${body} <span class="classified-contact">${escapeStoryText(contact)}</span></p></li>`;
   }).join('');
   return `
     <section class="classifieds" aria-labelledby="classifieds-${key}">
       <header><h3 id="classifieds-${key}">Classifieds</h3></header>
       <ul>${items}</ul>
+      <a class="classified-place" href="${CLASSIFIED_MARKET}" data-leave-confirm>Place a line in an upcoming issue</a>
     </section>`;
 }
 
