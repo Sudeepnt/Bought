@@ -100,6 +100,8 @@ def parse_feed(content: bytes, source, now: datetime) -> list:
         raise ValueError(f"unparseable feed: {parsed.bozo_exception}")
     items = []
     for e in parsed.entries:
+        if any(str(tag.get("term", "")).strip().lower() in ("sponsored", "advertorial", "partner content") for tag in e.get("tags", []) or []):
+            continue                                        # the publisher itself marks it as paid
         t = e.get("published_parsed") or e.get("updated_parsed")
         published = datetime.fromtimestamp(timegm(t), timezone.utc) if t else None
         image, credit = _entry_image(e)
@@ -148,13 +150,60 @@ class _OgParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.image = None
+        self.description = None
 
     def handle_starttag(self, tag, attrs):
-        if tag != "meta" or self.image:
+        if tag != "meta":
             return
         a = {k.lower(): (v or "") for k, v in attrs}
-        if a.get("property", a.get("name", "")).lower() in ("og:image", "og:image:url", "twitter:image"):
+        key = a.get("property", a.get("name", "")).lower()
+        if key in ("og:image", "og:image:url", "twitter:image") and not self.image:
             self.image = a.get("content", "").strip() or None
+        if key in ("og:description", "description", "twitter:description") and not self.description:
+            self.description = a.get("content", "").strip() or None
+
+
+class _TldrParser(HTMLParser):
+    """A TLDR issue page: <article><a href=LINK><h3>TITLE (N minute read)</h3></a>... We keep the title and link only, not TLDR's blurb."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.items, self._in_article, self._link, self._in_h3, self._title = [], False, None, False, []
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "article":
+            self._in_article, self._link, self._title = True, None, []
+        elif self._in_article and tag == "a" and self._link is None:
+            self._link = a.get("href")
+        elif self._in_article and tag == "h3":
+            self._in_h3 = True
+
+    def handle_endtag(self, tag):
+        if tag == "h3" and self._in_h3:
+            self._in_h3 = False
+            self.items.append((" ".join(self._title), self._link))
+        elif tag == "article":
+            self._in_article = False
+
+    def handle_data(self, data):
+        if self._in_h3:
+            self._title.append(data.strip())
+
+
+READ_TIME = re.compile(r"\s*\(\s*(\d+\s*minute read|github repo|website|product launch)\s*\)\s*$", re.I)
+
+
+def parse_tldr(content: bytes, published: datetime) -> list:
+    p = _TldrParser()
+    p.feed(content.decode("utf-8", "ignore"))
+    items = []
+    for title, link in p.items:
+        title = clean_title(title)
+        if not link or re.search(r"\(sponsor\)", title, re.I):
+            continue
+        items.append(Item(title=READ_TIME.sub("", title), link=link, published=published, summary=""))
+    return items
 
 
 class LiveFetcher:
@@ -247,6 +296,33 @@ class LiveFetcher:
         except httpx.HTTPError:
             return None, False
 
+    def page(self, url: str):
+        """An HTML page if robots.txt allows it and it exists, else None. Up to MAX_PAGE_BYTES."""
+        if not self._allowed(url):
+            return None
+        try:
+            self._wait_for_host(urlsplit(url).netloc)
+            with self.client.stream("GET", url) as r:
+                if r.status_code != 200:
+                    return None
+                buf = b""
+                for chunk in r.iter_bytes():
+                    buf += chunk
+                    if len(buf) >= MAX_PAGE_BYTES:
+                        break
+            return buf
+        except httpx.HTTPError:
+            return None
+
+    def page_meta(self, url: str) -> tuple:
+        """(description, image) the publisher set for sharing this article. (None, None) if the page cannot be read."""
+        buf = self.page(url)
+        if not buf:
+            return None, None
+        p = _OgParser()
+        p.feed(buf.decode("utf-8", "ignore"))
+        return p.description, (_http_url(urljoin(url, p.image)) if p.image else None)
+
     def close(self):
         self.client.close()
 
@@ -266,6 +342,12 @@ class FixtureFetcher:
     def og_image(self, page_url):
         return None, True
 
+    def page(self, url):
+        return None
+
+    def page_meta(self, url):
+        return None, None
+
     def close(self):
         pass
 
@@ -276,12 +358,24 @@ def ingest_source(conn, source, fetcher, cfg, now: datetime) -> dict:
     stats = {"seen": 0, "new": 0, "skipped": 0, "error": None}
     state = conn.execute("SELECT * FROM fetch_state WHERE source=?", (source.name,)).fetchone()
     try:
-        res = fetcher.fetch(source, state)
-        if res.not_modified:
-            _mark_fetch(conn, source.name, now, None, state["etag"], state["last_modified"])
-            return stats
-        parse = parse_feed if source.type == "rss" else parse_sitemap
-        items = parse(res.content, source, now)[: cfg.max_items_per_source]
+        if source.type == "tldr":                      # one page per day: {url}/YYYY-MM-DD, so a past date can be read as well
+            res, items = FetchResult(), []
+            for back in range(int(cfg.max_age_hours // 24) + 1):
+                day = (now - timedelta(days=back)).replace(hour=0, minute=0, second=0, microsecond=0)
+                page = fetcher.page(f"{source.url.rstrip('/')}/{day:%Y-%m-%d}")
+                if page:
+                    items += parse_tldr(page, day)
+        else:
+            res = fetcher.fetch(source, state)
+            if res.not_modified:
+                _mark_fetch(conn, source.name, now, None, state["etag"], state["last_modified"])
+                return stats
+            parse = parse_feed if source.type == "rss" else parse_sitemap
+            items = parse(res.content, source, now)[: cfg.max_items_per_source]
+        if source.title_from_summary:
+            for it in items:
+                if it.summary:
+                    it.title = f"{it.title}: {it.summary}"
     except Exception as exc:  # one broken source must not stop the cycle
         stats["error"] = f"{type(exc).__name__}: {exc}"
         log.warning("source %s failed: %s", source.name, stats["error"])
@@ -297,6 +391,9 @@ def ingest_source(conn, source, fetcher, cfg, now: datetime) -> dict:
         try:
             url = canonicalize_url(it.link)
         except ValueError:
+            stats["skipped"] += 1
+            continue
+        if cfg.ingest_reject_future and it.published and it.published > now:
             stats["skipped"] += 1
             continue
         published = min(it.published or now, now)  # undated or future-dated -> now

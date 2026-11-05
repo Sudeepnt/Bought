@@ -1,3 +1,4 @@
+(() => {
 const headlineData = [
   ['Business', 'Musk’s xAI launches Grok 3 with real-time video understanding', 0],
   ['Tech', 'OpenAI unveils new tools for AI agents', 42],
@@ -61,16 +62,16 @@ const headlines = episode
     title,
     start: start ?? Math.round(210 + (index - 6) * (213 / 43)),
   }));
-const audio = episode ? (window.boughtAudio = window.boughtAudio || new Audio()) : null;   // survives edition switches (nav.js)
+const audio = episode ? (window.boughtAudio = window.boughtAudio || new Audio()) : null;   // the same element for as long as the page is open
 if (audio && !audio.src) {
-  audio.preload = 'none';                                 // nothing is downloaded until someone presses play
+  audio.preload = 'metadata';                             // this script only runs once the Podcast has been opened, so the audio is requested now (the start and its length); the rest streams on play
   audio.src = episode.audio_url;
 }
 const escapeText = (value) => String(value).replace(/[&<>"']/g, (character) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[character]);
 const formatTime = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
-const page = document.querySelector('.podcast-page');
+const page = document.querySelector('.podcast-view');
 const list = document.querySelector('#headline-list');
 const progress = document.querySelector('#player-progress');
 const elapsed = document.querySelector('#elapsed-time');
@@ -230,3 +231,4 @@ setInterval(() => {
   setPosition(position + .25 * speeds[speedIndex]);
   if (position >= duration) setPlaying(false);
 }, 250);
+})();

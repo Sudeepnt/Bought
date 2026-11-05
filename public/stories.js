@@ -381,7 +381,8 @@ const badgeIcons = {
 const renderBadges = (badges) => (badges && badges.length)
   ? `<span class="badges">${badges.map((badge) => `<span class="badge badge-${escapeStoryText(badge.id)}">${badgeIcons[badge.id] || ''}${escapeStoryText(badge.label)}</span>`).join('')}</span>`
   : '';
-const categoryClass = (category) => `cat-${String(category).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+const CAT_ALIAS = { founders: 'founders-startups', innovation: 'product-launches' };
+const categoryClass = (category) => { const slug = String(category).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); return `cat-${CAT_ALIAS[slug] || slug}`; };
 
 const microphoneIcon = '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="12" y="4" width="8" height="16" rx="4"/><path d="M8 15a8 8 0 0 0 16 0M16 23v5M11 28h10"/></svg>';
 
@@ -459,20 +460,25 @@ const pulseClips = [
 
 function renderPulse() {
   const playIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5.5v13l11-6.5z"/></svg>';
-  const cards = pulseClips.map((clip, index) => clip.ad ? `
+  const shown = pulseClips.filter((clip) => !clip.ad).slice(0, 3);   // three clips, never more (the paid "Clip break" slot is not shown for now)
+  const cards = shown.map((clip) => `
       <li class="pulse-item">
-        <div class="pulse-card is-ad" role="group" aria-label="Advertisement: ${escapeStoryText(clip.title)}">
-          <span class="pulse-tag">Ad · ${clip.length}</span>
-          <strong class="pulse-title">${escapeStoryText(clip.title)}</strong>
+        <div class="pulse-card ${categoryClass(clip.category)}" data-clip="${clip.clip}" role="group" aria-label="Clip: ${escapeStoryText(clip.title)}">
+          <video class="pulse-video" src="pulse/${clip.clip}.pulse.mp4?v=10" poster="pulse/${clip.clip}.pulse.jpg?v=10" playsinline preload="metadata" disablepictureinpicture controlslist="nodownload noremoteplayback" tabindex="-1" aria-hidden="true"></video>
+          <button class="pulse-hit" type="button" data-pulse-clip aria-label="Play or pause clip: ${escapeStoryText(clip.title)}"></button>
           <span class="pulse-play" aria-hidden="true">${playIcon}</span>
-        </div>
-        <span class="pulse-won">${escapeStoryText(clip.won)}</span>
-      </li>` : `
-      <li class="pulse-item">
-        <div class="pulse-card ${categoryClass(clip.category)}" role="group" aria-label="Clip: ${escapeStoryText(clip.title)}">
-          <video class="pulse-video" src="pulse/${clip.clip}.pulse.mp4?v=3" poster="pulse/${clip.clip}.pulse.jpg?v=3" loop playsinline preload="metadata" disablepictureinpicture controlslist="nodownload noremoteplayback" tabindex="-1" aria-hidden="true"></video>
-          <button class="pulse-hit" type="button" data-pulse-clip aria-label="Play or mute clip: ${escapeStoryText(clip.title)}"></button>
-          <span class="pulse-play" aria-hidden="true">${playIcon}</span>
+          <div class="pulse-actions">
+            <button class="pulse-action" type="button" data-pulse-share aria-label="Share: ${escapeStoryText(clip.title)}" title="Share"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="18" cy="5" r="2" /><circle cx="6" cy="12" r="2" /><circle cx="18" cy="19" r="2" /><path d="m8 11 8-5M8 13l8 5" /></svg></button>
+            <button class="pulse-action" type="button" data-pulse-share-video hidden aria-label="Share the video file: ${escapeStoryText(clip.title)}" title="Share the video"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3" /></svg></button>
+          </div>
+          <div class="pulse-next" hidden role="status">
+            <button class="pulse-next-scrim" type="button" data-next-stay aria-label="Stay on this clip"></button>
+            <div class="pulse-next-box">
+              <span class="next-ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" /></svg><svg class="next-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 5.500v13l9-6.500zM17 5.500h2v13h-2z" /></svg></span>
+              <p class="pulse-next-label" aria-live="polite"></p>
+              <p class="pulse-next-hint">Tap to stay</p>
+            </div>
+          </div>
           <div class="swipe-copy pulse-copy">
             <span class="swipe-tags"><span class="swipe-category">${escapeStoryText(clip.category)}</span></span>
             <h2 class="pulse-headline">${escapeStoryText(clip.title)}</h2>
@@ -487,8 +493,8 @@ function renderPulse() {
   return `
     <section class="pulse-block" aria-labelledby="pulse-heading">
       <div class="section-break" aria-hidden="true"><span></span><span></span><span></span></div>
-      <header class="section-marker"><h2 id="pulse-heading">Pulse</h2>${storyCount(pulseClips.filter((c) => !c.ad).length, 'clip', 'clips')}</header>
-      <ul class="pulse-rail" tabindex="0" aria-label="Short video clips. Swipe or scroll sideways.">${cards}</ul>
+      <header class="section-marker"><h2 id="pulse-heading">Pulse</h2>${storyCount(shown.length, 'clip', 'clips', 'swipe →')}</header>
+      <ul class="pulse-rail" aria-label="Short video clips">${cards}</ul>
     </section>`;
 }
 
@@ -540,31 +546,101 @@ function renderSpotlightPlacement(number) {
     </figure>`;
 }
 
+// SAMPLE text: the live feed carries a headline and a summary only, so "Why it matters" falls back to one line per section until the
+// pipeline supplies a real one (item.why_it_matters). Replace these when the feed has it.
+const SAMPLE_WHY = {
+  'ai': 'The test for AI is shifting from clever demos to dependable, everyday work.',
+  'technology': 'The next gains may come from the whole system, not from one component.',
+  'tech business': 'Where the money moves first shows which bets the industry believes in.',
+  'founders': 'What founders do under pressure is an early signal for the companies that follow.',
+  'product launches': 'Launches show what people will be offered, and what they will be asked to pay for.',
+  'tech geopolitics': 'Rules and supply lines set what technology can be built, and where.',
+};
 const PRIME_COUNT = 20;   // how many Prime stories one issue carries
-// When the content pipeline's feed is available (see index.html loader), its prime stories replace the samples.
-if (window.liveFeed && window.liveFeed.prime && window.liveFeed.prime.length) {
-  sampleStories.splice(0, sampleStories.length, ...window.liveFeed.prime.slice(0, PRIME_COUNT).map((item) => ({
-    category: item.category,
-    title: item.headline,
-    deck: item.summary,
-    image: item.image_url,
-    imageAlt: '',
-    imagePosition: 'center 42%',
-    video: item.video_url || '',
-    poster: item.poster_url || '',
-    badges: item.badges || [],
-    id: item.id,
-    audio: item.audio_url || '',
-    source: item.source,
-    link: item.link,
-  })));
+// ---- The issue is six sections of 50 stories: Technology, AI, Tech business and Founders & startups carry 10 each, Product launches and Tech
+// geopolitics 5 each. A story goes to the section named by its topic (live feed: Prime, cards and glance lists together; stories with a video
+// are picked first). When a topic has fewer stories than its section, the rest come from the hand-written sample stories above and the
+// SAMPLE_GEO ones below (the feed has no Tech geopolitics yet). Inside a section the cards mix video, photo and text.
+const SECTIONS = [['Technology', 10], ['AI', 10], ['Tech business', 10], ['Founders & startups', 10], ['Product launches', 5], ['Tech geopolitics', 5]];   // the order of the issue and how many stories each section carries (50 in all)
+const CANON = { business: 'Tech business', innovation: 'Product launches', founders: 'Founders & startups' };
+const canon = (c) => CANON[String(c).toLowerCase()] || c;
+// SAMPLE text for the topic the feed does not cover yet.
+const SAMPLE_GEO = [
+  { title: 'Export rules for AI chips tighten again', deck: 'New limits widen the list of processors that need a licence to leave the country.', matters: 'Supply rules now decide which labs can train the largest models, and where.' },
+  { title: 'A chip plant in a new region changes the supply map', deck: 'The planned fab would give buyers a second source outside the usual two or three hubs.', matters: 'Spreading manufacturing lowers one risk and raises the cost of everything else.' },
+  { title: 'A trade deal puts battery and chip materials on the table', deck: 'Negotiators are trading access to minerals and components that nearly every device depends on.', matters: 'Whoever controls the raw inputs gets a say in who can make the finished product.' },
+  { title: 'Undersea cables become a security question', deck: 'Governments are asking who owns, repairs and protects the lines that carry most internet traffic.', matters: 'The physical internet is thinner than it looks, and a few cuts can slow whole regions.' },
+];
+function buildSections() {
+  const visuals = (cat, k) => (glanceVisuals[cat] || glanceVisuals.Technology)[k % (glanceVisuals[cat] || glanceVisuals.Technology).length];
+  const pool = [], seen = new Set();
+  const feed = window.liveFeed;
+  if (feed) {
+    ['prime', 'cards', 'glance'].forEach((list) => (feed[list] || []).forEach((item, i) => {
+      if (seen.has(item.id)) return;
+      seen.add(item.id);
+      const cat = canon(item.category), hasVideo = list === 'prime' && i < PRIME_COUNT;
+      pool.push({
+        category: cat, title: item.headline, deck: item.summary, happened: item.happened || item.summary,
+        matters: item.why_it_matters || SAMPLE_WHY[String(cat).toLowerCase()] || SAMPLE_WHY.technology,
+        image: hasVideo ? item.image_url : visuals(cat, pool.length), imageAlt: '', imagePosition: 'center 42%',
+        ...(hasVideo ? { video: `prime/${item.id}.mp4?v=5`, poster: `prime/${item.id}.jpg?v=5` } : { isImage: true }),
+        badges: item.badges || [], id: item.id, audio: item.audio_url || '', source: item.source, link: item.link,
+        seconds: Number(item.duration_s) || 0, script: item.script || '',
+      });
+    }));
+  }
+  const spare = [...sampleStories, ...imageStories, ...glanceStories].map((st, k) => ({ ...st, category: canon(st.category), image: st.image || visuals(canon(st.category), k), imageAlt: st.imageAlt || st.alt || '', imagePosition: st.imagePosition || 'center 42%', happened: st.happened || st.deck, isImage: !st.video }));
+  const geo = SAMPLE_GEO.map((g, k) => ({ category: 'Tech geopolitics', ...g, happened: g.deck, image: visuals('Tech geopolitics', k), imageAlt: '', imagePosition: 'center 42%', isImage: true }));
+  return SECTIONS.map(([name, size]) => {
+    const take = (list) => list.filter((st) => st.category === name).sort((x, y) => (y.video ? 1 : 0) - (x.video ? 1 : 0));
+    const chosen = [];
+    [pool, spare, geo].forEach((src) => take(src).forEach((st) => { if (chosen.length < size) chosen.push(st); }));
+    return { name, stories: chosen };
+  }).filter((sec) => sec.stories.length);
 }
+const sections = buildSections();
+// the rest of the page reads one flat list in display order, so story numbers, Prev/Next and the reader all follow the sections
+sampleStories.splice(0, sampleStories.length, ...sections.flatMap((sec) => sec.stories));
+imageStories.splice(0);
+glanceStories.splice(0);
+const STORY_TOTAL = sampleStories.length;   // "N / total" on every card and in the reader
+
+// ---- "Most read today": exactly ONE story in the whole issue carries this: the Most viewed badge plus a "2,341 read this" strip with
+// a few reader circles. Any other most-viewed / most-read / most-glanced badge (from the feed or the hand-written samples) is dropped.
+// SAMPLE number: there is no reader analytics yet; mostReadToday() is the one place to return the real top story and its count.
+function mostReadToday() { return { id: '5a04354ee842f3fe', readers: 2341 }; }
+(() => {
+  [...sampleStories, ...imageStories, ...glanceStories].forEach((st) => { st.badges = (st.badges || []).filter((b) => !/^most-/.test(b.id)); });
+  const top = mostReadToday();
+  const story = sampleStories.find((st) => st.id === top.id) || sampleStories[0];
+  story.badges = [...story.badges, { id: 'most-viewed', label: 'Most viewed' }];
+  story.readers = top.readers;
+})();
 
 const JOURNALIST_NAME = 'Nastya';
-const storyCount = (count, one = 'story', many = 'stories') => `<span class="section-count">${count} ${count === 1 ? one : many}</span>`;
+const storyCount = (count, one = 'story', many = 'stories', hint = '') => `<span class="section-count">${count} ${count === 1 ? one : many}${hint ? `<span class="section-hint">${hint}</span>` : ''}</span>`;
 
 // Who presents the story and where it comes from: [N] Nastya · source. Swipe cards and glances have no presenter, so
 // they only show the source, and only when the story has one.
+// Stories you have opened in the reader get a small READ tag beside the byline (kept in this browser), as in the Bought. Daily design.
+const READ_TAG = '<span class="readtag">Read</span>';
+const readStories = new Set((() => { try { return Object.keys(JSON.parse(localStorage.getItem('bought-read') || '{}')); } catch (_) { return []; } })());
+function markStoryRead(story) {
+  const key = story.id || story.title;
+  if (readStories.has(key)) return;
+  readStories.add(key);
+  try { localStorage.setItem('bought-read', JSON.stringify(Object.fromEntries([...readStories].map((k) => [k, 1])))); } catch (_) { /* kept for this visit */ }
+  document.querySelectorAll('.lead-story, .swipe-slide, .glance-item').forEach((el) => {
+    if (el.querySelector('h2')?.textContent.trim() === story.title) el.querySelector('.story-byline')?.insertAdjacentHTML('beforeend', READ_TAG);
+  });
+}
+// The comment count on a card: shown exactly when the story has a discussion inside. Opens the story at its discussion.
+function renderCardTalk(story, number) {
+  if (!window.boughtDiscussion || !story.id || !window.boughtDiscussion.has(story.id)) return '';
+  const n = window.boughtDiscussion.count(story.id);
+  return `<button class="rd-talk" type="button" data-open-story="${number}" data-to-discussion data-talk-for="${escapeStoryText(story.id)}" aria-label="${n} comments, open the discussion"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><b>${n}</b></button>`;
+}
 function renderByline(story, withPresenter, readTime = '') {
   const source = story.source
     ? (story.link ? `<a class="byline-source" href="${escapeStoryText(story.link)}" target="_blank" rel="noopener noreferrer">${escapeStoryText(story.source)}</a>` : `<span class="byline-source">${escapeStoryText(story.source)}</span>`)
@@ -575,7 +651,7 @@ function renderByline(story, withPresenter, readTime = '') {
     : '';
   const dot = withPresenter && source ? '<span class="byline-dot" aria-hidden="true">·</span>' : '';
   const read = readTime ? `${presenter || source ? '<span class="byline-dot" aria-hidden="true">·</span>' : ''}<span class="story-readtime">${escapeStoryText(readTime)}</span>` : '';
-  return `<span class="story-byline">${presenter}${dot}${source}${read}</span>`;
+  return `<span class="story-byline">${presenter}${dot}${source}${read}${readStories.has(story.id || story.title) ? READ_TAG : ''}</span>`;
 }
 
 // Reading time from the text we hold for the story (about 200 words a minute, never under 1 minute).
@@ -583,37 +659,276 @@ function readMinutes(...parts) {
   const words = parts.filter(Boolean).join(' ').split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.round(words / 200));
 }
+// The format line beside the section label, as in the Bought. Daily design: "▶ Video inside · 3 min" or "Text · 2 min"
+function renderFormat(number, story) {
+  const mins = readTimeLabel(number, story).replace(/\D+$/, '').replace(/ min.*/, '');
+  if (story.isImage) return `<span class="fmtb">Photo · ${mins} min</span>`;
+  return story.video
+    ? `<span class="fmtb"><i aria-hidden="true"></i>${story.seconds ? `${Math.floor(story.seconds / 60)}:${String(Math.round(story.seconds % 60)).padStart(2, '0')} · ` : ''}${mins} min</span>`
+    : `<span class="fmtb">Text · ${mins} min</span>`;
+}
 function readTimeLabel(number, story) {
   const detail = story.link ? [] : articleDetails[number - 1] || [story.happened, story.matters];
   return `${readMinutes(story.deck, story.happened, story.matters, ...detail)} min read`;
 }
 
-function renderStory(story, number, saveKey = number) {
+// ---- "Stories that know a little about you": an honest reason on a story ("Because you read AI", "Near you · Bengaluru"), on at most 3
+// stories per issue (2 by topic, 1 by place). It only labels; it does not re-rank anything. WHERE THE DATA COMES FROM IS NOT DECIDED:
+// personalSignals() is the one place to change. Today it reads a profile from localStorage ('bought-profile', e.g.
+// {"topics":["AI"],"city":"Bengaluru"}) and otherwise uses a SAMPLE profile. Real options: the on-device reading history (private, no
+// backend), a signed-in account, or a city the reader picks. STORY_PLACES says which stories are local to a place: also SAMPLE data.
+const SAMPLE_PROFILE = { topics: ['AI'], city: 'Bengaluru' };
+const STORY_PLACES = { '8d12cdc02eef3e38': 'Bengaluru' };   // sample: "Cloud providers expand server capacity as demand rises"
+function personalSignals() {
+  try { const p = JSON.parse(localStorage.getItem('bought-profile') || 'null'); if (p && typeof p === 'object') return { topics: p.topics || [], city: p.city || null }; } catch (_) { /* use the sample */ }
+  return SAMPLE_PROFILE;
+}
+let reasonMap = null;
+function buildReasons() {   // story id -> { kind, text }, at most 2 by topic then 1 by place
+  const map = {}, { topics, city } = personalSignals();
+  let byTopic = 0, byPlace = 0;
+  for (const story of sampleStories) {
+    if (!story.id) continue;
+    if (byPlace < 1 && city && STORY_PLACES[story.id] === city) { map[story.id] = { kind: 'place', text: `Near you · ${city}` }; byPlace += 1; }
+    else if (byTopic < 2 && topics.includes(story.category)) { map[story.id] = { kind: 'topic', text: `Because you read ${story.category}` }; byTopic += 1; }
+  }
+  return map;
+}
+function renderReason(story) {
+  if (!story.id) return '';
+  reasonMap = reasonMap || buildReasons();
+  const r = reasonMap[story.id];
+  return r ? `<p class="story-reason"><span class="reason-badge is-${r.kind}">${escapeStoryText(r.text)}</span></p>` : '';
+}
+
+// ---- ENGAGEMENT STRATEGIES. Only the 20 most interesting of the 50 stories get one, and then exactly ONE, never two or three, chosen from what the news is:
+//   Yes / No    a personal or civic choice ("Would you...?", "Should your city...?"): consumer products, services, everyday decisions
+//   Agree / Disagree   a contested claim or policy: rules and regulation, "X is better than Y", public-money questions
+//   Prediction  a forward-looking event that can be checked later (launch, trial, deadline): scored on the reader's record, no money
+//   Slider      a risk, trust or comfort story where strength of feeling is the point: jobs, privacy, health, security
+//   Reactions   plain facts with nothing to vote on (earnings, stock moves, funding, infrastructure, science milestones), and any
+//               sensitive story where a poll would feel wrong. This is also the default when no question has been written.
+// Order of choosing: sensitive -> Reactions; checkable future event -> Prediction; risk or trust -> Slider; contested claim ->
+// Agree / Disagree; personal choice -> Yes / No; anything else -> Reactions. Then a variety pass: the same strategy never sits on two
+// stories in a row, and no strategy goes past a third of the issue. Every answer (not Reactions) can be turned into a share card.
+// Answers and reactions are kept on this device (localStorage). The crowd numbers (percentages, the average reader, reaction counts)
+// are SAMPLE numbers seeded from the story id, plus your own tap, until a real backend counts everyone: replace crowdFor() and
+// reactCounts() with calls to it and nothing else changes. A story with no entry below gets Reactions.
+const YN = ['Yes', 'No'], AD = ['Agree', 'Disagree'];
+const poll = (q, labels) => ({ type: 'poll', q, labels });
+const ENGAGE = {
+  // 1 Chipmakers race to ship 2nm chips: a checkable milestone
+  '293873247e6ba2c1': { type: 'predict', q: 'Will a phone with a 2nm chip be on sale before 2027?', labels: ['Yes, before 2027', 'No, later'], by: 'December 31, 2026' },
+  // 2 Satellite broadband reaches remote schools: public-money question
+  'ec0d5009476c4c94': poll('Satellite internet for remote schools should be free.', AD),
+  // 5 Faster-charging batteries for city buses: civic choice
+  '402ad39f9a1b17ab': poll('Should your city switch every bus to electric?', YN),
+  // 6 AI agents move from prompts to tasks: trust
+  '8f4bf0dde4bfd4fb': { type: 'slider', kicker: 'How much would you trust it?', q: 'An AI agent acting for you: booking, buying, replying', lo: 'Not at all', hi: 'Completely', word: 'trusting', avg: 41 },
+  // 7 The AI race runs through the data center: a values trade-off
+  '5a04354ee842f3fe': poll('Do you want a forest over a data center?', YN),
+  // 8 Phishing kits: risk
+  'bd16eca1270ba10e': { type: 'slider', kicker: 'How worried are you?', q: 'A wave of AI-built phishing kits', lo: 'Not worried', hi: 'Very worried', word: 'worried', avg: 68 },
+  // 9 A smaller model rivals larger ones: contested claim
+  'f484e19f4ae82b9e': poll('Smaller AI models are better than giant ones.', AD),
+  // 11 Hospitals test AI note-taking: comfort with health data
+  '2e9c7e5be873cc6b': { type: 'slider', kicker: 'How comfortable are you?', q: 'AI taking notes at your doctor visit', lo: 'Not comfortable', hi: 'Very comfortable', word: 'comfortable', avg: 47 },
+  // 12 Humanoid robots begin warehouse trials: a checkable milestone
+  '6cad623749cfa265': { type: 'predict', q: 'Will humanoid robots work a full shift in a major warehouse by 2027?', labels: ['Yes, by 2027', 'No, later'], by: 'December 31, 2027' },
+  // 14 Regulators draft rules for AI ads: contested policy
+  '2cf54d72426f9a35': poll('AI-made ads should always be labelled.', AD),
+  // 18 Streaming giant tests a cheaper ad tier: consumer choice
+  '28b9fedabc16067f': poll('Would you watch ads to pay less for streaming?', YN),
+  // 20 Smaller teams build faster: jobs
+  'f33a68d18fc8f517': { type: 'slider', kicker: 'How concerned are you?', q: 'AI replacing entry-level coding jobs', lo: 'Not worried', hi: 'Very worried', word: 'worried', avg: 64 },
+  // ---- World at a glance: one strategy per story, same rules (keyed by position in the section)
+  // 1 The chip race moves beyond the processor: a trend, nothing to vote on
+  // 2 Agents find a place in everyday work: trust
+  'glance-2': { type: 'slider', kicker: 'How much would you hand over?', q: 'AI agents doing parts of your everyday work', lo: 'Nothing', hi: 'Everything', word: 'comfortable', avg: 52 },
+  // 4 A new wave of devices puts AI on the go: consumer choice
+  'glance-4': poll('Would you wear an AI device all day?', YN),
+  // 5 Countries redraw the map for advanced chips: a checkable event
+  'glance-5': { type: 'predict', q: 'Will the US and China agree a chip trade deal by 2028?', labels: ['Yes, by 2028', 'No, later'], by: 'December 31, 2028' },
+  // 9 Private data becomes useful context: privacy trade-off
+  'glance-9': poll('Would you share private data with an assistant to get better help?', YN),
+  // 12 Data center power becomes the bottleneck: risk
+  'glance-12': { type: 'slider', kicker: 'How worried are you?', q: 'AI’s appetite for electricity', lo: 'Not worried', hi: 'Very worried', word: 'worried', avg: 57 },
+  // 13 Early customers shape the first product: no entry, so Reactions. (Also Reactions: 1.)
+  // No entry (Reactions) in the Prime section: 3 quantum error correction, 10 cloud capacity, 13 chip stocks, 15 software prices, 17 voice assistants.
+};
+// Only 20 of the 50 stories carry an engagement strategy (the interesting ones): 17 above plus these 3 with Reactions. All others show none.
+const REACT_ON = new Set(['1a0ad868f6c9c489', 'ec45826166dfe7e5', 'glance-1']);
+const REACTIONS = [['impressive', '🤯', 'Impressive'], ['concerning', '😬', 'Concerning'], ['overhyped', '🙄', 'Overhyped'], ['unknown', '💡', 'Didn’t know']];
+const stateKey = 'bought-engage', reactKey = 'bought-reacts';
+const readJson = (k) => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (_) { return {}; } };
+// One-time clean-up (2026-11-04): clears the answers and reactions saved on this device while the engagement design was being reworked.
+try { if (localStorage.getItem('bought-engage-reset') !== '2026-11-04') { localStorage.removeItem(stateKey); localStorage.removeItem(reactKey); localStorage.setItem('bought-engage-reset', '2026-11-04'); } } catch (_) { /* nothing saved to clear */ }
+const engageState = readJson(stateKey), reactState = readJson(reactKey);
+const saveJson = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* kept for this visit */ } };
+const seedOf = (text) => { let h = 0; for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+function crowdFor(id, mine) {   // poll: [% for the first answer, % for the second]
+  const h = seedOf(id), total = 700 + (h % 900), a = Math.round(total * (0.36 + (h % 33) / 100));
+  const pa = Math.round(((a + (mine === 'a' ? 1 : 0)) / (total + (mine ? 1 : 0))) * 100);
+  return [pa, 100 - pa];
+}
+const reactCounts = (id) => Object.fromEntries(REACTIONS.map(([k], i) => [k, 20 + (seedOf(id + k) % (200 - i * 25))]));
+const normalCdf = (z) => 0.5 * (1 + Math.tanh(0.7978845608 * (z + 0.044715 * z ** 3)));   // good enough for "more worried than X% of readers"
+function resultCard(id) {   // what the share card says, from your answer
+  const e = ENGAGE[id], v = engageState[id];
+  if (v === undefined) return null;
+  if (e.type === 'poll') {
+    const split = crowdFor(id, v), mine = v === 'a' ? split[0] : split[1], label = e.labels[v === 'a' ? 0 : 1];
+    return { kicker: 'My take', headline: mine >= 50 ? `${mine}% of readers agree with me` : `I’m in the ${mine}% who said ${label}`, sub: e.q, pct: mine, tail: `I said ${label}` };
+  }
+  if (e.type === 'slider') {
+    const p = Math.round(normalCdf((v - e.avg) / 24) * 100);
+    return { kicker: 'My take', headline: v >= e.avg ? `I’m more ${e.word} than ${p}% of readers` : `I’m less ${e.word} than ${100 - p}% of readers`, sub: e.q, pct: v, tail: `Me: ${v} · Average reader: ${e.avg}` };
+  }
+  return { kicker: 'My prediction', headline: `I’m calling it: ${e.labels[v === 'a' ? 0 : 1]}`, sub: e.q, pct: null, tail: `Resolves by ${e.by}` };
+}
+// Right after you answer, the share button floats over your result (which is blurred a little). Tap the ✕ or the blur to see the result.
+const freshAnswer = new Set();
+const shareOver = (id) => freshAnswer.has(id)
+  ? `<div class="share-over" data-dismiss-share><button class="poll-share" type="button" data-share-card>Share your result</button><button class="share-over-x" type="button" data-dismiss-share aria-label="Show my result">×</button></div>`
+  : '';
+function renderEngageInner(id) {
+  const e = ENGAGE[id], v = engageState[id];
+  const head = (kicker) => `<span class="poll-label">${escapeStoryText(kicker)}</span><p class="poll-q" id="poll-q-${id}">${escapeStoryText(e.q)}</p>`;
+  const shareBtn = `<button class="poll-share" type="button" data-share-card>Share your result</button>`;   // opens the result card as a popup
+  if (e.type === 'slider') {   // no save button: the number is final when you let go, and you can drag again to change it
+    const done = v !== undefined;
+    return `${head(e.kicker)}<div class="slider-wrap"><input class="slider" type="range" min="0" max="100" value="${done ? v : 50}" aria-label="${escapeStoryText(e.q)}: ${e.lo} to ${e.hi}"><i class="slider-avg" style="left:${e.avg}%"${done ? '' : ' hidden'} title="Average reader"></i></div>
+      <div class="slider-ends"><span>${e.lo}</span><span>${e.hi}</span></div>
+      <div class="engage-foot"><p class="slider-you">You: <b>${done ? v : 50}</b><span class="slider-avgtext"${done ? '' : ' hidden'}> · Average reader: <b>${e.avg}</b></span></p>${shareBtn.replace('<button ', `<button${done ? '' : ' hidden'} `)}</div>`;
+  }
+  if (e.type === 'predict') {
+    if (v === undefined) {
+      return `${head('Open prediction')}<div class="poll-choices" role="group" aria-labelledby="poll-q-${id}">
+        <button class="poll-choice" type="button" data-poll-vote="a">${e.labels[0]}</button><button class="poll-choice" type="button" data-poll-vote="b">${e.labels[1]}</button></div>
+        <p class="poll-note">Scored on your profile once it resolves. No money involved.</p>`;
+    }
+    const open = Object.keys(engageState).filter((k) => ENGAGE[k] && ENGAGE[k].type === 'predict').length;
+    const cells = ['a', 'b'].map((k, i) => `<div class="poll-row${v === k ? ' is-mine' : ''}"><span class="poll-fill"></span><span class="poll-name">${e.labels[i]}${v === k ? ' <i aria-hidden="true">✓</i>' : ''}</span></div>`).join('');
+    return `${head('Open prediction')}<div class="poll-reveal"><div class="poll-results${freshAnswer.has(id) ? ' is-blurred' : ''}" role="status">${cells}</div>${shareOver(id)}</div>
+      <div class="engage-foot"><p class="poll-note">Resolves by ${e.by} · ${open} open ${open === 1 ? 'prediction' : 'predictions'}</p>${freshAnswer.has(id) ? '' : shareBtn}</div>`;
+  }
+  if (v === undefined) {   // poll
+    return `${head('Your take')}<div class="poll-choices" role="group" aria-labelledby="poll-q-${id}">
+      <button class="poll-choice" type="button" data-poll-vote="a">${e.labels[0]}</button><button class="poll-choice" type="button" data-poll-vote="b">${e.labels[1]}</button></div>`;
+  }
+  const split = crowdFor(id, v);
+  const rows = ['a', 'b'].map((k, i) => `<div class="poll-row${v === k ? ' is-mine' : ''}"><span class="poll-fill" style="width:${split[i]}%"></span><span class="poll-name">${e.labels[i]}${v === k ? ' <i aria-hidden="true">✓</i>' : ''}</span><b>${split[i]}%</b></div>`).join('');
+  return `${head('Your take')}<div class="poll-reveal"><div class="poll-results${freshAnswer.has(id) ? ' is-blurred' : ''}" role="status">${rows}</div>${shareOver(id)}</div><div class="engage-foot"><p class="poll-note">You voted <b>${e.labels[v === 'a' ? 0 : 1]}</b>.</p>${freshAnswer.has(id) ? '' : shareBtn}</div>`;
+}
+const renderEngage = (story) => (story.id && ENGAGE[story.id]) ? `<div class="story-poll" data-poll="${story.id}" data-kind="${ENGAGE[story.id].type}">${renderEngageInner(story.id)}</div>` : '';
+function renderReacts(story) {
+  if (!story.id || ENGAGE[story.id] || !REACT_ON.has(story.id)) return '';   // one strategy per story, and only 20 of the 50 stories get one at all
+  const counts = reactCounts(story.id), mine = (reactState[story.id] || []).slice(0, 1);
+  return `<div class="story-reacts${mine.length ? ' has-choice' : ''}" data-react-for="${story.id}" role="group" aria-label="React to this story"><span class="poll-label">React</span><div class="react-row">${REACTIONS.map(([k, emoji, name]) => {
+    const on = mine.includes(k);
+    return `<button class="react-btn${on ? ' is-on' : ''}" type="button" data-react="${k}" aria-pressed="${on}"><span class="react-emoji" aria-hidden="true">${emoji}</span>${name} <b>${counts[k] + (on ? 1 : 0)}</b></button>`;
+  }).join('')}</div></div>`;
+}
+
+// The share card: a small branded image of your answer, made to be saved or posted. Drawn on a canvas so it can be shared as a file.
+async function buildResultCard(id) {
+  const d = resultCard(id), W = 1080, H = 1350, cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  await Promise.all(['700 80px Newsreader', '400 40px "DM Sans"'].map((f) => document.fonts.load(f).catch(() => {})));
+  const accent = getComputedStyle(document.querySelector(`[data-poll="${id}"]`)).getPropertyValue('--cat').trim() || '#ad4038';
+  const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#efece5'); g.addColorStop(1, '#bdb6a8');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#16150f'; ctx.font = '700 86px Newsreader, Georgia, serif'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('Bought', 90, 170); const w = ctx.measureText('Bought').width; ctx.fillStyle = accent; ctx.fillText('.', 90 + w, 170);
+  ctx.fillStyle = accent; ctx.font = '700 30px "DM Sans", Arial, sans-serif'; ctx.fillText(d.kicker.toUpperCase().split('').join(' '), 90, 330);
+  const wrap = (text, font, maxw) => { ctx.font = font; const out = []; let cur = ''; for (const wd of text.split(' ')) { const t = cur ? cur + ' ' + wd : wd; if (ctx.measureText(t).width > maxw && cur) { out.push(cur); cur = wd; } else cur = t; } return out.concat(cur); };
+  let y = 440; ctx.fillStyle = '#16150f';
+  for (const ln of wrap(d.headline, '700 104px Newsreader, Georgia, serif', W - 180).slice(0, 4)) { ctx.fillText(ln, 90, y); y += 120; }
+  y += 20; ctx.fillStyle = '#45403a';
+  for (const ln of wrap(d.sub, '400 44px "DM Sans", Arial, sans-serif', W - 180).slice(0, 3)) { ctx.fillText(ln, 90, y); y += 60; }
+  if (d.pct !== null) {
+    const by = 1050; ctx.fillStyle = 'rgba(22,21,15,.18)'; ctx.beginPath(); ctx.roundRect(90, by, W - 180, 36, 18); ctx.fill();
+    ctx.fillStyle = accent; ctx.beginPath(); ctx.roundRect(90, by, Math.max(36, (W - 180) * d.pct / 100), 36, 18); ctx.fill();
+  }
+  ctx.fillStyle = '#16150f'; ctx.font = '700 40px "DM Sans", Arial, sans-serif'; ctx.fillText(d.tail, 90, 1160);
+  ctx.fillStyle = '#625a51'; ctx.font = '400 32px "DM Sans", Arial, sans-serif'; ctx.fillText('What’s your take?  Today’s issue on Bought.', 90, 1250);
+  return new Promise((res) => cv.toBlob(res, 'image/png'));
+}
+// The card only appears when the Share button is pressed: a popup with the picture, a Share button (phones) and Save image.
+let cardPopup = null, cardTrigger = null;
+function closeCardPopup() {
+  if (!cardPopup || cardPopup.hidden) return;
+  cardPopup.hidden = true;
+  URL.revokeObjectURL(cardPopup.querySelector('img').src);
+  document.body.style.overflow = '';
+  cardTrigger?.focus();
+}
+async function openCardPopup(id, trigger) {
+  cardTrigger = trigger;
+  if (!cardPopup) {
+    cardPopup = document.createElement('div');
+    cardPopup.className = 'card-popup'; cardPopup.hidden = true;
+    cardPopup.setAttribute('role', 'dialog'); cardPopup.setAttribute('aria-modal', 'true'); cardPopup.setAttribute('aria-label', 'Your result card');
+    cardPopup.innerHTML = `<div class="card-popup-box"><button class="card-popup-close" type="button" aria-label="Close">×</button><img class="card-popup-img" alt="Your result card, ready to share"><div class="card-popup-actions"><button class="card-popup-share" type="button">Share</button><button class="card-popup-save" type="button">Save image</button></div></div>`;
+    document.body.append(cardPopup);
+    cardPopup.addEventListener('click', (event) => { if (event.target === cardPopup || event.target.closest('.card-popup-close')) closeCardPopup(); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeCardPopup(); });
+    cardPopup.querySelector('.card-popup-save').addEventListener('click', () => {
+      const a = document.createElement('a'); a.href = cardPopup.querySelector('img').src; a.download = 'bought-my-take.png'; a.click(); showActionFeedback('Card saved');
+    });
+    cardPopup.querySelector('.card-popup-share').addEventListener('click', async () => {
+      const file = new File([cardPopup._blob], 'bought-my-take.png', { type: 'image/png' }), id2 = cardPopup.dataset.id;
+      try { await navigator.share({ files: [file], title: 'My take on Bought.', url: id2.startsWith('glance-') ? location.origin + location.pathname : sharePageUrl(id2) }); }
+      catch (error) { if (error.name !== 'AbortError') showActionFeedback('Could not share the card'); }
+    });
+  }
+  const blob = await buildResultCard(id);
+  cardPopup._blob = blob; cardPopup.dataset.id = id;
+  cardPopup.querySelector('img').src = URL.createObjectURL(blob);
+  cardPopup.querySelector('.card-popup-share').hidden = !canShareFiles;
+  cardPopup.hidden = false;
+  document.body.style.overflow = 'hidden';
+  cardPopup.querySelector('.card-popup-close').focus();
+}
+
+// The Prime is "the important news", laid out like the Bought. Daily design: the first three in one ranked row, then a grid that mixes
+// formats: a wide video story, two medium cards (one video, one text), then three small text stories, and again.
+// A 'text' card shows no picture and says "Text"; a 'video' card shows the player.
+function primeShape(index, story = {}) {
+  // a video slot with no video behind it shows the story's photo instead; text slots stay text
+  const media = (slot) => (slot === 'video' && !story.video ? 'image' : slot);
+  if (index === 0) return { size: 'lead', media: media('video') };   // the lead story: big video beside a big headline
+  if (index < 4) return { size: 'top', media: media(index < 3 ? 'video' : 'text'), rank: index };
+  const at = (index - 4) % 6;
+  return { size: ['xl', 'm', 'm', 's', 's', 's'][at], media: media(['video', 'video', 'text', 'text', 'text', 'text'][at]) };
+}
+function renderStory(story, number, saveKey = number, shape = {}) {
   const loading = number === 1 ? 'eager' : 'lazy';
+  const showMedia = shape.media !== 'text';
+  const asText = !showMedia ? { ...story, video: '', isImage: false } : story;
   return `
-    <article class="lead-story ${categoryClass(story.category)}" id="story-${number}" data-story-id="${escapeStoryText(story.id || '')}" aria-labelledby="story-title-${number}" data-story-number="${number}" data-save-key="${saveKey}">
+    <article class="lead-story ${categoryClass(story.category)}${shape.size ? ` prime-card sz-${shape.size}${showMedia ? '' : ' is-text'}` : ''}" id="story-${number}" data-story-id="${escapeStoryText(story.id || '')}" aria-labelledby="story-title-${number}" data-story-number="${number}" data-save-key="${saveKey}">
+      ${showMedia ? `
       <div class="video-poster${story.video ? ' has-video' : ''}">
         ${story.video
-          ? `<video class="hero-image" src="${escapeStoryText(story.video)}" ${story.poster ? `poster="${escapeStoryText(story.poster)}" preload="none"` : 'preload="metadata"'} playsinline disablepictureinpicture disableremoteplayback aria-label="AI journalist presenting: ${escapeStoryText(story.title)}"></video>`
+          ? `<video class="hero-image" src="${escapeStoryText(story.video)}" ${story.poster ? `poster="${escapeStoryText(story.poster)}" preload="none"` : 'preload="metadata"'} playsinline disablepictureinpicture disableremoteplayback aria-label="Story video: ${escapeStoryText(story.title)}"></video>`
           : `<img class="hero-image" src="${story.image}" alt="${escapeStoryText(story.imageAlt)}" style="object-position: ${escapeStoryText(story.imagePosition)}" loading="${loading}">`}
-        <span class="video-story-number" aria-label="Story ${number} of 50">${number} / 50</span>
+        <span class="video-story-number" aria-label="Story ${number} of ${STORY_TOTAL}">${number} / ${STORY_TOTAL}</span>
         ${story.video ? `<button class="play-news" type="button" aria-label="Play the news: ${escapeStoryText(story.title)}">
           <span class="microphone-circle">${microphoneIcon}<b class="countdown-num" aria-hidden="true"></b><svg class="stop-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="6" y="6" width="12" height="12" rx="2" /></svg><svg class="countdown-ring" viewBox="0 0 70 70" aria-hidden="true" focusable="false"><circle cx="35" cy="35" r="32" /></svg></span>
           <span class="countdown-label" aria-live="polite"></span>
         </button>
         <button class="pin-close" type="button" aria-label="Close the player"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
         <span class="seek-flash" aria-hidden="true"></span>
-        <span class="video-progress" aria-hidden="true"><i></i></span>` : `<button class="play-news" type="button" aria-label="Play AI journalist news preview">
-          <span class="microphone-circle">${microphoneIcon}</span>
-        </button>
-        <div class="journalist-window">
-          <img src="assets/ai-presenter.jpg" alt="AI journalist presenting the story" loading="${loading}">
-        </div>`}
+        <span class="video-progress" aria-hidden="true"><i></i></span>` : ''}
       </div>
+      ` : ''}
 
       <div class="story-copy">
+        ${shape.rank ? `<span class="rank" aria-hidden="true">${shape.rank}</span>` : ''}
         <div class="story-meta">
-          <span class="story-tags"><span class="story-section">${escapeStoryText(story.category)}</span>${renderBadges(story.badges)}</span>
+          <span class="story-tags"><span class="story-section">${shape.size === 'lead' ? 'Lead story · ' : ''}${escapeStoryText(story.category)}</span>${renderFormat(number, asText)}${renderBadges(story.badges)}</span>
           <div class="story-actions">
             <button class="story-action" type="button" data-action="save" aria-label="Save story ${number}" aria-pressed="false" title="Save story">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 4.5h12v15l-6-4-6 4z" /></svg>
@@ -621,11 +936,19 @@ function renderStory(story, number, saveKey = number) {
             <button class="story-action" type="button" data-action="share" aria-label="Share story ${number}" title="Share story">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="18" cy="5" r="2" /><circle cx="6" cy="12" r="2" /><circle cx="18" cy="19" r="2" /><path d="m8 11 8-5M8 13l8 5" /></svg>
             </button>
+            ${asText.video ? `<button class="story-action" type="button" data-action="share-video" hidden aria-label="Share the video file, story ${number}" title="Share the video">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3" /></svg>
+            </button>` : ''}
           </div>
         </div>
+        ${renderReason(story)}
         <h2 id="story-title-${number}"><button class="story-title-button" type="button" data-open-story="${number}" aria-label="Read full story: ${escapeStoryText(story.title)}">${escapeStoryText(story.title)}</button></h2>
         <p class="story-deck">${escapeStoryText(story.deck)}</p>
-        <div class="story-byline-row">${renderByline(story, true, readTimeLabel(number, story))}</div>
+        <div class="story-byline-row rd-byrow">${renderByline(story, true)}${renderCardTalk(story, number)}</div>
+        ${story.readers ? `<div class="story-readers"><span class="readers-stack" aria-hidden="true"><i></i><i></i><i></i></span><span><b>${story.readers.toLocaleString('en-US')}</b> read this</span></div>` : ''}
+        ${renderEngage(story)}
+        ${renderReacts(story)}
+        <button class="more" type="button" data-open-story="${number}">Read the full story <span aria-hidden="true">→</span></button>
         ${story.link
           ? ''
           : `<div class="story-facts">
@@ -661,7 +984,7 @@ function renderImageCarousel() {
   return `
     <section class="image-swipe-block" aria-label="Image news stories">
       <div class="section-break" aria-hidden="true"><span></span><span></span><span></span></div>
-      <header class="section-marker"><h2 data-i18n="sec.swipe">Swipe cards</h2>${storyCount(imageStories.length)}</header>
+      <header class="section-marker"><h2 data-i18n="sec.swipe">Swipe cards</h2>${storyCount(imageStories.length, 'story', 'stories', 'swipe →')}</header>
       <div class="image-swipe-card" tabindex="0" aria-roledescription="carousel" aria-label="Image news stories. Swipe or tap the sides to change stories.">
         <div class="swipe-track">${slides}</div>
         <div class="swipe-progress" aria-label="Image story navigation">${progress}</div>
@@ -684,7 +1007,7 @@ function renderGlances() {
       <article class="glance-item ${categoryClass(story.category)}${story.deck ? '' : ' is-brief'} is-image-${imageSide}${index === 0 ? ' is-feature' : index === 5 ? ' is-wide' : ''}" id="story-${number}" aria-labelledby="glance-title-${number}">
         <div class="glance-visual" aria-hidden="true"><img src="${image}" alt="" loading="${index < 4 ? 'eager' : 'lazy'}"><span class="glance-image-number">${number} / 50</span></div>
         <div class="glance-copy">
-          <div class="glance-meta"><span class="glance-tags"><span class="glance-category">${escapeStoryText(story.category)}</span>${renderBadges(story.badges)}${renderByline(story, false)}</span><span class="sr-only">Story ${number} of 50</span></div>
+          <div class="glance-meta"><span class="glance-tags"><span class="glance-category">${escapeStoryText(story.category)}</span>${renderFormat(number, story)}${renderBadges(story.badges)}${renderByline(story, false)}</span><span class="sr-only">Story ${number} of 50</span></div>
           <h3 id="glance-title-${number}"><button class="story-title-button" type="button" data-open-story="${number}" aria-label="Read full story: ${escapeStoryText(story.title)}">${escapeStoryText(story.title)}</button></h3>
         </div>
         <div class="glance-facts">
@@ -692,6 +1015,7 @@ function renderGlances() {
           <div><h4>Why it matters</h4><p>${escapeStoryText(story.matters)}</p></div>
           <div class="glance-byline-row">${renderByline(story, true, readTimeLabel(number, story))}</div>
         </div>
+        ${(ENGAGE[`glance-${index + 1}`] || REACT_ON.has(`glance-${index + 1}`)) ? `<div class="glance-engage">${renderEngage({ id: `glance-${index + 1}` })}${renderReacts({ id: `glance-${index + 1}` })}</div>` : ''}
       </article>`;
     return item + (glanceSpotlights.has(index + 1) ? renderSpotlightPlacement(SPOTLIGHT_PRIME + 1 + glanceSpotlights.get(index + 1)) : '');
   }).join('');
@@ -706,21 +1030,45 @@ function renderGlances() {
 }
 
 const storiesRoot = document.querySelector('#edition-stories');
-const primeSpotlights = spotlightSlots(sampleStories.length, SPOTLIGHT_PRIME);
+// One section = a heading, its stories laid out as a mix of video / photo / text cards, and any Spotlight placed between them.
+// The first section opens with the lead story and the ranked top three; the others go straight to the mixed grid.
+function renderSection(sec, first, k, isFirst) {
+  const list = sec.stories, n = list.length;
+  const head = isFirst ? 4 : 0;                                          // stories shown above the grid in the first section
+  const gridList = list.slice(head);
+  const slotsAt = new Set(k.spots.map((_, j) => Math.max(2, Math.round(gridList.length * (j + 1) / (k.spots.length + 1))) - 1));
+  const card = (st, i) => renderStory(st, first + i + 1, first + i + 1, primeShape(head ? i : i + 4, st));   // first: i is the section index; others skip the lead/top slots
+  let spot = 0;
+  const grid = gridList.map((st, g) => card(st, head + g) + (slotsAt.has(g) ? renderSpotlightPlacement(k.spots[spot++]) : '')).join('');
+  const id = `sec-${sec.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  return `<section class="prime-section ${categoryClass(sec.name)}" aria-labelledby="${id}">
+    <header class="section-marker prime-marker"><h2 id="${id}">${escapeStoryText(sec.name)}</h2>${storyCount(n)}</header>
+    ${head ? `<div class="prime-lead">${card(list[0], 0)}</div>
+    <div class="prime-tops">${list.slice(1, 4).map((st, i) => card(st, i + 1)).join('')}</div>` : ''}
+    <div class="prime-grid">${grid}</div>
+    ${k.extras || ''}
+  </section>`;
+}
+let sectionStart = 0;
+const sectionHtml = sections.map((sec, i) => {
+  const first = sectionStart;
+  sectionStart += sec.stories.length;
+  const k = [
+    { spots: [1], extras: renderDayNumbers('prime', first + 1, sec.stories.length) + renderClassifieds('prime') },
+    { spots: [2] },
+    { spots: [3], extras: renderDayNumbers('swipe', first + 1, sec.stories.length) + renderClassifieds('swipe') },
+    { spots: [7, 8] },
+    { spots: [9] },
+    { spots: [], extras: renderDayNumbers('glance', first + 1, sec.stories.length) + renderClassifieds('glance') },
+  ][i];
+  return renderSection(sec, first, k, i === 0);
+});
 storiesRoot.innerHTML = [
-  `<section class="prime-section" aria-labelledby="prime-heading">
-    <header class="section-marker prime-marker"><h2 id="prime-heading" data-i18n="sec.prime">The Prime</h2>${storyCount(sampleStories.length)}</header>
-    ${sampleStories.map((story, index) => renderStory(story, index + 1) + (primeSpotlights.has(index + 1) ? renderSpotlightPlacement(primeSpotlights.get(index + 1)) : '')).join('')}
-    ${renderDayNumbers('prime', 1, sampleStories.length)}
-    ${renderClassifieds('prime')}
-  </section>`,
-  renderImageCarousel(),
-  renderDayNumbers('swipe', sampleStories.length + 1, imageStories.length),
-  renderClassifieds('swipe'),
+  ...sectionHtml.slice(0, 3),
   renderPulse(),
-  renderSpotlightPlacement(SPOTLIGHT_PRIME + 1),
-  renderGlances(),
-  renderSpotlightPlacement(SPOTLIGHT_PRIME + SPOTLIGHT_GLANCE + 2),
+  renderSpotlightPlacement(6),
+  ...sectionHtml.slice(3),
+  renderSpotlightPlacement(10),
 ].join('');
 
 const allStories = [...sampleStories, ...imageStories, ...glanceStories];
@@ -730,12 +1078,65 @@ let articleOpener = null;
 
 function closeFullStory() {
   if (articleOverlay.hidden) return;
+  stopReaderMedia();
   articleOverlay.hidden = true;
+  syncCardsWithReader();
   document.documentElement.classList.remove('is-reading');
   articleOpener?.focus();
   articleOpener = null;
 }
 
+
+// The reader's Listen button: a story with a video plays that video's voice-over; any other story is read aloud by the browser's voice.
+function stopReaderMedia() {
+  articleOverlayContent.querySelector('.rd-vid video')?.pause();
+  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (_) { /* no speech on this device */ }
+  articleOverlayContent.querySelector('[data-listen]')?.classList.remove('is-on');
+}
+// Answers given inside the reader are shared state: when it closes, redraw the matching engagement blocks on the cards.
+function syncCardsWithReader() {
+  freshAnswer.clear();
+  storiesRoot.querySelectorAll('.story-poll').forEach((box) => { box.innerHTML = renderEngageInner(box.dataset.poll); });
+  storiesRoot.querySelectorAll('[data-react-for]').forEach((box) => { box.outerHTML = renderReacts({ id: box.dataset.reactFor }); });
+  storiesRoot.querySelectorAll('[data-talk-for]').forEach((talk) => {   // a comment added in the reader counts on the card too
+    const n = window.boughtDiscussion.count(talk.dataset.talkFor);
+    talk.querySelector('b').textContent = n;
+    talk.setAttribute('aria-label', `${n} comments, open the discussion`);
+  });
+}
+function toggleReaderVideo(frame) {
+  const v = frame.querySelector('video');
+  if (v.paused) v.play().catch(() => {}); else v.pause();
+}
+[['play', true], ['pause', false], ['ended', false]].forEach(([type, on]) => articleOverlay.addEventListener(type, (event) => {
+  const frame = event.target.closest && event.target.closest('[data-rd-vid]');
+  if (!frame) return;
+  frame.classList.toggle('is-playing', on);
+  articleOverlay.querySelector('[data-listen]')?.classList.toggle('is-on', on);
+}, true));
+articleOverlay.addEventListener('timeupdate', (event) => {
+  const v = event.target, frame = v.closest && v.closest('[data-rd-vid]');
+  if (!frame || !v.duration) return;
+  frame.querySelector('.rd-vid-bar i').style.width = `${v.currentTime / v.duration * 100}%`;
+}, true);
+articleOverlay.addEventListener('click', (event) => {
+  const frame = event.target.closest('[data-rd-vid]');
+  if (frame) { toggleReaderVideo(frame); return; }
+  if (event.target === articleOverlay) { closeFullStory(); return; }   // tap the dimmed page to close
+  if (event.target.closest('[data-jump-discussion]')) { event.preventDefault(); articleOverlayContent.querySelector('#discussion')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  const listen = event.target.closest('[data-listen]');
+  if (!listen) return;
+  const video = articleOverlayContent.querySelector('.rd-vid');
+  if (video) { toggleReaderVideo(video); return; }
+  const synth = window.speechSynthesis;
+  if (!synth) return;
+  if (synth.speaking) { stopReaderMedia(); return; }
+  const text = [...articleOverlayContent.querySelectorAll('h2, .rd-dek, .rd-info p, .rd-why p')].map((el) => el.textContent).join('. ');
+  synth.speak(new SpeechSynthesisUtterance(text));
+  listen.classList.add('is-on');
+});
+
+if (window.boughtDiscussion) window.boughtDiscussion.mount(articleOverlayContent, (m) => showActionFeedback(m));
 let storyTranslations = null;           // {id: {headline, summary}} for the chosen language, or null (English)
 
 function openFullStory(number, opener) {
@@ -745,29 +1146,49 @@ function openFullStory(number, opener) {
   const story = tr ? { ...original, title: tr.headline, deck: tr.summary } : original;
   const [opening, continuation] = story.link ? [story.deck, ''] : articleDetails[number - 1] || [story.happened || story.deck, story.matters];
   articleOpener = opener;
+  stopReaderMedia();
+  storiesRoot.querySelectorAll('video').forEach((v) => v.pause());
+  articleOverlayContent.className = `article-overlay-content ${categoryClass(story.category)}`;
+  const prevStory = allStories[number - 2], nextStory = allStories[number];
+  const nextTitle = nextStory ? escapeStoryText(storyTranslations && nextStory.id && storyTranslations[nextStory.id] ? storyTranslations[nextStory.id].headline : nextStory.title) : "You've reached the last story";
+  const paras = story.link ? [] : [opening, continuation];
+  const happened = story.happened || story.deck;
+  const talk = !!(window.boughtDiscussion && story.id && window.boughtDiscussion.has(story.id)), talkCount = talk ? window.boughtDiscussion.count(story.id) : 0;
+  const info = story.script || paras.filter(Boolean).join(' ');
   articleOverlayContent.innerHTML = `
-    <div class="article-overlay-top">
-      <span class="article-overlay-category">${escapeStoryText(story.category)}</span>
-      <span class="article-overlay-number">${readTimeLabel(number, story)} · ${number} / 50</span>
-      <button class="article-overlay-close" type="button" aria-label="Close full story">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19"/></svg>
-      </button>
+    <div class="rd-top">
+      <span class="pos">${escapeStoryText(story.category)} · ${number} of ${STORY_TOTAL}</span>
+      <button class="chip-btn" type="button" data-listen>Listen</button>
+      <button class="chip-btn article-overlay-close" type="button" aria-label="Close full story">Close</button>
     </div>
-    <article aria-labelledby="article-overlay-title">
-      <h2 id="article-overlay-title">${escapeStoryText(story.title)}</h2>
-      <p class="article-overlay-deck">${escapeStoryText(story.deck)}</p>
-      <div class="article-overlay-rule" aria-hidden="true"></div>
-      <div class="article-overlay-body">
-        <p>${escapeStoryText(opening)}</p>
-        ${story.link
-          ? `<p><a href="${escapeStoryText(story.link)}" rel="noopener" target="_blank">Read the full story at ${escapeStoryText(story.source)}</a></p>`
-          : `<p>${escapeStoryText(continuation)}</p>
-        <h3>Why it matters</h3>
-        <p>${escapeStoryText(story.matters)}</p>`}
-      </div>
-    </article>`;
+    <div class="rd-bar" aria-hidden="true"><i style="width:${number / STORY_TOTAL * 100}%"></i></div>
+    <div class="rd-body" id="rd-body">
+      <article class="rd-article" aria-labelledby="article-overlay-title">
+        <div class="story-tags"><span class="story-section">${escapeStoryText(story.category)}</span>${renderFormat(number, story)}${renderBadges(story.badges)}</div>
+        <h2 id="article-overlay-title">${escapeStoryText(story.title)}</h2>
+        <p class="rd-dek">${escapeStoryText(story.deck)}</p>
+        <div class="story-byline-row rd-byrow">${renderByline(story, true)}${talk ? `<a class="rd-talk" href="#discussion" data-jump-discussion aria-label="${talkCount} comments"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><b data-comment-count>${talkCount}</b></a>` : ''}</div>
+        ${story.video ? `<div class="rd-vid" data-rd-vid>
+          <video src="${escapeStoryText(story.video)}" ${story.poster ? `poster="${escapeStoryText(story.poster)}"` : ''} playsinline preload="metadata" disablepictureinpicture></video>
+          <button class="rd-vid-big" type="button" aria-label="Play the video"><i></i></button>
+          <span class="rd-vid-bar"><i></i></span>
+        </div>` : story.image ? `<img class="rd-photo" src="${escapeStoryText(story.image)}" alt="${escapeStoryText(story.imageAlt || '')}" style="object-position: ${escapeStoryText(story.imagePosition || 'center')}">` : ''}
+        ${info ? `<div class="rd-info"><p>${escapeStoryText(info)}</p></div>` : ''}
+        <div class="rd-pair"><div class="rd-why"><b>What happened</b><p>${escapeStoryText(happened)}</p></div>
+        ${story.matters ? `<div class="rd-why"><b>Why it matters</b><p>${escapeStoryText(story.matters)}</p></div>` : ''}</div>
+        ${renderEngage(story)}
+        ${renderReacts(story)}
+        ${story.link ? `<div class="rd-acts"><a href="${escapeStoryText(story.link)}" rel="noopener" target="_blank">Read the original on ${escapeStoryText(story.source || 'the source')} <span aria-hidden="true">↗</span></a></div>` : ''}
+        ${talk ? window.boughtDiscussion.render(story.id) : ''}
+      </article>
+    </div>
+    <div class="article-overlay-foot">
+      <button class="foot-prev" type="button" ${prevStory ? `data-story-step="${number - 1}"` : 'disabled'}>← Prev</button>
+      <button class="foot-next" type="button" ${nextStory ? `data-story-step="${number + 1}"` : 'disabled'}><small>${nextStory ? 'Next story' : 'End of issue'}</small><b>${nextTitle}</b></button>
+    </div>`;
   articleOverlay.hidden = false;
-  articleOverlay.scrollTop = 0;
+  markStoryRead(original);
+  articleOverlayContent.querySelector('#rd-body').scrollTop = 0;
   document.documentElement.classList.add('is-reading');
   articleOverlay.querySelector('.article-overlay-close').focus();
 }
@@ -776,17 +1197,26 @@ storiesRoot.addEventListener('click', (event) => {
   const title = event.target.closest('[data-open-story]');
   if (title && !(title.closest('.image-swipe-card') && Date.now() < ignoreTapUntil)) {
     openFullStory(Number(title.dataset.openStory), title);
+    if (title.hasAttribute('data-to-discussion')) articleOverlayContent.querySelector('#discussion')?.scrollIntoView({ block: 'start' });
   }
 });
 articleOverlay.addEventListener('click', (event) => {
   if (event.target.closest('.article-overlay-close')) closeFullStory();
+  const step = event.target.closest('[data-story-step]');
+  if (step) openFullStory(Number(step.dataset.storyStep), articleOpener);
 });
 document.addEventListener('keydown', (event) => {
   if (articleOverlay.hidden) return;
   if (event.key === 'Escape') closeFullStory();
-  if (event.key === 'Tab') {
+  if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && !/INPUT|TEXTAREA/.test(event.target.tagName)) {
+    const go = articleOverlay.querySelector(event.key === 'ArrowRight' ? '.foot-next' : '.foot-prev');
+    if (go && !go.disabled) { event.preventDefault(); go.click(); }
+  }
+  if (event.key === 'Tab') {   // keep focus inside the story: close, prev, next
+    const ring = [...articleOverlay.querySelectorAll('button:not(:disabled), a[href]')];
+    const at = ring.indexOf(document.activeElement), to = event.shiftKey ? at - 1 : at + 1;
     event.preventDefault();
-    articleOverlay.querySelector('.article-overlay-close').focus();
+    ring[(to + ring.length) % ring.length].focus();
   }
 });
 
@@ -796,13 +1226,26 @@ function syncMastheadHeight() {
 }
 syncMastheadHeight();
 if ('ResizeObserver' in window) new ResizeObserver(syncMastheadHeight).observe(stickyMasthead);
+
+// ---- "Reading Bought right now" pill in the top bar. SAMPLE number: there is no presence service yet, so readersNow() drifts around a
+// plausible value. For the real thing, count live visitors (a heartbeat endpoint or Supabase Realtime presence) and return that here.
+(() => {
+  const el = document.getElementById('readers-now');
+  if (!el) return;
+  const num = el.querySelector('.readers-num');
+  let n = 1292;
+  const readersNow = () => { n = Math.max(900, n + Math.round((Math.random() - 0.48) * 14)); return n; };
+  const paint = () => { const v = readersNow(); num.textContent = v.toLocaleString('en-US'); el.setAttribute('aria-label', `${v.toLocaleString('en-US')} people reading Bought right now`); };
+  paint();
+  setInterval(() => { if (!document.hidden) paint(); }, 6000);
+})();
 window.addEventListener('resize', syncMastheadHeight);
 
-const swipeCard = storiesRoot.querySelector('.image-swipe-card');
+const swipeCard = storiesRoot.querySelector('.image-swipe-card') || Object.assign(document.createElement('div'), { innerHTML: '<div class="swipe-track"></div>' });   // no swipe strip any more: a detached stand-in keeps the old handlers harmless
 const swipeTrack = swipeCard.querySelector('.swipe-track');
 const swipeSlides = [...swipeCard.querySelectorAll('.swipe-slide')];
 const swipeSteps = [...swipeCard.querySelectorAll('.swipe-progress-step')];
-const swipeAnnouncement = storiesRoot.querySelector('.swipe-announcement');
+const swipeAnnouncement = storiesRoot.querySelector('.swipe-announcement') || document.createElement('span');
 let activeImageStory = 0;
 
 function updateImageStory(index) {
@@ -937,17 +1380,47 @@ function showActionFeedback(message) {
 // The only control on screen is the progress bar that is part of the picture; there are no media controls or mute button.
 const pulseVideos = () => [...storiesRoot.querySelectorAll('.pulse-video')];
 function pausePulse(except) { pulseVideos().forEach((v) => { if (v !== except) { v.pause(); v.closest('.pulse-card').classList.remove('is-playing'); } }); }
+let nextUp = null;   // { card, timer, tick } while "Next clip in 3s" is counting down
+function hideNextUp() {
+  if (!nextUp) return;
+  clearTimeout(nextUp.timer); clearInterval(nextUp.tick);
+  nextUp.card.querySelector('.pulse-next').hidden = true;
+  nextUp = null;
+}
+function startPulse(card) {
+  const v = card.querySelector('.pulse-video');
+  hideNextUp();
+  pausePulse(v);
+  v.muted = false;
+  v.play().then(() => card.classList.add('is-playing')).catch(() => { v.muted = true; v.play().then(() => card.classList.add('is-playing')).catch(() => {}); });
+}
 storiesRoot.addEventListener('click', (event) => {
+  if (event.target.closest('[data-next-stay]')) { hideNextUp(); return; }   // tap the dimmed picture: stay on this clip
   const hit = event.target.closest('[data-pulse-clip]');
   if (!hit) return;
   const card = hit.closest('.pulse-card');
   const v = card.querySelector('.pulse-video');
-  if (v.paused) {
-    pausePulse(v);
-    v.muted = false;
-    v.play().then(() => card.classList.add('is-playing')).catch(() => { v.muted = true; v.play().then(() => card.classList.add('is-playing')).catch(() => {}); });
-  } else { v.pause(); card.classList.remove('is-playing'); }
+  if (v.paused) startPulse(card);
+  else { v.pause(); card.classList.remove('is-playing'); }
 });
+// A clip that plays to the end: "Next clip in 3s" (tap to stay), then the next clip loads and plays. The last clip just goes back to its start.
+pulseVideos().forEach((v) => v.addEventListener('ended', () => {
+  const card = v.closest('.pulse-card'), cards = [...storiesRoot.querySelectorAll('.pulse-card')], next = cards[cards.indexOf(card) + 1];
+  card.classList.remove('is-playing');
+  hideNextUp();
+  if (!next) { v.currentTime = 0; return; }
+  const pop = card.querySelector('.pulse-next'), label = pop.querySelector('.pulse-next-label'), ring = pop.querySelector('.next-ring');
+  let left = 3;
+  const show = () => { label.textContent = `Next clip in ${left}s`; };
+  show(); pop.hidden = false;
+  ring.classList.remove('is-counting'); void ring.offsetWidth; ring.classList.add('is-counting');
+  next.querySelector('video').preload = 'auto';   // start fetching the next clip now, so it is ready at zero
+  nextUp = {
+    card,
+    tick: setInterval(() => { left = Math.max(1, left - 1); show(); }, 1000),
+    timer: setTimeout(() => { hideNextUp(); next.scrollIntoView({ behavior: 'smooth', block: 'center' }); startPulse(next); }, 3000),
+  };
+}));
 // leaving the page or scrolling a clip out of view stops it
 document.addEventListener('visibilitychange', () => { if (document.hidden) pausePulse(null); });
 if ('IntersectionObserver' in window) {
@@ -985,10 +1458,10 @@ async function shareStory(article) {
   const summary = article.querySelector('.story-deck').textContent;
   const shareData = { title: `${title} — Bought. Spotlight`, text: summary };
   if (location.protocol === 'https:' || location.protocol === 'http:') {
-    const url = new URL(location.href);
-    // Stories from the feed are shared by their own id (steady from day to day); the built-in samples by position.
-    url.hash = article.dataset.storyId ? `s-${article.dataset.storyId}` : article.id;
-    shareData.url = url.href;
+    // Stories from the feed are shared by their own preview page, /s/<id>/ (its tags carry the story's picture and video, so
+    // chat apps and X show them); the built-in samples, which have no page, by position.
+    if (article.dataset.storyId) shareData.url = sharePageUrl(article.dataset.storyId);
+    else { const url = new URL(location.href); url.hash = article.id; shareData.url = url.href; }
   }
 
   if (typeof navigator.share === 'function') {
@@ -1003,6 +1476,81 @@ async function shareStory(article) {
   const copy = [title, summary, shareData.url].filter(Boolean).join('\n\n');
   showActionFeedback(await copyStoryText(copy) ? 'Story copied' : 'Could not share story');
 }
+
+// ---- Sharing. A link goes to /s/<id>/, a small page whose tags carry that story's picture and video (chat apps, X and the like read
+// those; they never see the part after '#'). "Share video" hands the mp4 file itself to the phone's share sheet, so it can be posted
+// to Instagram, X, WhatsApp and so on. That button only appears where the browser can share files.
+const canShareFiles = (() => { try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'clip.mp4', { type: 'video/mp4' })] })); } catch (_) { return false; } })();
+function sharePageUrl(slug) { return new URL(`s/${slug}/`, location.origin + location.pathname.replace(/[^/]*$/, '')).href; }
+async function shareLink({ title, text, url }) {
+  if (typeof navigator.share === 'function') {
+    try { await navigator.share({ title, text, url }); return; } catch (error) { if (error.name === 'AbortError') return; }
+  }
+  showActionFeedback(await copyStoryText([title, text, url].filter(Boolean).join('\n\n')) ? 'Link copied' : 'Could not copy the link');
+}
+async function shareVideoFile(video, title, text, slug) {
+  showActionFeedback('Preparing the video…');
+  try {
+    const blob = await (await fetch(video.currentSrc || video.src)).blob();
+    const file = new File([blob], `${slug}.mp4`, { type: 'video/mp4' });
+    if (!navigator.canShare({ files: [file] })) throw new Error('unsupported');
+    await navigator.share({ files: [file], title, text });
+    actionFeedback.hidden = true;
+  } catch (error) {
+    if (error.name === 'AbortError') actionFeedback.hidden = true;
+    else showActionFeedback('Could not share the video');
+  }
+}
+storiesRoot.querySelectorAll('[data-action="share-video"], [data-pulse-share-video]').forEach((b) => { b.hidden = !canShareFiles; });
+storiesRoot.addEventListener('click', (event) => {   // Pulse card buttons
+  const btn = event.target.closest('.pulse-action');
+  if (!btn) return;
+  const card = btn.closest('.pulse-card');
+  const title = card.querySelector('.pulse-headline').textContent;
+  const text = card.querySelector('.swipe-facts p').textContent;
+  if (btn.hasAttribute('data-pulse-share-video')) shareVideoFile(card.querySelector('video'), title, text, card.dataset.clip);
+  else shareLink({ title: `${title} — Bought. Pulse`, text, url: sharePageUrl(`pulse-${card.dataset.clip}`) });
+});
+
+function refreshEngage(box) { box.innerHTML = renderEngageInner(box.dataset.poll); }
+const engageRoots = [storiesRoot, articleOverlay];
+const onEngageInput = (event) => {   // slider: show your number as you drag
+  const slider = event.target.closest('.slider');
+  if (slider) slider.closest('.story-poll').querySelector('.slider-you b').textContent = slider.value;
+};
+const onEngageChange = (event) => {   // slider: when you let go, that number is your answer (drag again to change it)
+  const slider = event.target.closest('.slider');
+  if (!slider) return;
+  const box = slider.closest('.story-poll'), id = box.dataset.poll;
+  engageState[id] = Number(slider.value);
+  saveJson(stateKey, engageState);
+  box.querySelector('.slider-avg').hidden = false;
+  box.querySelector('.slider-avgtext').hidden = false;
+  box.querySelector('.poll-share').hidden = false;   // the share button (and its card) follow your latest number
+};
+const onEngageClick = async (event) => {   // answers, predictions, sliders, reactions and result cards
+  const react = event.target.closest('[data-react]');
+  if (react) {   // one reaction at a time: choosing another moves your choice, tapping yours again takes it back
+    const id = react.closest('.story-reacts').dataset.reactFor, k = react.dataset.react, current = (reactState[id] || [])[0];
+    reactState[id] = current === k ? [] : [k];
+    saveJson(reactKey, reactState);
+    react.closest('.story-reacts').outerHTML = renderReacts({ id });
+    if (event.detail === 0) document.querySelector(`[data-react-for="${id}"] [data-react="${k}"]`)?.focus();   // keep the keyboard place; a mouse click needs no ring
+    return;
+  }
+  const vote = event.target.closest('[data-poll-vote]'), card = event.target.closest('[data-share-card]'), dismiss = event.target.closest('[data-dismiss-share]');
+  if (!vote && !card && !dismiss) return;
+  const box = event.target.closest('.story-poll'), id = box.dataset.poll;
+  if (card) { openCardPopup(id, card); return; }
+  if (dismiss) { freshAnswer.delete(id); refreshEngage(box); box.querySelector('.poll-share')?.focus?.({ preventScroll: true }); return; }
+  engageState[id] = vote.dataset.pollVote;   // an answer or a prediction is final once given: no "change" button
+  freshAnswer.add(id);
+  saveJson(stateKey, engageState);
+  refreshEngage(box);
+  box.querySelector('.poll-share')?.focus?.({ preventScroll: true });
+};
+engageRoots.forEach((root) => { root.addEventListener('input', onEngageInput); root.addEventListener('change', onEngageChange); root.addEventListener('click', onEngageClick); });
+
 
 storiesRoot.addEventListener('click', (event) => {
   const button = event.target.closest('[data-action]');
@@ -1019,6 +1567,9 @@ storiesRoot.addEventListener('click', (event) => {
     showActionFeedback(savedStories.has(saveKey) ? 'Story saved' : 'Removed from saved');
   } else if (button.dataset.action === 'share') {
     shareStory(article);
+  } else if (button.dataset.action === 'share-video') {
+    const video = article.querySelector('.video-poster video');
+    if (video) shareVideoFile(video, article.querySelector('h2').textContent, article.querySelector('.story-deck').textContent, article.dataset.storyId || article.id);
   }
 });
 
@@ -1053,7 +1604,7 @@ storiesRoot.addEventListener('click', (event) => {
   const wide = window.matchMedia('(min-width: 900px)');
   const mastheadHeight = () => document.querySelector('.sticky-masthead').getBoundingClientRect().height;
 
-  function pin(poster) {
+  function pin(poster, from) {
     if (pinned) return;
     const box = poster.getBoundingClientRect();
     const slot = document.createElement('div');             // keeps the card's height so nothing below jumps
@@ -1062,7 +1613,7 @@ storiesRoot.addEventListener('click', (event) => {
     poster.before(slot);
     if (!wide.matches) { poster.style.left = `${box.left}px`; poster.style.width = `${box.width}px`; }
     poster.classList.add('is-pinned');
-    pinned = { poster, slot };
+    pinned = { poster, slot, from };                        // from: which edge it left through, 'top' or 'bottom'
   }
 
   function unpin() {
@@ -1075,11 +1626,17 @@ storiesRoot.addEventListener('click', (event) => {
 
   function checkPin() {
     if (pinned) {                                           // back in view: put it in its place again
-      if (pinned.slot.getBoundingClientRect().top > mastheadHeight() + 4) unpin();
-      return;
+      const slot = pinned.slot.getBoundingClientRect();
+      const top = mastheadHeight();
+      if (!(pinned.from === 'top' ? slot.top > top + 4 : (slot.top < window.innerHeight - 40 && slot.bottom > top + 24))) return;
+      unpin();                                              // then look again: it may have gone off the other edge
     }
     const playing = storiesRoot.querySelector('.video-poster.has-video.is-playing');
-    if (playing && playing.getBoundingClientRect().bottom < mastheadHeight() + 24) pin(playing);
+    if (!playing) return;
+    const box = playing.getBoundingClientRect();
+    // it rides along at the top whichever way it left: scrolled down past it, or scrolled back up above it
+    if (box.bottom < mastheadHeight() + 24) pin(playing, 'top');
+    else if (box.top >= window.innerHeight) pin(playing, 'bottom');
   }
   let pinFrame = 0;
   window.addEventListener('scroll', () => {
@@ -1203,6 +1760,7 @@ if (window.boughtLanguage && window.boughtLanguage.locale !== 'en') applyStoryLa
 function findLinkedStory() {
   const key = decodeURIComponent(location.hash.replace(/^#/, ''));
   if (/^s-[\w-]+$/.test(key)) return [...storiesRoot.querySelectorAll('[data-story-id]')].find((el) => el.dataset.storyId === key.slice(2)) || null;
+  if (/^pulse-[\w-]+$/.test(key)) return storiesRoot.querySelector(`.pulse-card[data-clip="${key.slice(6)}"]`);
   if (/^story-\d+$/.test(key)) return storiesRoot.querySelector(`#${key}`);
   return null;
 }

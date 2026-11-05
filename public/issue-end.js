@@ -86,7 +86,6 @@
 
       <footer class="end-footer">
         <p>© 2026 Bought. Ad spots are sold by daily public auction.</p>
-        <nav aria-label="Footer"><a href="${MARKET}newspaper" data-leave-confirm>Archive</a><a href="${MARKET}" data-leave-confirm>Advertise</a><a href="${MARKET}terms" data-leave-confirm>Privacy</a></nav>
       </footer>
     </div>`;
 

@@ -1,0 +1,29 @@
+# STEP 2: where the news comes from. Every source below answered on 2026-11-04. Read each site's terms before going public.
+#   type tldr: daily curated pages, {url}/YYYY-MM-DD; we keep each story's title and original link, never TLDR's own text.
+#   category: the section a story starts in. brief.yaml keywords and jev decide where it ends up.
+#   image_rights: link_only keeps a source's pictures out of our videos. Default is to use them (funnel_publisher_images in config).
+sources:
+  # Curated, like TLDR: people already picked these
+  - {name: TLDR Tech,     type: tldr, url: "https://tldr.tech/tech",     weight: 5, category: Technology}
+  - {name: TLDR AI,       type: tldr, url: "https://tldr.tech/ai",       weight: 5, category: AI}
+  - {name: TLDR Founders, type: tldr, url: "https://tldr.tech/founders", weight: 5, category: Founders & startups}
+  - {name: TLDR Product,  type: tldr, url: "https://tldr.tech/product",  weight: 4, category: Product launches}
+  - {name: Techmeme,      type: rss,  url: "https://www.techmeme.com/feed.xml",               weight: 5, category: Technology}
+  - {name: Hacker News,   type: rss,  url: "https://hnrss.org/frontpage?points=150",          weight: 4, category: Technology}
+  # Newsrooms, narrow sections first (a story in two feeds keeps the first one's section)
+  - {name: South China Morning Post Tech, type: rss, url: "https://www.scmp.com/rss/36/feed", weight: 4, category: Tech geopolitics}
+  - {name: Rest of World,   type: rss, url: "https://restofworld.org/feed/latest",            weight: 4, category: Tech geopolitics}
+  - {name: TechCrunch Fundraising, type: rss, url: "https://techcrunch.com/category/fundraising/feed/", weight: 4, category: Founders & startups}
+  - {name: TechCrunch Startups, type: rss, url: "https://techcrunch.com/category/startups/feed/",      weight: 4, category: Founders & startups}
+  - {name: Sifted,          type: rss, url: "https://sifted.eu/feed",                         weight: 4, category: Founders & startups}
+  - {name: TechCrunch Venture, type: rss, url: "https://techcrunch.com/category/venture/feed/", weight: 4, category: Tech business}
+  - {name: Crunchbase News, type: rss, url: "https://news.crunchbase.com/feed/",              weight: 4, category: Tech business}
+  - {name: CNBC Tech,       type: rss, url: "https://www.cnbc.com/id/19854910/device/rss/rss.html", weight: 4, category: Tech business}
+  - {name: GeekWire,        type: rss, url: "https://www.geekwire.com/feed/",                 weight: 3, category: Tech business}
+  - {name: TechCrunch AI,   type: rss, url: "https://techcrunch.com/category/artificial-intelligence/feed/", weight: 5, category: AI}
+  - {name: SiliconANGLE,    type: rss, url: "https://siliconangle.com/feed/",                 weight: 3, category: AI}
+  - {name: MIT Technology Review, type: rss, url: "https://www.technologyreview.com/feed/",   weight: 5, category: Technology}
+  - {name: The Verge,       type: rss, url: "https://www.theverge.com/rss/tech/index.xml",    weight: 4, category: Technology}
+  - {name: Ars Technica,    type: rss, url: "https://feeds.arstechnica.com/arstechnica/technology-lab", weight: 4, category: Technology}
+  - {name: The Register,    type: rss, url: "https://www.theregister.com/headlines.atom",     weight: 3, category: Technology}
+  - {name: Product Hunt,    type: rss, url: "https://www.producthunt.com/feed",               weight: 2, category: Product launches, title_from_summary: true, always_on_brief: true}

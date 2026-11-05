@@ -1,11 +1,7 @@
-html, body { height: 100%; }
-body.podcast-body { overflow: hidden; }
-.podcast-page { display: flex; flex-direction: column; height: 100dvh; min-height: 0; padding-bottom: max(4px, env(safe-area-inset-bottom)); overflow: hidden; }
-.podcast-page .sticky-masthead { flex: none; }
-.podcast-page .view-switch { flex: none; margin-top: 8px; margin-bottom: 9px; }
+.podcast-view { padding-bottom: 28px; }   /* a section of the page: it scrolls with the page */
 
 .brief { flex: none; margin: 0 9px; }
-.brief-cover { position: relative; height: clamp(112px, 22dvh, 200px); padding: clamp(15px, 2.5dvh, 24px) 18px 12px; border-radius: 9px 9px 0 0; overflow: hidden; background: #050b14 url('assets/podcast-earth.jpg') 58% 48% / cover no-repeat; color: #fff; }
+.brief-cover { position: relative; height: 190px; padding: 22px 18px 14px; border-radius: 9px 9px 0 0; overflow: hidden; background: #050b14 url('assets/podcast-earth.jpg') 58% 48% / cover no-repeat; color: #fff; }
 .brief-cover::before { position: absolute; inset: 0; content: ''; background: linear-gradient(90deg, #03070cf0 0%, #03070ce0 34%, #03070c65 65%, #03070c04 100%); }
 .brief-cover > * { position: relative; z-index: 1; }
 .brief-eyebrow { margin: 0 0 6px; color: #ece9e1; font: 700 .625rem/1.2 'DM Sans', Arial, sans-serif; letter-spacing: .21em; text-transform: uppercase; }
@@ -22,13 +18,13 @@ body.podcast-body { overflow: hidden; }
 .skip-button svg text { fill: currentColor; stroke: none; font: 700 12px Arial, sans-serif; text-anchor: middle; }
 .waveform { display: flex; align-items: center; justify-content: space-evenly; gap: 2px; min-width: 0; height: 38px; opacity: .8; overflow: hidden; }
 .waveform span { flex: 0 0 2px; height: var(--bar-height); border-radius: 2px; background: #a9a9a6; }
-.podcast-page.is-playing .waveform span:nth-child(3n) { animation: audio-pulse .75s ease-in-out infinite alternate; }
-.podcast-page.is-playing .waveform span:nth-child(3n + 1) { animation: audio-pulse .95s ease-in-out -.45s infinite alternate; }
+.podcast-view.is-playing .waveform span:nth-child(3n) { animation: audio-pulse .75s ease-in-out infinite alternate; }
+.podcast-view.is-playing .waveform span:nth-child(3n + 1) { animation: audio-pulse .95s ease-in-out -.45s infinite alternate; }
 .play-main { width: 52px; height: 52px; border-radius: 50%; background: #090a0b !important; color: #fff !important; }
 .play-main svg { width: 24px; height: 24px; fill: currentColor; stroke: none; }
 .play-main .pause-symbol { display: none; }
-.podcast-page.is-playing .play-main .play-symbol { display: none; }
-.podcast-page.is-playing .play-main .pause-symbol { display: block; }
+.podcast-view.is-playing .play-main .play-symbol { display: none; }
+.podcast-view.is-playing .play-main .pause-symbol { display: block; }
 .speed-button { width: 40px; height: 28px; border: 1px solid #c7c3bb !important; border-radius: 999px; font: 500 .75rem/1 'DM Sans', Arial, sans-serif; }
 .player-progress { display: block; width: 100%; height: 16px; margin: 4px 0 0; padding: 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; }
 .player-progress::-webkit-slider-runnable-track { height: 3px; border-radius: 4px; background: linear-gradient(to right, #111 0 var(--played, 10%), #d1cdc4 var(--played, 10%) 100%); }
@@ -45,12 +41,12 @@ body.podcast-body { overflow: hidden; }
 .brief-facts strong { color: #171717; font: 600 .6875rem/1.13 Newsreader, Georgia, serif; }
 .brief-facts small { margin-top: 3px; color: #67635d; font: 400 .625rem/1.13 Newsreader, Georgia, serif; }
 
-.lineup { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; margin: 10px 9px 0; }
+.lineup { margin: 18px 9px 0; }
 .lineup-rule { flex: none; height: 2px; margin-bottom: 8px; background: #a5a199; }
 .lineup-kicker { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 10px; color: #9f3029; font: 700 .625rem/1.2 'DM Sans', Arial, sans-serif; letter-spacing: .095em; text-transform: uppercase; }
 .lineup-kicker span:last-child { color: #77736c; font-size: .5625rem; font-weight: 500; }
 .lineup h2 { flex: none; margin: 4px 0 8px; color: #111; font: 600 1.6rem/1 Newsreader, Georgia, serif; letter-spacing: -.035em; }
-.headline-list { --headline-row-height: clamp(42px, 7dvh, 58px); flex: 0 1 calc(var(--headline-row-height) * 5); min-height: 0; margin: 0; padding: 0; list-style: none; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.headline-list { --headline-row-height: 58px; max-height: calc(var(--headline-row-height) * 8); margin: 0; padding: 0; list-style: none; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
 .headline-list::-webkit-scrollbar { display: none; }
 .headline-row { height: var(--headline-row-height); border-top: 1px solid #d5d0c7; }
 .headline-select { display: grid; grid-template-columns: 22px 12px 60px minmax(0,1fr) 30px; align-items: center; column-gap: 5px; width: 100%; height: 100%; padding: 4px 2px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; opacity: .48; transition: opacity .2s ease; }
@@ -66,26 +62,7 @@ body.podcast-body { overflow: hidden; }
 .headline-time { color: #77736c; text-align: right; font: 400 .625rem/1 'DM Sans', Arial, sans-serif; font-variant-numeric: tabular-nums; }
 
 @keyframes audio-pulse { to { transform: scaleY(.55); opacity: .55; } }
-@media (prefers-reduced-motion: reduce) { .podcast-page.is-playing .waveform span { animation: none; } }
-@media (max-height: 740px) {
-  .podcast-page .view-switch { margin-top: 6px; margin-bottom: 7px; }
-  .brief-cover { height: clamp(105px, 17dvh, 126px); padding-top: 15px; }
-  .brief-intro { display: none; }
-  .brief-player { padding-top: 6px; padding-bottom: 7px; }
-  .player-controls { min-height: 48px; }
-  .play-main { width: 48px; height: 48px; }
-  .brief-facts { display: none; }
-  .lineup { margin-top: 8px; }
-  .lineup h2 { margin-bottom: 6px; }
-  .headline-list { --headline-row-height: clamp(40px, 6.6dvh, 46px); }
-}
-@media (max-height: 620px) {
-  .brief-cover { height: 100px; }
-  .brief-cover h1 { font-size: 1.5rem; }
-  .headline-list { --headline-row-height: 39px; }
-  .lineup-rule { margin-bottom: 5px; }
-  .lineup h2 { margin-bottom: 4px; }
-}
+@media (prefers-reduced-motion: reduce) { .podcast-view.is-playing .waveform span { animation: none; } }
 @media (max-width: 370px) {
   .player-controls { grid-template-columns: 32px minmax(0,1fr) 48px minmax(0,1fr) 32px 36px; gap: 3px; }
   .skip-button, .skip-button svg { width: 32px; height: 32px; }
@@ -96,9 +73,8 @@ body.podcast-body { overflow: hidden; }
 
 /* Desktop: player on the left, the whole lineup (all headlines) scrolling on the right */
 @media (min-width: 900px) {
-  .podcast-page { display: grid; grid-template-columns: minmax(400px, 480px) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); column-gap: clamp(32px, 4vw, 72px); padding-bottom: 24px; }
-  .podcast-page .sticky-masthead, .podcast-page .view-switch { grid-column: 1 / -1; }
-  .brief { grid-column: 1; grid-row: 3; align-self: start; margin: 0; }
+  .podcast-view { display: grid; grid-template-columns: minmax(400px, 480px) minmax(0, 1fr); column-gap: clamp(32px, 4vw, 72px); align-items: start; padding-bottom: 40px; }
+  .brief { grid-column: 1; margin: 0; }
   .brief-cover { height: 320px; padding: 30px 28px 20px; }
   .brief-cover h1 { max-width: 380px; font-size: 2.6rem; }
   .brief-subtitle { margin-top: 10px; font-size: 1.3rem; }
@@ -111,11 +87,11 @@ body.podcast-body { overflow: hidden; }
   .brief-facts strong { font-size: .9375rem; }
   .brief-facts small { font-size: .8125rem; }
   .player-times { font-size: .8125rem; }
-  .lineup { grid-column: 2; grid-row: 3; margin: 0; }
+  .lineup { grid-column: 2; margin: 0; }
   .lineup h2 { margin: 6px 0 14px; font-size: 2.4rem; }
   .lineup-kicker { font-size: .75rem; }
   .lineup-kicker span:last-child { font-size: .75rem; }
-  .headline-list { --headline-row-height: 66px; flex: 1 1 auto; scrollbar-width: thin; }
+  .headline-list { --headline-row-height: 66px; max-height: calc(var(--headline-row-height) * 9); scrollbar-width: thin; }
   .headline-select { grid-template-columns: 38px 16px 130px minmax(0, 1fr) 54px; column-gap: 10px; padding: 6px 4px; }
   .headline-index { font-size: .8125rem; }
   .headline-category { font-size: .6875rem; }

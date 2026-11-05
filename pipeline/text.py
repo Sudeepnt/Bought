@@ -52,7 +52,7 @@ def strip_html(value: str) -> str:
 
 def short_summary(raw: str, sentences: int = 2, max_chars: int = MAX_SUMMARY_CHARS) -> str:
     """Extractive summary: first `sentences` sentences of the feed blurb, <= max_chars."""
-    text = strip_html(raw)
+    text = re.sub(r"\s*Discussion \| Link$", "", strip_html(raw))     # Product Hunt's link row is not part of the story
     if not text:
         return ""
     picked = " ".join(_SENTENCE_SPLIT.split(text)[:sentences]).strip()

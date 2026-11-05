@@ -1,0 +1,25 @@
+# STEP 1: what kind of news Bought wants. Edit this file to change what the funnel looks for.
+# A story must hit at least one keyword (title counts double) and fall inside the date window, or it never reaches jev.
+# It is first placed in the section with the most hits; jev may move it. Keywords ignore case, except ALL-CAPS ones like AI.
+window_hours: 48
+sections:
+  Technology:
+    size: 10
+    keywords: [chip, chips, semiconductor, processor, GPU, data center, cloud, software, hardware, open source, robot, robotics, quantum, battery, batteries,
+               smartphone, iPhone, Android, Windows, Linux, browser, cybersecurity, hack, breach, satellite, Starlink, SpaceX, Bluetooth, 5G, memory, developer, developers]
+  AI:
+    size: 10
+    keywords: [AI, A.I., artificial intelligence, machine learning, LLM, GPT, ChatGPT, OpenAI, Anthropic, Claude, Gemini, DeepSeek, Mistral, xAI, Grok, Nvidia, agent, agents, model, inference, AGI, chatbot, Siri AI]
+  Tech business:
+    size: 10
+    keywords: [earnings, revenue, profit, quarter, acquisition, acquires, acquired, merger, IPO, layoffs, layoff, valuation, stock, shares, antitrust, lawsuit, CEO, market share, deal, billion]
+  Founders & startups:
+    size: 10
+    keywords: [startup, startups, founder, founders, raises, raised, funding, Series A, Series B, Series C, seed round, venture, VC, unicorn, Y Combinator, a16z, Sequoia, spinout, investors]
+  Product launches:
+    size: 5
+    keywords: [launch, launches, launched, unveils, unveiled, announces, releases, released, rolls out, debuts, introduces, new feature, preview, beta, now available]
+  Tech geopolitics:
+    size: 5
+    keywords: [export control, export controls, export ban, sanction, sanctions, tariff, tariffs, chip war, sovereignty, geopolitical, national security, White House, Pentagon, Beijing, China, Chinese, Kremlin, Russia,
+               European Commission, EU, Taiwan, TSMC, Huawei, regulation, regulators, Congress]

@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 
 PKG_DIR = Path(__file__).resolve().parent
-SOURCE_TYPES = ("rss", "sitemap")
+SOURCE_TYPES = ("rss", "sitemap", "tldr")
 
 
 class ConfigError(ValueError):
@@ -22,6 +22,9 @@ class Source:
     url: str
     weight: int
     category: str
+    image_rights: str = "use"          # use = its pictures may go in our videos; link_only = never (for a publisher who objects)
+    title_from_summary: bool = False   # a feed whose titles are bare product names: use "Name: tagline" as the headline
+    always_on_brief: bool = False      # the whole feed is what we want, so it skips the keyword check (Product Hunt: every item is a launch)
 
     @property
     def slug(self) -> str:
@@ -43,6 +46,7 @@ class Config:
     og_fallback: bool = True
     og_min_interval_seconds: float = 1.5
     og_max_per_source: int = 15
+    ingest_reject_future: bool = False         # building a past date's issue: anything published after that date is left out
     # Phase 2a: audio for prime stories. tts_command reads the script on stdin and writes {wav}.
     media_enabled: bool = False
     tts_command: tuple = ()
@@ -106,6 +110,22 @@ class Config:
     avatar_fallback_images: tuple = ("public/assets/swipe-data-center.jpg", "public/assets/swipe-robotics.jpg",
                                      "public/assets/swipe-founders.jpg", "public/assets/swipe-battery.jpg",
                                      "public/assets/swipe-rocket.jpg")
+    # The source -> video funnel (funnel/README.md).
+    funnel_video_count: int = 20               # stories that get a video; the frame has 20 looks
+    funnel_time_budget_seconds: float = 3000   # a build stops starting new stories after this; rerun to continue
+    funnel_images_per_story: int = 4
+    funnel_publisher_images: bool = True       # use the article's own picture first. Licensing is handled separately: each issue lists these in rights_review.json
+    funnel_video_clips: bool = True            # also look for free video clips, not just photos
+    funnel_image_min_width: int = 1000
+    funnel_image_licenses: str = r"^(cc0|pd|public-domain|public domain|cc-by-(sa-)?\d)"   # checked against the file's licence; anything else is refused
+    funnel_voices: tuple = ("af_heart", "am_michael", "bf_emma", "af_nova", "am_adam", "bf_isabella", "af_bella", "bm_george", "af_sky", "am_liam",
+                            "af_kore", "bm_lewis", "af_jessica", "am_eric", "bf_lily", "af_river", "am_onyx", "bf_alice", "af_sarah", "bm_daniel")
+    # jev: the model that decides which stories run and in which section. Empty = rules only. See funnel/contracts.py for what it may answer.
+    funnel_evaluator_command: tuple = ()
+    funnel_evaluator_version: str = "1"        # bump to ask again after changing the model or its prompt
+    funnel_evaluator_max_candidates: int = 300 # the best stories by rule score; the rest are not sent
+    funnel_evaluator_batch: int = 40
+    funnel_evaluator_timeout_seconds: float = 300
 
 
 def load_config(path=None) -> Config:
@@ -118,6 +138,9 @@ def load_config(path=None) -> Config:
         if isinstance(raw.get(key), list):
             raw[key] = tuple(map(str, raw[key]))
     for key in ("translate_languages", "translate_command"):
+        if isinstance(raw.get(key), list):
+            raw[key] = tuple(map(str, raw[key]))
+    for key in ("funnel_voices", "funnel_evaluator_command"):
         if isinstance(raw.get(key), list):
             raw[key] = tuple(map(str, raw[key]))
     if isinstance(raw.get("badges_exclusive_sources"), list):
@@ -159,12 +182,15 @@ def load_sources(path=None) -> list:
             src = Source(
                 name=str(s["name"]).strip(), type=str(s["type"]).strip().lower(),
                 url=str(s["url"]).strip(), weight=int(s["weight"]),
-                category=str(s["category"]).strip(),
+                category=str(s["category"]).strip(), image_rights=str(s.get("image_rights", "use")).strip(),
+                title_from_summary=bool(s.get("title_from_summary", False)), always_on_brief=bool(s.get("always_on_brief", False)),
             )
         except KeyError as e:
             raise ConfigError(f"sources[{i}] is missing {e}") from None
         if src.type not in SOURCE_TYPES:
             raise ConfigError(f"{src.name}: type must be one of {SOURCE_TYPES}")
+        if src.image_rights not in ("use", "link_only"):
+            raise ConfigError(f"{src.name}: image_rights must be use or link_only")
         if not 1 <= src.weight <= 5:
             raise ConfigError(f"{src.name}: weight must be 1-5")
         if not src.name or not src.category or not src.url.startswith(("http://", "https://")):

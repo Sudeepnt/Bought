@@ -59,32 +59,59 @@ def pick_slot(ordered: list, n: int, cap_frac: float, prefer_not_in: set = froze
     return chosen
 
 
-def prefilter(conn, cfg, now: datetime) -> None:
+def pick_sections(cands: list, sections: dict) -> list:
+    """The best stories of each section, up to its size. Unfilled seats stay empty: a section is never padded from another.
+    Returned dealt in turn across the sections, best section first, so the top of the list (the videos) covers all of them."""
+    queues = []
+    for name, size in sections.items():
+        mine = sorted((c for c in cands if c["category"] == name), key=lambda c: (-c["score"], c["published_at"], c["id"]))[:size]
+        if mine:
+            queues.append(mine)
+    queues.sort(key=lambda q: -q[0]["score"])
+    dealt = []
+    while queues:
+        for q in list(queues):
+            dealt.append(q.pop(0))
+            if not q:
+                queues.remove(q)
+    return dealt
+
+
+def prefilter(conn, cfg, now: datetime, require_image: bool = True) -> None:
     """Expire stale items and reject image-less ones, before dedupe, so a no-image copy can't
     beat a usable duplicate. (Titles are required at ingest.)"""
     cutoff = iso(now - timedelta(hours=cfg.max_age_hours))
     with transaction(conn):
         conn.execute("UPDATE articles SET status='expired' WHERE published_at < ? AND status != 'expired'",
                      (cutoff,))
-        conn.execute("UPDATE articles SET status='rejected', reject_reason='no_image'"
-                     " WHERE status='new' AND (image_url IS NULL OR image_url='')")
+        if require_image:
+            conn.execute("UPDATE articles SET status='rejected', reject_reason='no_image'"
+                         " WHERE status='new' AND (image_url IS NULL OR image_url='')")
 
 
-def select(conn, cfg, now: datetime) -> dict:
-    """Recompute everything from the live articles, replacing the previous selection atomically."""
+def select(conn, cfg, now: datetime, relevance: dict = None, sections: dict = None) -> dict:
+    """Recompute everything from the live articles, replacing the previous selection atomically.
+    relevance: optional {id: 0..1} from jev: stories it answered rank by its answer, ahead of any it did not.
+    sections: optional {section: size}: fill these sections instead of the even balance and category cap."""
     with transaction(conn):
         conn.execute("UPDATE articles SET status='new' WHERE status LIKE 'selected_%'")
         conn.execute("DELETE FROM selections")
         live = [dict(r) for r in conn.execute(
-            "SELECT id, category, source_weight, published_at FROM articles WHERE status='new'")]
+            "SELECT id, category, source_weight, published_at FROM articles WHERE status='new' AND published_at<=?", (iso(now),))]
         for c in live:
             c["score"] = base_score(c["source_weight"], parse_iso(c["published_at"]), now, cfg.max_age_hours)
+            if relevance and c["id"] in relevance:
+                c["score"] = 100 + 100 * relevance[c["id"]]
         conn.executemany("UPDATE articles SET score=? WHERE id=?", [(c["score"], c["id"]) for c in live])
 
-        top = pick_filtered(live, cfg.filtered_size, cfg.category_balance_max_bonus)
-        prime = pick_slot(top, cfg.slots["prime"], cfg.category_cap)
-        prime_ids = {c["id"] for c in prime}
-        cards = pick_slot(top, cfg.slots["cards"], cfg.category_cap, prefer_not_in=prime_ids)
+        if sections:
+            top = pick_sections(live, sections)
+            prime = top[:cfg.slots["prime"]]
+            cards = top[cfg.slots["prime"]:cfg.slots["prime"] + cfg.slots["cards"]]
+        else:
+            top = pick_filtered(live, cfg.filtered_size, cfg.category_balance_max_bonus)
+            prime = pick_slot(top, cfg.slots["prime"], cfg.category_cap)
+            cards = pick_slot(top, cfg.slots["cards"], cfg.category_cap, prefer_not_in={c["id"] for c in prime})
         newest_first = sorted(top, key=lambda c: (c["published_at"], c["id"]), reverse=True)
         glance = pick_slot(newest_first, cfg.slots["glance"], cfg.category_cap)
 

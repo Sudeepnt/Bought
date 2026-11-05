@@ -21,15 +21,18 @@
    "public/assets/swipe-robotics.jpg",
    "public/assets/swipe-data-center.jpg",
    "public/assets/grok-story-hero.png",
-   "public/assets/swipe-founders.jpg",
    "public/assets/podcast-earth.jpg",
-   "public/assets/swipe-rocket.jpg"
+   "public/assets/swipe-rocket.jpg",
+   "public/assets/swipe-battery.jpg"
   ],
   "stats": {
    "0": "$15B",
    "1": "$75B",
    "9": "$75B"
-  }
+  },
+  "caption": "karaoke",
+  "happened": "DeepSeek is reportedly nearing a $15B funding round at a $75B valuation.",
+  "matters": "A round this size buys chips, data and talent as the AI race speeds up."
  },
  {
   "slug": "apple-duo",
@@ -50,16 +53,19 @@
   ],
   "images": [
    "public/assets/swipe-battery.jpg",
-   "public/assets/swipe-founders.jpg",
    "public/assets/grok-story-hero.png",
    "public/assets/swipe-robotics.jpg",
    "public/assets/swipe-rocket.jpg",
-   "public/assets/podcast-earth.jpg"
+   "public/assets/podcast-earth.jpg",
+   "public/assets/swipe-data-center.jpg"
   ],
   "stats": {
    "1": "$1,999",
    "8": "$1,999"
-  }
+  },
+  "caption": "box",
+  "happened": "Apple’s foldable iPhone Duo is now on sale at $1,999.",
+  "matters": "It tests whether buyers will pay a premium for a phone that folds."
  },
  {
   "slug": "kimi",
@@ -83,13 +89,16 @@
    "public/assets/grok-story-hero.png",
    "public/assets/swipe-data-center.jpg",
    "public/assets/swipe-battery.jpg",
-   "public/assets/swipe-founders.jpg",
-   "public/assets/swipe-rocket.jpg"
+   "public/assets/swipe-rocket.jpg",
+   "public/assets/podcast-earth.jpg"
   ],
   "stats": {
    "0": "BEATS GPT-6",
    "3": "#1"
-  }
+  },
+  "caption": "highlight",
+  "happened": "Moonshot’s Kimi K3.1 Pro beat GPT-6 Astra on a key coding test.",
+  "matters": "Coding is where AI earns its money, so a lead can move developers."
  },
  {
   "slug": "amazon-cloud",
@@ -119,7 +128,10 @@
   "stats": {
    "1": "2027",
    "10": "2027"
-  }
+  },
+  "caption": "typewriter",
+  "happened": "CEO Andy Jassy says Amazon’s cloud capacity is sold out through 2027.",
+  "matters": "Demand for AI computing is outrunning supply, so customers book years ahead."
  },
  {
   "slug": "flapping-airplanes",
@@ -139,18 +151,21 @@
    "Flapping Airplanes, one billion raised. Watch again."
   ],
   "images": [
-   "public/assets/swipe-founders.jpg",
    "public/assets/swipe-rocket.jpg",
    "public/assets/swipe-robotics.jpg",
    "public/assets/grok-story-hero.png",
    "public/assets/swipe-battery.jpg",
-   "public/assets/swipe-data-center.jpg"
+   "public/assets/swipe-data-center.jpg",
+   "public/assets/podcast-earth.jpg"
   ],
   "stats": {
    "0": "$1B",
    "2": "$6B",
    "3": "1 YEAR"
-  }
+  },
+  "caption": "bar",
+  "happened": "Year-old Flapping Airplanes raised $1B at a $6B valuation.",
+  "matters": "Investors are backing teams early, which shows how hot the market is."
  },
  {
   "slug": "chipmakers-2nm",
@@ -175,12 +190,15 @@
    "public/assets/swipe-robotics.jpg",
    "public/assets/grok-story-hero.png",
    "public/assets/podcast-earth.jpg",
-   "public/assets/swipe-founders.jpg"
+   "public/assets/swipe-rocket.jpg"
   ],
   "stats": {
    "0": "2nm",
    "4": "2nm"
-  }
+  },
+  "caption": "pop",
+  "happened": "Chipmakers are racing to ship 2nm processors in volume.",
+  "matters": "Smaller chips mean faster devices and cheaper AI, so who ships first matters."
  },
  {
   "slug": "chip-map",
@@ -205,11 +223,14 @@
    "public/assets/swipe-rocket.jpg",
    "public/assets/grok-story-hero.png",
    "public/assets/swipe-robotics.jpg",
-   "public/assets/swipe-founders.jpg"
+   "public/assets/swipe-battery.jpg"
   ],
   "stats": {
    "0": "CHIPS",
    "8": "SECURITY"
-  }
+  },
+  "caption": "stamp",
+  "happened": "Countries are redrawing the map for advanced chips.",
+  "matters": "Chips are now a national priority tied to trade and security."
  }
 ]

@@ -7,7 +7,7 @@ Retention tricks used (all deterministic, CPU only, Pillow + numpy + ffmpeg + Ko
   - slow constant zoom on the background plus a punch on every caption chunk and flash on each cut
   - progress bar on top, category tag, "N of M" beat counter so people see an end coming
   - last line leads back into the hook so the loop feels seamless
-  - whoosh on each cut, a quiet pulse bed under the voice
+  - voice only: no music or sound effects
 
 Run with the Kokoro venv python (it has kokoro-onnx, soundfile, numpy, Pillow):
   ~/.cache/bought/tts/venv/bin/python -m pipeline.pulse --id 293873247e6ba2c1
@@ -35,14 +35,26 @@ VOICE = "af_heart"
 SPEED = 1.12                                                   # a little quicker than the newsroom voice
 KOKORO = Path.home() / ".cache/bought/tts"
 
-# accent colour pairs (background top, background bottom, highlight) per category
+# Section colours, as on the site (dark-mode values): hue in degrees and how colourful the main tone is. Every clip is built from ONE of
+# these: a deep top, the section colour at the bottom, and a pale tint of it for captions, tag and progress bar.
+import colorsys
+
+
+def _tone(h, s, l):
+    return tuple(int(round(c * 255)) for c in colorsys.hls_to_rgb(h / 360, l, s))
+
+
+def _section_palette(h, s):
+    return (_tone(h, min(1.0, s * 0.9), 0.13), _tone(h, s, 0.40), _tone(h, 0.9, 0.84))
+
+
 PALETTES = {
-    "AI": ((24, 16, 66), (92, 40, 190), (255, 226, 60)),
-    "Product Launches": ((10, 40, 70), (20, 130, 200), (255, 120, 90)),
-    "Tech Business": ((14, 50, 40), (20, 150, 100), (255, 226, 60)),
-    "Founders & Startups": ((70, 20, 30), (210, 60, 70), (255, 235, 120)),
-    "Technology": ((18, 22, 60), (50, 90, 220), (120, 255, 200)),
-    "Tech Geopolitics": ((40, 30, 20), (180, 110, 30), (255, 255, 255)),
+    "AI": _section_palette(249, 0.62),
+    "Product Launches": _section_palette(146, 0.48),
+    "Tech Business": _section_palette(10, 0.62),
+    "Founders & Startups": _section_palette(41, 0.70),
+    "Technology": _section_palette(190, 0.52),
+    "Tech Geopolitics": _section_palette(322, 0.45),
 }
 DEFAULT_PALETTE = ((20, 20, 40), (80, 60, 200), (255, 226, 60))
 
@@ -205,8 +217,9 @@ def chunks(beat: str, size: int = 3) -> list[str]:
 def draw_caption(base: Image.Image, text: str, t_in: float, accent, y_frac: float, big: bool):
     """One caption chunk with a pop-in; auto-shrinks to fit the width."""
     text = text.rstrip(".")
-    size = 140 if big else 116
-    while size > 40:
+    size = 40 if big else 36
+    lines = _wrap(text, size)
+    while size > 24:
         lines = _wrap(text, size)
         if max(font(size).getlength(l) for l in lines) <= W - 80 and len(lines) <= 3:
             break
@@ -220,15 +233,112 @@ def draw_caption(base: Image.Image, text: str, t_in: float, accent, y_frac: floa
     for l in lines:
         wl = font(size).getlength(l)
         x = (W - wl) / 2
-        for ox, oy in [(-6, 0), (6, 0), (0, -6), (0, 6), (-5, -5), (5, 5), (-5, 5), (5, -5), (0, 10)]:
+        for ox, oy in [(-3, 0), (3, 0), (0, -3), (0, 3), (-2, -2), (2, 2), (-2, 2), (2, -2), (0, 5)]:
             d.text((x + ox, y + oy), l, font=font(size), fill=(8, 6, 20, 255))
-        d.text((x, y), l, font=font(size), fill=accent + (255,))
+        d.text((x, y), l, font=font(size), fill=(255, 255, 255, 255))
         y += lh
     if scale != 1:
         nw, nh = max(1, int(W * scale)), max(1, int(420 * scale))
         layer = layer.resize((nw, nh), Image.BILINEAR)
     cy = int(H * y_frac)
     base.alpha_composite(layer, (W // 2 - layer.width // 2, cy - layer.height // 2))
+
+
+DM = str(ROOT / "public/assets/font-0.ttf")   # DM Sans Regular, the site's body face
+_dm: dict[int, ImageFont.FreeTypeFont] = {}
+
+
+def font_dm(size: int):
+    if size not in _dm:
+        _dm[size] = ImageFont.truetype(DM, size)
+    return _dm[size]
+
+
+def _lines(text, f, maxw):
+    words, lines, cur = text.split(), [], ""
+    for w in words:
+        trial = (cur + " " + w).strip()
+        if f.getlength(trial) <= maxw or not cur:
+            cur = trial
+        else:
+            lines.append(cur); cur = w
+    return lines + ([cur] if cur else [])
+
+
+def draw_caption_styled(base, style, beat, cks, ci, t_in, prog, accent, y_frac=0.62):
+    """Seven small caption looks, one per clip: pop, box, highlight, karaoke, typewriter, bar, stamp."""
+    d = ImageDraw.Draw(base)
+    chunk = cks[ci].rstrip(".")
+    cx, cy = W // 2, int(H * y_frac)
+    fade = min(1.0, t_in / 0.12)
+    if style == "pop":
+        return draw_caption(base, cks[ci], t_in, accent, y_frac, True)
+    if style == "box":      # black rounded box, white text, one chunk at a time (the TikTok default)
+        f = font(40); w = f.getlength(chunk)
+        sc = 0.9 + 0.1 * ease_out_back(t_in / 0.12)
+        bw, bh = (w + 44) * sc, 70 * sc
+        d.rounded_rectangle((cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2), 16, fill=(0, 0, 0, 190))
+        d.text((cx - w * sc / 2, cy - 24 * sc), chunk, font=font(int(40 * sc)), fill=(255, 255, 255, 255))
+        return
+    if style == "highlight":   # marker-pen block, dark text
+        f = font(38); w = f.getlength(chunk)
+        layer = Image.new("RGBA", (W, 120), (0, 0, 0, 0)); ld = ImageDraw.Draw(layer)
+        ld.rounded_rectangle((W / 2 - w / 2 - 18, 22, W / 2 + w / 2 + 18, 92), 8, fill=accent + (255,))
+        ld.text((W / 2 - w / 2, 36), chunk, font=f, fill=(18, 14, 30, 255))
+        layer = layer.rotate(-1.6 if ci % 2 == 0 else 1.6, resample=Image.BILINEAR)
+        base.alpha_composite(layer, (0, cy - 60))
+        return
+    if style == "karaoke":     # the whole line stays up; the chunk being spoken lights up
+        f = font(34); maxw = W - 90
+        words = beat.rstrip(".").split(); lens = [len(c.split()) for c in cks]
+        start = sum(lens[:ci]); active = set(range(start, start + lens[ci]))
+        lines, idx, cur = [], 0, []
+        for i, wd in enumerate(words):
+            trial = " ".join(x for x, _ in cur + [(wd, i)])
+            if f.getlength(trial) > maxw and cur:
+                lines.append(cur); cur = []
+            cur.append((wd, i))
+        lines.append(cur)
+        y = cy - len(lines) * 26
+        for ln in lines:
+            total = f.getlength(" ".join(x for x, _ in ln)); x = cx - total / 2
+            for wd, i in ln:
+                col = accent + (255,) if i in active else (255, 255, 255, 150)
+                for ox, oy in [(-2, 0), (2, 0), (0, -2), (0, 2)]:
+                    d.text((x + ox, y + oy), wd, font=f, fill=(8, 6, 20, 255))
+                d.text((x, y), wd, font=f, fill=col)
+                x += f.getlength(wd + " ")
+            y += 52
+        return
+    if style == "typewriter":  # DM Sans, left aligned, letters appear as they are spoken, block cursor
+        f = font_dm(34)
+        shown = chunk[: max(1, int(len(chunk) * min(1.0, t_in / 0.55)))]
+        w = f.getlength(chunk)
+        x = 44
+        d.rectangle((0, cy - 36, W, cy + 36), fill=(0, 0, 0, 120))
+        d.text((x, cy - 20), shown, font=f, fill=(255, 255, 255, 255))
+        d.rectangle((x + f.getlength(shown) + 4, cy - 18, x + f.getlength(shown) + 18, cy + 18), fill=accent + (255,))
+        return
+    if style == "bar":         # a full-width subtitle bar with the sentence in two lines, like TV subtitles
+        f = font_dm(30); lines = _lines(beat.rstrip("."), f, W - 100)[:3]
+        bh = 24 + 42 * len(lines)
+        layer = Image.new("RGBA", (W, bh), (10, 10, 16, int(205 * fade)))
+        base.alpha_composite(layer, (0, cy - bh // 2))
+        y = cy - bh // 2 + 12
+        for ln in lines:
+            d.text((cx - f.getlength(ln) / 2, y), ln, font=f, fill=(255, 255, 255, int(255 * fade)))
+            y += 42
+        return
+    # stamp: tracked-out capitals with an underline that grows under each chunk
+    text = chunk.upper(); f = font(34)
+    track = 5; w = sum(f.getlength(ch) + track for ch in text) - track
+    x = cx - w / 2
+    for ch in text:
+        for ox, oy in [(-2, 0), (2, 0), (0, -2), (0, 2)]:
+            d.text((x + ox, cy - 22 + oy), ch, font=f, fill=(8, 6, 20, 255))
+        d.text((x, cy - 22), ch, font=f, fill=(255, 255, 255, 255))
+        x += f.getlength(ch) + track
+    d.rectangle((cx - w / 2, cy + 26, cx - w / 2 + w * min(1.0, t_in / 0.25), cy + 31), fill=accent + (255,))
 
 
 def _wrap(text: str, size: int) -> list[str]:
@@ -272,14 +382,14 @@ def split_screen(imgs, t, accent, k):
     return f
 
 
-def render_frames(beats, audio, timeline, palette, images, category, headline, stats, out_pipe):
+def render_frames(beats, audio, timeline, palette, images, category, headline, stats, out_pipe, style="pop"):
     top, bottom, accent = palette
     total = timeline[-1][1]
     nframes = int(math.ceil(total * FPS))
     imgs = [Image.open(p).convert("RGB") for p in images]
     rng = np.random.default_rng(3)
     # shot plan: every beat is cut into shots of ~SHOT_LEN; each shot gets its own photo, treatment and crop
-    treatments = ["full", "tint", "split", "full", "color", "tint", "full", "split"]
+    treatments = ["full", "tint", "split", "full", "tint", "full", "split", "full"]
     shots = {}   # (beat, shot) -> look
     g = 0
     def shot_look(bi, si):
@@ -304,14 +414,17 @@ def render_frames(beats, audio, timeline, palette, images, category, headline, s
         local = (t - s0) / ((e - s) / nshots)
         z = 1.08 + 0.22 * local if look["zoom_dir"] > 0 else 1.30 - 0.22 * local
         tr = look["tr"]
-        if tr in ("full", "tint") and imgs:
+        if tr in ("full", "tint", "stat") and imgs:
             im = cover(imgs[look["a"]], z, look["cx"], look["cy"])
-            if tr == "tint":
+            if tr in ("tint", "stat"):
                 im = duotone(im, accent)
+            else:   # the photo keeps its detail but takes the section colour
+                im = Image.blend(im, duotone(im, accent), 0.5)
             frame = im.convert("RGBA")
-            frame.alpha_composite(Image.new("RGBA", (W, H), (0, 0, 0, 90 if tr == "full" else 30)))
+            frame.alpha_composite(Image.new("RGBA", (W, H), (0, 0, 0, 90 if tr == "full" else 45)))
         elif tr == "split" and len(imgs) > 1:
-            frame = split_screen([imgs[look["a"]], imgs[look["b"]]], local, accent, g).convert("RGBA")
+            sp = split_screen([imgs[look["a"]], imgs[look["b"]]], local, accent, g)
+            frame = Image.blend(sp, duotone(sp, accent), 0.5).convert("RGBA")
             frame.alpha_composite(Image.new("RGBA", (W, H), (0, 0, 0, 60)))
         else:   # colour scene (also used for stat cards)
             frame = gradient(top, bottom, t / 6 + bi * 0.17).convert("RGBA")
@@ -322,7 +435,7 @@ def render_frames(beats, audio, timeline, palette, images, category, headline, s
                 od.rectangle((x, 0, x + 90, H), fill=(255, 255, 255, 14))
             frame.alpha_composite(ov)
         if look["stat"]:   # giant number that punches in, caption underneath
-            sz = 270
+            sz = 190
             while font(sz).getlength(look["stat"]) > W - 60 and sz > 60:
                 sz -= 10
             pop = 0.7 + 0.3 * ease_out_back((t - s0) / 0.18)
@@ -333,12 +446,12 @@ def render_frames(beats, audio, timeline, palette, images, category, headline, s
                 ld.text((x + ox, 30 + oy), look["stat"], font=font(sz), fill=(8, 6, 20, 255))
             ld.text((x, 30), look["stat"], font=font(sz), fill=(255, 255, 255, 255))
             layer = layer.resize((int(W * pop), int(300 * pop)), Image.BILINEAR)
-            frame.alpha_composite(layer, (W // 2 - layer.width // 2, int(H * 0.22) - layer.height // 2))
+            frame.alpha_composite(layer, (W // 2 - layer.width // 2, int(H * 0.36) - layer.height // 2))
         cks = chunk_cache[bi]
         lens = np.array([max(len(c), 3) for c in cks], np.float32)
         edges = s + (e - s) * np.concatenate([[0], np.cumsum(lens) / lens.sum()])
         ci = min(int(np.searchsorted(edges, t, side="right")) - 1, len(cks) - 1)
-        draw_caption(frame, cks[ci], t - edges[ci], accent, 0.40 if look["stat"] else 0.34, bi % 4 != 3)
+        draw_caption_styled(frame, style, beats[bi], cks, ci, t - edges[ci], 0, accent)
         d = ImageDraw.Draw(frame)
         d.rectangle((0, 0, W, 14), fill=(255, 255, 255, 40))
         d.rectangle((0, 0, int(W * t / total), 14), fill=accent + (255,))
@@ -367,12 +480,7 @@ def build(item: dict, out_dir: Path, images: list, voice: str = VOICE) -> Path:
         t += dur
     voice_track = np.concatenate(parts)
     total = len(voice_track) / RATE
-    mix = bed(total) + voice_track * 0.95
-    wh = sfx_whoosh()
-    for s, _ in timeline[1:]:
-        i = int(s * RATE) - int(0.06 * RATE)
-        mix[i:i + len(wh)] += wh[: len(mix) - i]
-    mix = np.clip(mix, -1, 1)
+    mix = np.clip(voice_track * 0.95, -1, 1)   # voice only: no music, no sound effects
     wav = out_dir / f"{item['id']}.pulse.wav"
     with wave.open(str(wav), "wb") as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(RATE)
@@ -383,7 +491,7 @@ def build(item: dict, out_dir: Path, images: list, voice: str = VOICE) -> Path:
            "-i", "-", "-i", str(wav), "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart", str(mp4)]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-    render_frames(beats, mix, timeline, palette, images, item["category"], item["headline"], item.get("stats", {}), p.stdin)
+    render_frames(beats, mix, timeline, palette, images, item["category"], item["headline"], item.get("stats", {}), p.stdin, item.get("caption", "pop"))
     p.stdin.close()
     if p.wait():
         raise RuntimeError("ffmpeg failed")
@@ -397,7 +505,7 @@ def from_spec(path: str) -> list[dict]:
     out = []
     for c in json.loads(Path(path).read_text()):
         out.append({"id": c["slug"], "category": c["category"], "headline": c["headline"], "beats": c["beats"],
-                    "images": [str(ROOT / i) for i in c.get("images", [])], "stats": c.get("stats", {})})
+                    "images": [str(ROOT / i) for i in c.get("images", [])], "stats": c.get("stats", {}), "caption": c.get("caption", "pop")})
     return out
 
 

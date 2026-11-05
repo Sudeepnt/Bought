@@ -120,6 +120,37 @@ def cmd_podcast(args) -> int:
     return 0 if res["complete"] else 1
 
 
+def cmd_funnel(args) -> int:
+    """Source -> video. See pipeline/funnel/README.md."""
+    import json
+    from .funnel.contracts import assessment_schema
+    if args.step == "schema":
+        print(json.dumps(assessment_schema(), indent=2))
+        return 0
+    from .funnel import issue as fi
+    cfg, sources = load_config(args.config), load_sources(args.sources or ROOT / "sources.live.yaml")
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    today = fi.issue_date(now)
+    date = args.issue or today
+    past = date < today
+    if past:                                   # read the sources as they stood at the end of that day, in a database of its own
+        now = datetime.strptime(date + " 23:59:59", "%Y-%m-%d %H:%M:%S").replace(tzinfo=fi.ZoneInfo("Asia/Kolkata")).astimezone(timezone.utc)
+    conn = db.connect(ROOT / "data" / (f"news-{date}.db" if past else "news.db"))
+    conn.executescript(fi.SCHEMA)
+    if args.step in ("intake", "run"):
+        res = fi.intake(conn, cfg, sources, now, past=past)
+        for name, st in res["ingest"].items():
+            print(f"  {name:<28} seen {st['seen']:>3} new {st['new']:>3}" + (f"  ERROR {st['error']}" if st["error"] else ""))
+        print(f"duplicates rejected {res['duplicates_rejected']} | {res['selection']} | descriptions fetched {res['described']}")
+    if args.step in ("build", "run"):
+        issue = fi.cut_issue(conn, cfg, date, now, sources, recut=args.recut)
+        print(f"issue {date}: " + ", ".join(f"{k} {v}" for k, v in fi.build_issue(conn, cfg, date, issue, limit=args.limit).items()))
+        print(f"feed: {fi.issue_dir(date) / 'feed.json'}")
+    for label, n in fi.status(conn, date):
+        print(f"{label:<44}{n:>5}")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="python -m pipeline", description=__doc__)
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -132,11 +163,17 @@ def main(argv=None) -> int:
     pc = sub.add_parser("clip", help="render a produced clip from a spec file (see pipeline/clips/)")
     pc.add_argument("spec")
     _add_common(pc)
+    pf = sub.add_parser("funnel", help="source -> video: intake, freeze an issue, images, voice, render, gate")
+    pf.add_argument("step", choices=["run", "intake", "build", "status", "schema"])
+    pf.add_argument("--issue", help="issue date YYYY-MM-DD (default: today in IST)")
+    pf.add_argument("--limit", type=int, help="only build the first N videos")
+    pf.add_argument("--recut", action="store_true", help="replace this date's frozen issue with the current selection")
+    _add_common(pf)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
-        return {"run": cmd_run, "show": cmd_show, "clip": cmd_clip, "podcast": cmd_podcast, "badges": cmd_badges, "translate": cmd_translate}[args.cmd](args)
+        return {"run": cmd_run, "show": cmd_show, "clip": cmd_clip, "podcast": cmd_podcast, "badges": cmd_badges, "translate": cmd_translate, "funnel": cmd_funnel}[args.cmd](args)
     except ConfigError as e:
         print(f"config error: {e}", file=sys.stderr)
         return 2

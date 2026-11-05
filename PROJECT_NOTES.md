@@ -23,7 +23,7 @@ Run: `python3 -m http.server 8000 --directory public` → http://localhost:8000/
 
 Pages
 - `/` (`public/index.html`) — Newspaper edition, dated "Tuesday, October 13, 2026". Sticky masthead ("Bought." wordmark, date, language picker), a Newspaper/Podcast view switch, a story list, then an end-of-issue completion section.
-- `/podcast.html` — Podcast edition of the same issue (`podcast.css`, `podcast.js`).
+- Podcast edition of the same issue: a section inside `index.html` (`#podcast-view`), opened with `/#podcast`. `views.js` switches the two sections and only requests `podcast.css`, `podcast.js` and the episode audio the first time it is opened. `podcast.html` just redirects to `index.html#podcast`.
 
 Files
 - `stories.js` (755 lines, the core): hardcoded `sampleStories` array (`category, title, deck, happened, matters, image, imageAlt, imagePosition`). Renders:
