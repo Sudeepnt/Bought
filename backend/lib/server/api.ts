@@ -314,6 +314,15 @@ async function admin(request: Request, path: string[]) {
     dbError(soldError);
     return json({ withdrawals, sold });
   }
+  // the dashboard: ad totals, day by day, and each issue's sales
+  if (exactPath(path, 'admin', 'stats') && request.method === 'GET') {
+    const days = Number(new URL(request.url).searchParams.get('days') ?? 30);
+    const { data, error } = await db.rpc('bought_ad_stats', {
+      p_days: Number.isInteger(days) ? Math.min(Math.max(days, 1), 366) : 30,
+    });
+    dbError(error);
+    return json(data);
+  }
   if (exactPath(path, 'admin', 'live') && request.method === 'POST') {
     const body = await jsonBody(request);
     if (!validDate(body.issue)) throw new HttpError(400, 'Invalid issue date.');

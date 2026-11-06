@@ -52,6 +52,8 @@ The desk (admin) is never on the public address: `https://your.domain/admin` is 
 - From a laptop: `ssh -N -L 8100:127.0.0.1:8100 root@your.domain`, then open http://localhost:8100/admin. The SSH key is the first lock.
 - From a phone: install Tailscale on the server and the phone, run `sudo tailscale serve --bg --https=443 http://127.0.0.1:8100` on the server, and add the server's Tailscale name (e.g. `bought.tail1234.ts.net`) to `BOUGHT_DESK_HOSTNAMES` in `/etc/bought/bought.env`. Only devices in your tailnet can reach it.
 
+The desk opens on the Dashboard: readers, the news from source to reader, issues, email, ads and the server, with charts. All news lists every story the funnel has stored. Reader counts are kept on the server with no cookies and nothing that identifies a reader (`SECURITY.md`).
+
 How the whole thing is protected: `SECURITY.md`.
 
 ## How it is served

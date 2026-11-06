@@ -68,7 +68,7 @@ pre{white-space:pre-wrap;word-break:break-word;font:12px/1.5 ui-monospace,Menlo,
 
 
 def shell(title: str, active: str, body: str, date="", refresh=False) -> str:
-    nav = "".join(f'<a href="/admin{p}{"?date=" + date if date and p != "/settings" else ""}" class="{"on" if active == k else ""}">{t}</a>' for k, p, t in (("home", "", "Overview"), ("review", "/review", "Review"), ("final", "/final", "Publish"), ("email", "/email", "Email"), ("ads", "/ads", "Ads"), ("settings", "/settings", "Settings")))
+    nav = "".join(f'<a href="/admin{p}{"?date=" + date if date and p not in ("/settings", "/dashboard", "/news") else ""}" class="{"on" if active == k else ""}">{t}</a>' for k, p, t in (("dash", "/dashboard", "Dashboard"), ("home", "", "Today's issue"), ("review", "/review", "Review"), ("final", "/final", "Publish"), ("news", "/news", "All news"), ("email", "/email", "Email"), ("ads", "/ads", "Ads"), ("settings", "/settings", "Settings")))
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>{e(title)} · Bought. admin</title>{'<meta http-equiv="refresh" content="10">' if refresh else ''}<style>{CSS}</style></head><body>
 <header class="top"><b>Bought<i>.</i> admin</b><nav>{nav}</nav><form method="post" action="/admin/logout"><button>Sign out</button></form></header><main>{body}</main></body></html>"""
 

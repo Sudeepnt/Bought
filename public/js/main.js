@@ -56,7 +56,7 @@ $("lang").addEventListener("change",e=>Data.setLang(e.target.value));
  Paper.render();Radio.init();Spec.render();
  Motion.init();Shell.init();Pager.init();
  go(link?"paper":VIEWS.includes(h)?h:h==="listen"?"radio":store.get("bought-view","paper"));
- BOOTED=true;
+ BOOTED=true;Stats.visit(VIEW);
  if(link){const s=S.find(x=>x.uid===link[2]);if(s)Reader.open(s.id)}
  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>Paper.balance());
  tickCountdowns();

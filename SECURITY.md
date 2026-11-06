@@ -13,12 +13,13 @@ What protects Bought, layer by layer. Nothing here relies on a secret address: e
 
 ## 2. The public surface is small
 
-Readers and the internet reach only: the site's files; `/api/subscribe`; `/confirm` and `/unsubscribe` (mail links with random tokens); `/api/bought/*` (the ads API); `/healthz` (says only `{"ok": true}`).
+Readers and the internet reach only: the site's files; `/api/subscribe`; `/api/hit` (reader counts, below); `/confirm` and `/unsubscribe` (mail links with random tokens); `/api/bought/*` (the ads API); `/healthz` (says only `{"ok": true}`).
 
 - The ads API's `admin` and `cron` paths are refused at the proxy, and need a 32-byte secret at the backend as well. The backend itself listens only on 127.0.0.1.
 - Advertisers sign in through Supabase Auth (email code, or Google). Every ad action needs a confirmed email, the site's own Origin, and passes a rate limit that fails closed.
 - Webhooks (Mux, Stripe, Razorpay) are accepted only with a valid signature, and amounts and currencies are checked.
 - No software or version names in responses (`Server: Bought`), and no folder listings.
+- Reader counts (`/api/hit`, `pipeline/analytics.py`) store nothing that identifies a reader: no cookie, no id, no IP address, no browser string. A visitor is counted once a day by a hash of that day's random salt, the IP and the browser; the salt and the hashes are deleted the day after. Only known fields in known shapes are kept (a referrer becomes a bare site name), bots and headless browsers are skipped, one address gets at most 300 hits a minute, and hits wait in a bounded queue written every 5 seconds, so a flood can't fill memory or the disk.
 
 ## 3. The browser runs only our code
 

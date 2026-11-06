@@ -8,6 +8,7 @@ Listens on 127.0.0.1 only; put a TLS proxy (nginx, Caddy) in front of it on the 
 from __future__ import annotations
 
 import atexit
+import csv
 import email.utils
 import gzip
 import hashlib
@@ -33,6 +34,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import admin_pages as pages
+from . import analytics, dashboard as dash, dash_pages
 from . import db, desk as dk, mailer
 from . import security as sec
 from .config import load_config, load_sources
@@ -57,7 +59,7 @@ SITE_HEADERS = {
     "Permissions-Policy": "camera=(self), microphone=(self), geolocation=(), payment=(self \"https://api.razorpay.com\"), interest-cohort=()",
     "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
 }
-DESK_CSP = sec.desk_csp([sec.script_hash(pages.REVIEW_JS)])
+DESK_CSP = sec.desk_csp([sec.script_hash(pages.REVIEW_JS), sec.script_hash(dash_pages.TIP_JS)])
 DESK_PORT = int(os.environ.get("BOUGHT_DESK_PORT", "8100"))
 
 
@@ -143,6 +145,8 @@ class App:
         self.codes = sec.CodeCheck(totp) if totp else None          # set on the server by deploy/setup.sh
         self._supabase = (0.0, None)
         self.signups = Throttle(5, 3600)
+        self.hits = Throttle(300, 60)                                 # reader counts: generous for a person, a wall for a script
+        self._stats = None
         self.job_lock = threading.Lock()
         self.process = None
         self.tick_lock = threading.Lock()
@@ -199,6 +203,13 @@ class App:
 
     def sources(self):
         return load_sources(self.sources_path)
+
+    @property
+    def stats(self) -> analytics.Collector:
+        if self._stats is None:
+            site = os.environ.get("SITE_URL") or dk.get_settings(self.desk())["site_url"]
+            self._stats = analytics.Collector(dk.data_dir() / "stats.db", urlparse(site).hostname or "")
+        return self._stats
 
     def news(self):
         return db.connect(dk.data_dir() / "news.db")
@@ -595,7 +606,74 @@ class Handler(RangeHandler):
             return self._send(pages.ads_page(running=code != 0, status=status, data=data, **common))
         if path == "/admin/log":
             return self._log_page(desk, q, common)
+        if path == "/admin/dashboard":
+            return self._dashboard(desk, news, q, common)
+        if path == "/admin/news":
+            return self._send(dash_pages.news_page(dash.all_news(news, app.stats.connect(), q), date))
+        if path == "/admin/news.csv":
+            return self._news_csv(news, q)
         return self._send("Not found", 404, "text/plain")
+
+    def _dashboard(self, desk, news, q, common):
+        app, now, s = self.app, common["now"], common["settings"]
+        days = int(q["days"]) if q.get("days") in ("7", "30", "90") else 30
+        stats = app.stats.connect()
+        today = dash.ist_day(now)
+        flow = dash.news_flow(news, desk, stats, today, days)
+        code, status = app.backend_call("GET", "admin/status")
+        ads = {"live": False, "why": "The ads backend is not running." if code == 0 else "Ads are not connected yet."}
+        if code == 200 and status.get("live"):
+            c, data = app.backend_call("GET", f"admin/stats?days={days}")
+            ads = {**data, "live": True} if c == 200 else {"live": False, "why": "The ads numbers could not be read just now."}
+        server = dash.server(desk, now)
+        warnings = []
+        failing = [x["source"] for x in flow["sources"] if x["error"]]
+        if failing:
+            warnings.append(("warning", f"{len(failing)} source{'s' if len(failing) > 1 else ''} failed on the last fetch: {pages.e(', '.join(failing[:6]))}{'…' if len(failing) > 6 else ''}. See Sources below."))
+        if server["failed_week"]:
+            warnings.append(("serious", f"{server['failed_week']} job{'s' if server['failed_week'] > 1 else ''} failed or stopped in the last 7 days. See Server below."))
+        due = dk.due_at(common["date"], s)
+        left = (due - now).total_seconds()
+        if common["stage"] in ("review", "finalized", "failed") and 0 < left < 12 * 3600:
+            warnings.append(("serious" if left < 3 * 3600 else "warning", f'The issue of {pages.day(common["date"])} goes live in {int(left // 3600)}h {int(left % 3600 // 60)}m and is still at <b>{pages.e(common["stage"])}</b>. <a href="/admin/final?date={common["date"]}">Open it</a>'))
+        if not mailer.can_send():
+            warnings.append(("warning", 'Mail is not set up, so the paper can\'t be emailed. See <a href="/admin/email">Email</a>.'))
+        if not s["site_url"]:
+            warnings.append(("warning", 'The site address is not set. See <a href="/admin/settings">Settings</a>.'))
+        if ads.get("live") and int(ads.get("owed_minor") or 0) > 0:
+            warnings.append(("warning", f'${int(ads["owed_minor"]) // 100:,} of withdrawals to pay. See <a href="/admin/ads">Ads</a>.'))
+        if server["disk_total"] and server["disk_used"] / server["disk_total"] > 0.85:
+            warnings.append(("serious", f"The disk is {server['disk_used'] / server['disk_total']:.0%} full."))
+        if not server["backup_at"] or (now - server["backup_at"]).total_seconds() > 2 * 86400:
+            warnings.append(("warning", "No backup in the last 2 days (deploy/backup.py runs daily on the server)."))
+        body = dash_pages.dashboard(
+            r=dash.readers(stats, today, days), flow=flow, top=dash.top_stories(stats, news, dash.day_list(today, days)[0]), issue_rows=dash.issues(desk, stats),
+            subs=dash.subscribers(desk, today, days), server=server, ads=ads, warnings=warnings, days=days,
+            publish_hour=due.astimezone(dash.IST).hour, publish_label=dk.publish_label(s), now=now, date=common["date"])
+        return self._send(body)
+
+    def _news_csv(self, news, q):
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["id", "headline", "section", "source", "link", "published_at", "scraped_at", "what_happened", "readers", "opens", "avg_seconds", "shares", "to_source"])
+        page, stats = 1, self.app.stats.connect()
+        while True:
+            d = dash.all_news(news, stats, {**q, "page": str(page)})
+            for x in d["items"]:
+                # a cell starting with = + - @ would run as a formula in a spreadsheet
+                safe = lambda v: "'" + v if isinstance(v, str) and v[:1] in "=+-@\t\r" else v
+                w.writerow([x["id"], safe(x["title"]), x["section"], safe(x["source"]), x["link"], x["published_at"], x["fetched_at"], x["what"], x["readers"], x["reads"], x["avg_secs"] or "", x["shares"], x["sources"]])
+            if page >= d["pages"] or page >= 500:
+                break
+            page += 1
+        data = out.getvalue().encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/csv; charset=utf-8")
+        self.send_header("Content-Disposition", 'attachment; filename="bought-news.csv"')
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
 
     def _preview(self, desk, s):
         index = dk.public_dir() / "issues" / "index.json"
@@ -621,6 +699,8 @@ class Handler(RangeHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         if url.path == "/api/subscribe":
             return self._subscribe()
+        if url.path == "/api/hit":
+            return self._hit()
         if url.path.startswith("/api/bought/"):
             return self._proxy()
         if url.path in ("/confirm", "/unsubscribe"):
@@ -669,6 +749,20 @@ class Handler(RangeHandler):
         finally:
             conn.close()
 
+    def _hit(self):
+        """A reader count from the page (js/stats.js). Always answers 204 with nothing, counted or not."""
+        body = self._body(2048)
+        if not (self.headers.get("Origin") and not self._same_origin()) and self.app.hits.allow(self._ip()):
+            try:
+                hit = json.loads(body or b"{}")
+            except ValueError:
+                hit = None
+            if isinstance(hit, dict):
+                self.app.stats.add(hit, self._ip(), self.headers.get("User-Agent") or "", self.app.clock())
+        self.send_response(204)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
     def _subscribe(self):
         app = self.app
         form = self._form()
@@ -702,7 +796,7 @@ class Handler(RangeHandler):
         code_ok = codes is None or codes.verify(form.get("code", ""))     # both are checked, so a reply can't tell which one was wrong
         if not (password_ok and code_ok):
             return self._send(pages.login("That password or code is not right." if codes else "That password is not right.", code=bool(codes)), 401)
-        return self._redirect("/admin", [self._session_cookie(self.app.session(), SESSION_HOURS * 3600)])
+        return self._redirect("/admin/dashboard", [self._session_cookie(self.app.session(), SESSION_HOURS * 3600)])
 
     def _admin_post(self, path):
         app, form = self.app, self._form()
@@ -804,6 +898,9 @@ def serve(host: str, port: int, config=None, sources=None, desk_host: str = "127
                 log.exception("clock tick failed")
             time.sleep(15)
     threading.Thread(target=clock, daemon=True).start()
+    stop = threading.Event()
+    threading.Thread(target=app.stats.run, args=(stop,), daemon=True).start()
+    atexit.register(app.stats.flush)                                    # the last few seconds of counts survive a restart
     # systemd stops the service with SIGTERM: leave through sys.exit so atexit stops the backend too
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     print(f"Site:  http://{host}:{port}/\nDesk:  http://{desk_host}:{desk_port}/admin  (private: reach it through an SSH tunnel or Tailscale, never the public address)", flush=True)

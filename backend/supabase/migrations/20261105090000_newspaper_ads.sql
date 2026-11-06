@@ -850,6 +850,43 @@ language sql stable set search_path = '' as $$
  select exists (select 1 from public.bought_ad_results where ad_id = p_ad_id and status = 'live')
 $$;
 
+-- What the desk's dashboard shows about ads: totals, the last p_days day by day (IST days), and each issue's sales.
+create function public.bought_ad_stats(p_days integer default 30) returns jsonb
+language sql stable set search_path = '' as $$
+ with today as (select (now() at time zone 'Asia/Kolkata')::date as d),
+ days as (select g::date as day from today, generate_series(today.d - (greatest(1, least(p_days, 366)) - 1), today.d, interval '1 day') g),
+ sold as (select * from public.bought_ad_results where status in ('won','live'))
+ select jsonb_build_object(
+  'advertisers', (select count(*) from public.bought_accounts),
+  'bidders', (select count(distinct user_id) from public.bought_ad_bids),
+  'bids', (select count(*) from public.bought_ad_log where kind = 'bid'),
+  'free_given_minor', (select coalesce(sum(amount_minor), 0) from public.bought_wallet_tx where kind = 'bonus'),
+  'bought_minor', (select coalesce(sum(credit_minor), 0) from public.bought_topups where state = 'paid'),
+  'tax_minor', (select coalesce(sum(tax_minor), 0) from public.bought_topups where state = 'paid'),
+  'buyers', (select count(distinct user_id) from public.bought_topups where state = 'paid'),
+  'spent_minor', (select coalesce(sum(price_minor), 0) from sold),
+  'spent_free_minor', (select coalesce(sum(free_minor), 0) from sold),
+  'spots_sold', (select count(*) from sold),
+  'refunded', (select count(*) from public.bought_ad_results where status = 'refunded'),
+  'held_minor', (select coalesce(sum(balance_minor), 0) from public.bought_accounts),
+  'withdrawn_minor', (select coalesce(sum(amount_minor), 0) from public.bought_withdrawals where state = 'paid'),
+  'owed_minor', (select coalesce(sum(amount_minor), 0) from public.bought_withdrawals where state = 'requested'),
+  'days', (select jsonb_agg(jsonb_build_object(
+     'day', days.day,
+     'advertisers', (select count(*) from public.bought_accounts a where (a.created_at at time zone 'Asia/Kolkata')::date = days.day),
+     'bids', (select count(*) from public.bought_ad_log l where l.kind = 'bid' and (l.at at time zone 'Asia/Kolkata')::date = days.day),
+     'bought_minor', (select coalesce(sum(t.credit_minor), 0) from public.bought_topups t where t.state = 'paid' and (t.paid_at at time zone 'Asia/Kolkata')::date = days.day))
+   order by days.day) from days),
+  'issues', (select coalesce(jsonb_agg(x order by x->>'issue' desc), '[]'::jsonb) from (
+     select jsonb_build_object('issue', i.issue, 'spots', count(*), 'points_minor', sum(i.price_minor), 'free_minor', sum(i.free_minor),
+        'views', sum(i.views), 'plays', sum(i.plays), 'clicks', sum(i.clicks)) x
+     from sold i, today where i.issue > today.d - greatest(1, least(p_days, 366)) group by i.issue) q),
+  'open', (select coalesce(jsonb_agg(x order by x->>'issue'), '[]'::jsonb) from (
+     select jsonb_build_object('issue', b.issue, 'bidders', count(distinct b.user_id), 'spots', count(distinct b.spot), 'top_minor', max(b.amount_minor)) x
+     from public.bought_ad_bids b, today where b.issue >= today.d and b.status in ('leading','outbid','in','out') group by b.issue) q)
+ )
+$$;
+
 do $$
 declare f record;
 begin

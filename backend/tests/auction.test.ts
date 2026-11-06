@@ -372,11 +372,47 @@ void test('the service role the API runs as can do the whole job', async () => {
   await one(db, 'select public.bought_ad_winners($1)', [ISSUE]);
   await one(db, "select public.bought_ad_count($1,'feed-e','view')", [ISSUE]);
   await one(db, 'select public.bought_ad_withdraw($1,100)', [b]);
+  await one(db, 'select public.bought_ad_stats(30)');
   await db.exec('reset role');
   const c = randomUUID();
   await db.query("insert into auth.users(id,email) values ($1,'svc@example.com')", [c]);
   await db.exec('set role service_role');
   await one(db, "select public.bought_ad_open_account($1,'svc@example.com','Biz','India',null,'upi')", [c]);
   await db.exec('reset role');
+  await db.close();
+});
+
+void test('the desk dashboard gets ad totals, day by day and per issue', async () => {
+  const db = await testDatabase('2026-11-05T05:00:00Z');
+  const asha = await signUp(db, 'asha@example.com');
+  const ravi = await signUp(db, 'ravi@example.com');
+  const id = randomUUID();
+  await db.query(
+    "insert into public.bought_topups(id,user_id,credit_minor,tax_minor,charge_minor,charge_currency,provider,method,payment_reference) values ($1,$2,2000,360,200000,'INR','razorpay','upi','order_s')",
+    [id, ravi.id],
+  );
+  await db.query('select public.bought_ad_payment_event($1,$2,$3,$4,$5,$6,$7)', ['razorpay', 'es', 'order_s', 'pay_s', 200000, 'INR', 'paid']);
+  assert.equal((await bid(db, asha.id, await ad(db, asha.id), 3)).ok, true);
+  assert.equal((await bid(db, ravi.id, await ad(db, ravi.id), 5)).ok, true);
+  const before = (await one<{ s: Record<string, any> }>(db, 'select public.bought_ad_stats(7) as s')).s;
+  assert.equal(before.advertisers, 2);
+  assert.equal(before.bidders, 2);
+  assert.equal(before.bids, 2);
+  assert.equal(Number(before.free_given_minor), 20000, '100 free points each');
+  assert.equal(Number(before.bought_minor), 2000);
+  assert.equal(Number(before.tax_minor), 360);
+  assert.equal(before.days.length, 7);
+  assert.deepEqual(before.days.at(-1), { day: '2026-11-05', advertisers: 2, bids: 2, bought_minor: 2000 });
+  assert.deepEqual(before.open, [{ issue: '2026-11-07', bidders: 2, spots: 1, top_minor: 500 }]);
+  assert.deepEqual(before.issues, []);
+  await setClock(db, '2026-11-07T05:51:00Z');
+  await one(db, 'select public.bought_ad_tick()');
+  await one(db, 'select public.bought_ad_mark_live($1)', [ISSUE]);
+  const after = (await one<{ s: Record<string, any> }>(db, 'select public.bought_ad_stats(30) as s')).s;
+  assert.equal(after.spots_sold, 1);
+  assert.equal(Number(after.spent_minor), 500, 'an exact bid pays what it bid');
+  assert.equal(after.issues[0].issue, ISSUE);
+  assert.deepEqual(after.open, []);
+  assert.equal(after.days.length, 30);
   await db.close();
 });
