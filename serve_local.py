@@ -29,10 +29,14 @@ class RangeHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", self.guess_type(path))
         self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
         self.send_header("Content-Length", str(end - start + 1))
-        self.send_header("Accept-Ranges", "bytes")
         self.end_headers()
         self._remaining = end - start + 1
         return f
+
+    def send_response(self, code, message=None):
+        super().send_response(code, message)
+        if code in (200, 206):
+            self.send_header("Accept-Ranges", "bytes")
 
     def copyfile(self, source, outputfile):
         left = getattr(self, "_remaining", None)
@@ -46,9 +50,11 @@ class RangeHandler(SimpleHTTPRequestHandler):
             left -= len(chunk)
         self._remaining = None
 
+    def cache_control(self) -> str:
+        return "no-store"                                  # dev server: always show the latest CSS/JS/videos
+
     def end_headers(self):
-        self.send_header("Accept-Ranges", "bytes")
-        self.send_header("Cache-Control", "no-store")      # dev server: always show the latest CSS/JS/videos
+        self.send_header("Cache-Control", self.cache_control())
         super().end_headers()
 
     def log_message(self, *a):
@@ -58,4 +64,5 @@ class RangeHandler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     root = sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(os.path.abspath(__file__)), "public")
+    ThreadingHTTPServer.request_queue_size = 1024
     ThreadingHTTPServer(("", port), partial(RangeHandler, directory=root)).serve_forever()

@@ -1,6 +1,7 @@
 """Load and validate config.yaml / sources.yaml."""
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -128,21 +129,28 @@ class Config:
     funnel_evaluator_timeout_seconds: float = 300
 
 
+def expand_arg(arg: str) -> str:
+    """Commands name their tools as ~/... or $BOUGHT_HOME/..., so one config.yaml works on a laptop and on the server.
+    {wav}, {lang} and the other placeholders are left for the step that runs the command."""
+    arg = re.sub(r"\$(\w+)|\$\{(\w+)\}", lambda m: os.environ.get(m.group(1) or m.group(2), DEFAULTS.get(m.group(1) or m.group(2), m.group(0))), arg)
+    return os.path.expanduser(arg) if arg.startswith("~") else arg
+
+
+DEFAULTS = {"BOUGHT_HOME": os.path.expanduser("~/.cache/bought")}
+
+
 def load_config(path=None) -> Config:
     path = Path(path) if path else PKG_DIR / "config.yaml"
     raw = yaml.safe_load(path.read_text()) or {}
     unknown = set(raw) - set(Config.__dataclass_fields__)
     if unknown:
         raise ConfigError(f"unknown config keys: {sorted(unknown)}")
-    for key in ("tts_command", "tts_voices"):
+    for key in ("tts_voices", "translate_languages", "funnel_voices"):
         if isinstance(raw.get(key), list):
             raw[key] = tuple(map(str, raw[key]))
-    for key in ("translate_languages", "translate_command"):
+    for key in ("tts_command", "translate_command", "funnel_evaluator_command"):
         if isinstance(raw.get(key), list):
-            raw[key] = tuple(map(str, raw[key]))
-    for key in ("funnel_voices", "funnel_evaluator_command"):
-        if isinstance(raw.get(key), list):
-            raw[key] = tuple(map(str, raw[key]))
+            raw[key] = tuple(expand_arg(str(a)) for a in raw[key])
     if isinstance(raw.get("badges_exclusive_sources"), list):
         raw["badges_exclusive_sources"] = tuple(map(str, raw["badges_exclusive_sources"]))
     if isinstance(raw.get("avatar_fallback_images"), list):

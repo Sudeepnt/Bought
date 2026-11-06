@@ -2,7 +2,7 @@
 // then muxed with the voice track by ffmpeg. No journalist: the picture is photos in the frame's monitor, headline,
 // ticker and boxes. Usage: node prime_render.cjs SPEC.json
 const fs = require('fs'), path = require('path'), { spawn } = require('child_process');
-const { chromium } = require(process.env.PLAYWRIGHT_CORE || '/Users/sudeepnt/Documents/ATit-Quote/node_modules/playwright-core');
+const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const spec = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const FPS = 25, SHOT = spec.shot || 2.6;
 const A = path.join(__dirname, 'assets');

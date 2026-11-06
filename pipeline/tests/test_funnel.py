@@ -374,3 +374,13 @@ def test_a_video_needs_rights_and_length_too():
     unfree = page("Nvidia plant tour", "cc-by-nc-4.0", "CC BY-NC 4.0", mime="video/webm"); unfree["imageinfo"][0]["duration"] = 60
     assert im.commons_candidates([good], "Nvidia", CFG, 2026, clips=True)
     assert not im.commons_candidates([short, unfree], "Nvidia", CFG, 2026, clips=True)
+
+
+def test_config_commands_follow_bought_home_so_one_file_fits_every_machine(monkeypatch):
+    from pipeline.config import expand_arg
+    monkeypatch.setenv("BOUGHT_HOME", "/srv/bought/models")
+    assert expand_arg("$BOUGHT_HOME/tts/venv/bin/python") == "/srv/bought/models/tts/venv/bin/python"
+    assert expand_arg("${BOUGHT_HOME}/m2m100_ct2") == "/srv/bought/models/m2m100_ct2"
+    assert expand_arg("{wav}") == "{wav}" and expand_arg("$NOT_SET_ANYWHERE/x") == "$NOT_SET_ANYWHERE/x"
+    monkeypatch.delenv("BOUGHT_HOME")
+    assert expand_arg("$BOUGHT_HOME/tts").endswith("/.cache/bought/tts") and not expand_arg("~/x").startswith("~")

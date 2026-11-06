@@ -1,0 +1,30 @@
+# /etc/systemd/system/bought.service: the site's dynamic side, /admin, the publish clock and the ads backend, as one service.
+[Unit]
+Description=Bought (admin, publish clock, ads backend)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=bought
+Group=bought
+WorkingDirectory=/srv/bought
+EnvironmentFile=-/etc/bought/bought.env
+Environment=BOUGHT_HOME=/srv/bought/models
+Environment=PLAYWRIGHT_BROWSERS_PATH=/srv/bought/models/ms-playwright
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/bought/.venv/bin/python -m pipeline serve --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+TimeoutStopSec=20
+# the backend (node) is a child: stop the whole group
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

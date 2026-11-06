@@ -53,7 +53,9 @@ def env(tmp_path, monkeypatch):
     for n in range(1, 7):
         add(news, n)
     pick(news, 1, 2, 3)
-    return SimpleNamespace(news=news, desk=dk.connect(), tmp=tmp_path)
+    desk = dk.connect()
+    dk.save_settings(desk, {"publish_time": "07:00", "publish_zone": "IST", "reader_hours": "0"})   # the times below are written for 07:00 IST
+    return SimpleNamespace(news=news, desk=desk, tmp=tmp_path)
 
 
 def test_the_rules_picks_are_chosen_and_the_rest_are_left(env):
@@ -140,6 +142,7 @@ def app_for(env, clock):
     app = server.App(config=None, runner=runner, box=box, clock=clock)
     app.cfg = lambda: SimpleNamespace(user_agent="t", translate_languages=())
     app.sources = lambda: [SimpleNamespace(name="TechCrunch"), SimpleNamespace(name="Wired")]
+    app.busy = lambda: False                       # this machine's load must not decide a test
     return app, box
 
 
@@ -423,3 +426,121 @@ def test_ads_page_names_what_is_missing_and_never_values():
     html = pages.ads_page(running=True, status={"live": False, "missing": ["MUX_TOKEN_ID"], "providers": {}}, queue={}, **common)
     assert "MUX_TOKEN_ID" in html and "simulation" in html
     assert "not running" in pages.ads_page(running=False, status={}, queue={}, **common)
+
+
+def _get(web, path, **headers):
+    c = http.client.HTTPConnection("127.0.0.1", web.port, timeout=10)
+    c.request("GET", path, headers=headers)
+    r = c.getresponse()
+    body = r.read()
+    c.close()
+    return r, body
+
+
+def test_site_files_are_gzipped_cached_and_checked(web):
+    import gzip
+    pub = web.env.tmp / "public"
+    (pub / "js").mkdir(exist_ok=True)
+    (pub / "js" / "app.js").write_text("let x = 1;\n" * 400)
+    r, body = _get(web, "/js/app.js?v=10", **{"Accept-Encoding": "gzip, br"})
+    assert r.status == 200 and r.headers["Content-Encoding"] == "gzip" and r.headers["Vary"] == "Accept-Encoding"
+    assert gzip.decompress(body).decode() == "let x = 1;\n" * 400 and len(body) < 400
+    assert r.headers["Cache-Control"] == "public, max-age=31536000, immutable"
+    assert r.headers["X-Content-Type-Options"] == "nosniff" and "camera=(self)" in r.headers["Permissions-Policy"]
+    again, _ = _get(web, "/js/app.js?v=10", **{"Accept-Encoding": "gzip", "If-None-Match": r.headers["ETag"]})
+    assert again.status == 304
+    plain, body = _get(web, "/js/app.js")
+    assert plain.status == 200 and "Content-Encoding" not in plain.headers and body.decode().startswith("let x")
+    assert plain.headers["Cache-Control"] == "no-cache"
+
+
+def test_cache_rules():
+    from pipeline.server import cache_policy
+    assert cache_policy("/styles.css", "v=10").endswith("immutable")
+    assert cache_policy("/js/live/c-YL55G6O3.js", "").endswith("immutable")
+    assert cache_policy("/fonts/f1.woff2", "").endswith("immutable")
+    assert cache_policy("/js/live/client.js", "") == "no-cache"
+    assert cache_policy("/", "") == "no-cache" and cache_policy("/issues/index.json", "") == "no-cache"
+    assert cache_policy("/issues/2026-11-05/issue.json", "") == "no-cache"
+    assert cache_policy("/issues/2026-11-05/media/a.mp4", "") == "public, max-age=3600"
+
+
+def test_folders_are_never_listed_and_admin_answers_are_never_cached(web):
+    pub = web.env.tmp / "public"
+    (pub / "issues" / "x").mkdir(parents=True, exist_ok=True)
+    (pub / "issues" / "x" / "secret-name.mp4").write_bytes(b"0" * 10)
+    r, body = _get(web, "/issues/x/")
+    assert r.status == 404 and b"secret-name" not in body
+    assert web.call("GET", "/admin/login").headers["Cache-Control"] == "no-store"
+    assert web.call("HEAD", "/admin").status == 405
+
+
+def test_health_check_for_an_uptime_monitor(web, monkeypatch):
+    for answer, ads in (((0, {}), "down"), ((200, {"live": False}), "simulated"), ((200, {"live": True}), "live")):
+        monkeypatch.setattr(web.app, "backend_call", lambda *a, answer=answer: answer)
+        r = web.call("GET", "/healthz")
+        assert r.status == 200 and json.loads(r.text) == {"ok": True, "ads": ads}
+    assert r.headers["Cache-Control"] == "no-store"
+
+
+def test_video_ranges_still_work_with_gzip_accepted(web):
+    pub = web.env.tmp / "public"
+    (pub / "v.mp4").write_bytes(bytes(range(256)) * 8)
+    r, body = _get(web, "/v.mp4", Range="bytes=10-19", **{"Accept-Encoding": "gzip"})
+    assert r.status == 206 and body == bytes(range(10, 20)) and "Content-Encoding" not in r.headers
+    assert r.headers.get_all("Accept-Ranges") == ["bytes"]
+
+
+def test_the_paper_goes_out_at_six_utc_by_default():
+    assert dk.DEFAULTS["publish_time"] == "06:00" and dk.DEFAULTS["publish_zone"] == "UTC"
+    assert dk.due_at("2026-11-06", dk.DEFAULTS) == datetime(2026, 11, 6, 6, 0, tzinfo=timezone.utc)
+
+
+def test_reader_hours_hold_background_work_until_the_morning_rush_passes():
+    s = {**dk.DEFAULTS, "reader_hours": "4"}
+    at = lambda h, m=0: datetime(2026, 11, 6, h, m, tzinfo=timezone.utc)
+    assert not dk.in_reader_hours(at(5, 59), s)
+    assert dk.in_reader_hours(at(6, 0), s) and dk.in_reader_hours(at(9, 59), s)
+    assert not dk.in_reader_hours(at(10, 0), s) and not dk.in_reader_hours(at(23, 0), s)
+    late = {**s, "publish_time": "22:00", "reader_hours": "6"}            # a rush that crosses midnight
+    assert dk.in_reader_hours(at(1, 0), late) and not dk.in_reader_hours(at(4, 0), late)
+    assert not dk.in_reader_hours(at(6, 30), {**s, "reader_hours": "0"})
+    with pytest.raises(ValueError):
+        dk.save_settings(dk.connect(), {"reader_hours": "30"})
+
+
+def test_automatic_fetching_waits_for_reader_hours_and_a_quiet_machine(env):
+    times = [datetime(2026, 11, 6, 7, 0, tzinfo=timezone.utc)]
+    started = []
+    app, _ = app_for(env, lambda: times[0])
+    app.runner = lambda kind, issue, path: started.append(kind) or SimpleNamespace(poll=lambda: None)
+    dk.save_settings(env.desk, {"publish_time": "06:00", "publish_zone": "UTC", "reader_hours": "4", "auto_fetch_minutes": "60"})
+    app.tick()
+    assert started == []                                   # 07:00 UTC: readers' hours
+    times[0] = datetime(2026, 11, 6, 10, 30, tzinfo=timezone.utc)
+    app.busy = lambda: True
+    app.tick()
+    assert started == []                                   # past the rush, but the machine is busy
+    app.busy = lambda: False
+    app.tick()
+    assert started == ["intake"]
+    assert app.start_job("prepare", D) is False            # one job at a time
+
+
+def test_a_burst_of_readers_is_queued_not_refused(env):
+    from concurrent.futures import ThreadPoolExecutor
+    srv = server.Server(("127.0.0.1", 0), partial(server.Handler, directory=str(env.tmp / "public")))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    port = srv.server_address[1]
+
+    def get(_):
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=20)
+        try:
+            c.request("GET", "/")
+            return c.getresponse().status
+        finally:
+            c.close()
+    with ThreadPoolExecutor(100) as pool:          # under macOS's own cap of 128; Linux allows 4096
+        codes = list(pool.map(get, range(300)))
+    srv.shutdown()
+    assert codes.count(200) == 300

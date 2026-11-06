@@ -61,3 +61,13 @@ Not verified: licenses of newer versions pulled by a fresh `pip install` on the 
 | `hls.js` | Apache-2.0 | Playing Mux streams outside Safari |
 | `@mediapipe/tasks-vision` | Apache-2.0 | Face guide while recording; `public/mediapipe/NOTICE.txt` |
 | `tsx` | MIT | Runs the TypeScript server |
+
+## Site fonts and production tools
+
+| Item | License | Used for |
+| --- | --- | --- |
+| Fraunces, Newsreader, Geist, Geist Mono (`public/fonts/`) | SIL OFL 1.1 | The site's type, self-hosted copies of the Google Fonts files |
+| `playwright-core` (root `package.json`) | Apache-2.0 | Drives headless Chromium to render the Prime videos |
+| Chromium (installed by Playwright) | BSD-3-Clause and others | The renderer's browser |
+| Caddy | Apache-2.0 | HTTPS and static files on the VPS |
+| ctranslate2, sentencepiece (models venv) | MIT, Apache-2.0 | Running the translation model |

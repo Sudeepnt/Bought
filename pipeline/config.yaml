@@ -22,8 +22,9 @@ og_max_per_source: 15      # article-page fetches per source per run
 # Example for Piper (MIT voices only; check each voice's licence):
 #   media_enabled: true
 #   tts_command: ["piper", "--model", "/opt/voices/en_US-lessac-medium.onnx", "--output_file", "{wav}"]
+# $BOUGHT_HOME is ~/.cache/bought unless set; deploy/setup.sh puts the voice and translation models there.
 # The newsroom voice (Kokoro, Apache-2.0, CPU). List one voice, or several and the stories take turns; "a+b" blends two voices.
-tts_command: ["/Users/sudeepnt/.cache/bought/tts/venv/bin/python", "pipeline/tts_kokoro.py", "/Users/sudeepnt/.cache/bought/tts/kokoro-v1.0.int8.onnx", "/Users/sudeepnt/.cache/bought/tts/voices-v1.0.bin", "{voice}", "{wav}", "{speed}"]
+tts_command: ["$BOUGHT_HOME/tts/venv/bin/python", "pipeline/tts_kokoro.py", "$BOUGHT_HOME/tts/kokoro-v1.0.int8.onnx", "$BOUGHT_HOME/tts/voices-v1.0.bin", "{voice}", "{wav}", "{speed}"]
 tts_voices: [af_heart]               # candidates: af_river, af_jessica, "af_nova+af_kore"
 tts_speed: 1.0
 media_enabled: false
@@ -70,4 +71,4 @@ engagement_file: ""                 # JSON {article_id: {views, reads, glances}}
 # Translations for the page's language picker (offline, CPU only; see translate_m2m.py: M2M100 via CTranslate2, both MIT; `pip install -r pipeline/requirements-translate.txt`).
 # Locales are the picker's; every language in the picker is listed (all within M2M100's 100 languages). Stories/headlines are translated; video and podcast audio stay English.
 translate_languages: [zh-CN, hi-IN, es-ES, ar, fr-FR, pt-BR, ru-RU, ja-JP, af, sq, am, hy, az, my, ca, cs, da, nl, fil, fi, ka, de, el, gu, he, hu, is, id, it, kn, ko, ms, ml, mr, ne, nb, or, fa, pl, pa, ro, sr, si, sk, sw, sv, ta, th, tr, uk, ur, uz, vi, cy, ast, be, bs, br, bg, hr, et, fy, gl, ga, lv, lt, lb, mk, oc, gd, sl]
-translate_command: ["/usr/bin/python3", "pipeline/translate_m2m.py", "{lang}", "/Users/sudeepnt/.cache/bought/m2m100_ct2"]
+translate_command: ["$BOUGHT_HOME/tts/venv/bin/python", "pipeline/translate_m2m.py", "{lang}", "$BOUGHT_HOME/m2m100_ct2"]

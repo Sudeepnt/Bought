@@ -8,14 +8,19 @@ Listens on 127.0.0.1 only; put a TLS proxy (nginx, Caddy) in front of it on the 
 from __future__ import annotations
 
 import atexit
+import email.utils
+import gzip
 import hashlib
 import hmac
 import http.client
+import io
 import json
 import logging
 import os
 import re
 import secrets
+import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -42,7 +47,54 @@ BACKEND = ROOT / "backend"
 BACKEND_PORT = int(os.environ.get("BOUGHT_BACKEND_PORT", "8787"))
 PROXY_HEADERS = ("Content-Type", "Origin", "Authorization", "Mux-Signature", "Stripe-Signature", "X-Razorpay-Signature")
 PROXY_MAX_BODY = 2 * 1024 * 1024
-BLOCKED_STATIC = ("/admin", "/api/")
+GZIP_TYPES = ("text/", "application/javascript", "application/json", "image/svg+xml", "application/wasm")
+GZIP_CACHE_BYTES = 96 * 1024 * 1024
+SITE_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Permissions-Policy": "camera=(self), microphone=(self), geolocation=(), interest-cohort=()",
+}
+
+
+def cache_policy(path: str, query: str) -> str:
+    """How long a browser may keep a file. HTML and JSON are always checked (a cheap 304 when unchanged), so a new
+    issue shows at once; CSS and JS carry ?v= and the bundle's chunks a content hash, so they never need checking."""
+    if re.search(r"(^|&)v=", query) or re.match(r"/(js/live/c-[\w-]+\.js|fonts/)", path):
+        return "public, max-age=31536000, immutable"
+    if path.startswith("/issues/") and not path.endswith(".json"):
+        return "public, max-age=3600"          # an issue's pictures, videos and audio; a recut keeps the name, so not forever
+    if path.startswith("/mediapipe/"):
+        return "public, max-age=86400"
+    return "no-cache"
+
+
+class GzipCache:
+    """Compressed copies of text files, keyed by path, size and mtime, so each file is compressed once per change."""
+
+    def __init__(self, limit: int = GZIP_CACHE_BYTES):
+        self.limit, self.items, self.size, self.lock = limit, {}, 0, threading.Lock()
+
+    def get(self, path: str, st) -> bytes:
+        key = (path, st.st_size, st.st_mtime_ns)
+        with self.lock:
+            hit = self.items.pop(key, None)
+            if hit is not None:
+                self.items[key] = hit          # most recently used last
+                return hit
+        with open(path, "rb") as f:
+            data = gzip.compress(f.read(), compresslevel=6, mtime=0)
+        with self.lock:
+            for old in [k for k in self.items if k[0] == path]:
+                self.size -= len(self.items.pop(old))
+            self.items[key] = data
+            self.size += len(data)
+            while self.size > self.limit and len(self.items) > 1:
+                self.size -= len(self.items.pop(next(iter(self.items))))
+        return data
+
+
+GZ = GzipCache()
 
 
 def read_secret(name: str, make) -> str:
@@ -169,7 +221,21 @@ class App:
         cmd = [sys.executable, "-m", "pipeline", "funnel", *args]
         if self.config_path:
             cmd += ["--config", str(self.config_path)]
-        return subprocess.Popen(cmd, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT)
+        # readers come first: the job and everything it starts (ffmpeg, Chromium, the voice) get only the CPU and disk readers leave over
+        if shutil.which("ionice"):
+            cmd = ["ionice", "-c", "3", *cmd]
+        return subprocess.Popen(cmd, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, preexec_fn=lambda: os.nice(19))
+
+    def busy(self) -> bool:
+        """The machine is busy serving (or already working) when the 1-minute load passes 70% of its cores."""
+        try:
+            return os.getloadavg()[0] > 0.7 * (os.cpu_count() or 1)
+        except OSError:
+            return False
+
+    def may_start_background(self, settings) -> bool:
+        """Work nobody clicked for waits for the reader hours after publishing and for a quiet machine."""
+        return not dk.in_reader_hours(self.clock(), settings) and not self.busy()
 
     def running_job(self, desk):
         return desk.execute("SELECT * FROM jobs WHERE status='running' ORDER BY id DESC LIMIT 1").fetchone()
@@ -258,15 +324,18 @@ class App:
                 if row["go_now"] or (not row["held"] and now >= dk.due_at(row["date"], settings)):
                     self.go_live(desk, row["date"])
             # a job at a time: languages first, because a waiting issue should be complete when it goes out
+            quiet = self.may_start_background(settings)
             if not self.running_job(desk):
                 wait = desk.execute("SELECT date FROM issues WHERE languages='waiting' ORDER BY date LIMIT 1").fetchone()
-                if wait and self.cfg().translate_languages:
+                if wait and self.cfg().translate_languages and not quiet:
+                    pass                                    # translating waits for the readers; the issue is already out in English
+                elif wait and self.cfg().translate_languages:
                     dk.set_issue(desk, wait["date"], languages="running")
                     self.start_job("languages", wait["date"])
                 elif wait:
                     dk.set_issue(desk, wait["date"], languages="none")
             every = int(settings["auto_fetch_minutes"])
-            if every and not self.running_job(desk):
+            if every and quiet and not self.running_job(desk):
                 last = desk.execute("SELECT MAX(started_at) m FROM jobs WHERE kind='intake'").fetchone()["m"]
                 if not last or now - datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc) >= timedelta(minutes=every):
                     self.start_job("intake")
@@ -281,6 +350,77 @@ class App:
 
 class Handler(RangeHandler):
     app: App = None
+    timeout = 60                    # a client that stops sending mid-request can't hold a thread forever
+    _static = False
+
+    # ---------- the site's files ----------
+    def cache_control(self) -> str:
+        if not self._static:
+            return "no-store"
+        url = urlparse(self.path)
+        return cache_policy(url.path, url.query)
+
+    def end_headers(self):
+        if self._static:
+            for k, v in SITE_HEADERS.items():
+                self.send_header(k, v)
+        super().end_headers()
+
+    def list_directory(self, path):
+        self.send_error(404, "File not found")       # never list a folder of the site
+        return None
+
+    def send_head(self):
+        """Text files go out gzipped when the browser accepts it; everything else (ranges, video) as before."""
+        if self.headers.get("Range") or "gzip" not in (self.headers.get("Accept-Encoding") or ""):
+            return super().send_head()
+        path = self.translate_path(self.path)
+        if os.path.isdir(path):
+            if not urlparse(self.path).path.endswith("/"):
+                return super().send_head()           # its redirect to the slash
+            path = os.path.join(path, "index.html")
+        ctype = self.guess_type(path)
+        if not ctype.startswith(GZIP_TYPES) or not os.path.isfile(path):
+            return super().send_head()
+        st = os.stat(path)
+        if st.st_size < 1024:
+            return super().send_head()
+        etag = f'W/"{st.st_mtime_ns:x}-{st.st_size:x}"'
+        if self._not_modified(etag, st):
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Vary", "Accept-Encoding")
+            self.end_headers()
+            return None
+        body = GZ.get(path, st)
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Encoding", "gzip")
+        self.send_header("Vary", "Accept-Encoding")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Last-Modified", self.date_time_string(int(st.st_mtime)))
+        self.send_header("ETag", etag)
+        self.end_headers()
+        return io.BytesIO(body)
+
+    def _not_modified(self, etag: str, st) -> bool:
+        match = self.headers.get("If-None-Match")
+        if match:
+            return etag in [m.strip() for m in match.split(",")] or match.strip() == "*"
+        since = self.headers.get("If-Modified-Since")
+        if since:
+            try:
+                return int(st.st_mtime) <= email.utils.parsedate_to_datetime(since).timestamp()
+            except (TypeError, ValueError, IndexError, OverflowError):
+                return False
+        return False
+
+    def do_HEAD(self):
+        url = urlparse(self.path)
+        if url.path.startswith(("/api/", "/admin")) or url.path in ("/confirm", "/unsubscribe", "/healthz"):
+            return self._send("", 405, "text/plain")
+        self._static = True
+        return super().do_HEAD()
 
     def _cookie(self, name):
         raw = self.headers.get("Cookie")
@@ -353,7 +493,11 @@ class Handler(RangeHandler):
             return self._proxy()
         if url.path in ("/confirm", "/unsubscribe"):
             return self._send(pages.mail_page(url.path[1:], q.get("t", "")))
+        if url.path == "/healthz":
+            code, cfg = self.app.backend_call("GET", "config")       # for an uptime monitor: the site is up; ads say how they are
+            return self._json({"ok": True, "ads": "down" if code != 200 else "live" if cfg.get("live") else "simulated"})
         if not (url.path == "/admin" or url.path.startswith("/admin/")):
+            self._static = True
             return super().do_GET()
         if url.path == "/admin/login":
             return self._send(pages.login())
@@ -582,6 +726,13 @@ def quote_id(value: str) -> str:
     return value if re.fullmatch(r"[0-9a-fA-F-]{36}", value or "") else "invalid"
 
 
+class Server(ThreadingHTTPServer):
+    """The standard library waits with 5 connections queued and refuses the rest: a page opens dozens at once, and
+    06:00 UTC brings everyone together."""
+    request_queue_size = 1024
+    daemon_threads = True
+
+
 def serve(host: str, port: int, config=None, sources=None) -> int:
     app = App(config=config, sources=sources)
     backend = app.start_backend()
@@ -589,8 +740,7 @@ def serve(host: str, port: int, config=None, sources=None) -> int:
         atexit.register(backend.terminate)
     Handler.app = app
     handler = partial(Handler, directory=str(dk.public_dir()))
-    server = ThreadingHTTPServer((host, port), handler)
-    server.daemon_threads = True
+    server = Server((host, port), handler)
 
     def clock():
         while True:
@@ -600,6 +750,8 @@ def serve(host: str, port: int, config=None, sources=None) -> int:
                 log.exception("clock tick failed")
             time.sleep(15)
     threading.Thread(target=clock, daemon=True).start()
+    # systemd stops the service with SIGTERM: leave through sys.exit so atexit stops the backend too
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     print(f"Site:  http://{host}:{port}/\nAdmin: http://{host}:{port}/admin", flush=True)
     if not os.environ.get("BOUGHT_ADMIN_PASSWORD"):
         print(f"Admin password is in {dk.data_dir() / 'admin_password.txt'}", flush=True)

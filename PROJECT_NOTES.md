@@ -1,92 +1,56 @@
 # BOUGHT — Project Notes (read this instead of re-exploring the code)
 
-Written 2026-10-20 from a one-time read of both repos. Re-check the code only for details not covered here.
+Bought is one project: a daily AI-made tech, AI and business newspaper, its news-to-video funnel, its admin desk and its ad auction, running on one VPS. Repo: github.com/Sudeepnt/Bought. Updated 2026-11-06.
 
-## The merge (2026-11-05)
+## The day
 
-Bought and the newspaper are one product now. The newspaper's UI in `public/` is final and never changes. Bought's non-UI code lives in `backend/` (read `backend/README.md`): Mux, Supabase, Stripe, Razorpay, Upstash and the recording logic, with every page, component and CSS file left behind. The Advertise page's existing buttons call it through `public/js/live.js`. With no keys in `backend/.env` the page keeps its simulation. The old `./Bought` repo was not changed; it is a reference only, and sections below that describe its pages and routes are history.
+| When | What runs |
+| --- | --- |
+| 06:00 UTC | The publish clock puts the day's issue live and emails subscribers; the day's winning ads go public with it |
+| The next few hours (`reader_hours` in admin Settings, default 4) | Readers come first: automatic fetching and translating wait |
+| After that, when the machine is quiet | Fetch the sources, choose the stories (rules now; jev, the user's decision model, plugs into `funnel_evaluator_command`), make the videos and audio, translate; the user checks it all in `/admin` and clicks Publish |
+| Any time | Advertisers bid for the next 6 days' spots; ad deadlines are close D-1 22:00 IST and an unapproved winner is replaced at 05:00 IST |
 
-## The big picture
+Funnel jobs run one at a time, at the lowest CPU and disk priority (nice 19, ionice idle), and automatic ones also wait while the 1-minute load is above 70% of the cores.
 
-| | **Bought** (main product) | **Bt-Newspaper** (design prototype) |
-|---|---|---|
-| Repo | github.com/Sudeepnt/Bought | github.com/Sudeepnt/Bt-Newspaper |
-| Local path | `./Bought/` (nested git repo) | `./` (this folder's root) |
-| Stack | React 19 + Vinext (App Router-compatible, **not** Next.js) + Vite, Nitro → Vercel | Plain static HTML/CSS/JS, no build, no deps |
-| Purpose | Video "broadcast" marketplace/auction + magazine archive | Mobile newspaper + podcast UI, designed *before* merging into Bought |
+Coming, planned by the user: a business-development module that brings readers by itself (emails, social posts). It will be another service on the same VPS.
 
-**Strategy:** the daily newspaper is the hook that brings readers to the site; the broadcast (video upload) side is the product. Bt-Newspaper is where the newspaper UX gets designed and polished; once final, it gets ported into Bought.
+## Layout
 
----
+| Folder | What |
+| --- | --- |
+| `public/` | The site: plain HTML, CSS and JS with no build step. The UI is final (the co-founder's bought-daily): never change how it looks. `UI_NOTES.md` describes it |
+| `public/issues/` | Written by the funnel at publish; git-ignored |
+| `public/fonts/` | Self-hosted Google Fonts files (OFL), the same files Google served |
+| `public/js/live.js`, `public/js/live/` | The Advertise page talking to `backend/`; `js/live/` is built from `backend/client/` (`npm run build:client`), never edited by hand |
+| `pipeline/` | Python: sources, funnel, videos, audio, translations, the admin desk, mail, the publish clock, and `server.py` that ties them together. `pipeline/funnel/README.md` |
+| `backend/` | Node: Bought's Mux, Supabase, Stripe, Razorpay and Upstash code with no pages: the ad auction, wallet and ad delivery. `backend/README.md` |
+| `deploy/` | Caddy, systemd, backups, `setup.sh` for the VPS |
 
-## 1. Bought. Daily (root of this folder)
+## Run it
 
-Run: `~/.cache/bought/funnel-venv/bin/python -m pipeline serve --port 8000` -> http://localhost:8000/. No build. `vercel.json` serves `public/`, but issues are generated and git-ignored, so a host must run the funnel (or receive `public/issues/`).
+```sh
+~/.cache/bought/funnel-venv/bin/python -m pipeline serve --port 8000     # site, /admin, the clock, and the backend if npm-installed
+PYTHON=~/.cache/bought/funnel-venv/bin/python npm test                   # every test: Python, backend, typecheck
+```
 
-The final UI (from the co-founder, replaced the earlier UI on 2026-11-05) is one page with four views: Today, Listen, Advertise, `#spec`. `UI_NOTES.md` describes it.
+`pipeline/.venv` is broken; use `~/.cache/bought/funnel-venv`. Voice (Kokoro) and translation (M2M100) run from `~/.cache/bought/tts/venv`; config.yaml names them as `$BOUGHT_HOME/...` (default `~/.cache/bought`). The video renderer uses `playwright-core` from the root `package.json`.
 
-Real, from the funnel: stories, sections, videos, pictures, the audio episode, translated headlines and summaries, the archive, link-preview pages (`public/s/<id>/`), "How this issue was made".
-Admin at `/admin` (password): `pipeline/server.py`, `desk.py`, `admin_pages.py`, `mailer.py`; see `pipeline/funnel/README.md`. Run: `~/.cache/bought/funnel-venv/bin/python -m pipeline serve --port 8000`. Subscribing and email are real but need SMTP settings to send.
-Still sample data in the browser (no server yet): comments, poll and reaction counts, advertisers, the auction and wallet. The footer says so.
-`public/js/issue.js` loads `issues/index.json` and `issues/<date>/issue.json`; `pipeline/funnel/publish.py` writes them.
+Without keys in `backend/.env` the Advertise page runs its local simulation. Comments, poll and reaction counts, and unsold ad spots are sample data either way.
 
----
+## Production
 
-## 2. Bought (`./Bought/`)
+`deploy/setup.sh` on Ubuntu 24.04 (see README). Caddy serves `public/` itself (HTTPS, HTTP/2 and 3, zstd/gzip, the cache rules) and passes `/api/*`, `/admin*`, `/confirm`, `/unsubscribe`, `/healthz` to the Python server on 127.0.0.1:8000. Cache rules (`cache_policy` in `pipeline/server.py`, mirrored in `deploy/Caddyfile`): `?v=` files, hashed bundle chunks and fonts for a year; issue media an hour; HTML and JSON always revalidated. Bump `?v=` on any CSS or JS you change. Daily backups of `pipeline/data` at 03:30, 14 kept.
 
-Run: `npm ci && cp .env.example .env && npm run dev`. Scripts: `build`, `test` (`tsx --test tests/*.test.ts`), `typecheck`, `lint` (oxlint), `format` (oxfmt), `preflight:production`. Node ≥ 22.13. Without credentials the `/broadcast` form shows but sign-in/upload is disabled.
+## Ads backend in one paragraph
 
-### Services
-- **Supabase** — auth (email code sign-in), Postgres, Realtime, private thumbnail storage. Migrations in `supabase/migrations/` (apply in filename order): paid drop pipeline, capture mode, optimized public snapshot, English transcription, web push, finalized categories, push RPC hardening, free daily upload limit, free public current auction.
-- **Mux** — direct uploads (UpChunk, resumable, bytes never touch the server), signed playback, auto captions + translation (10 featured languages pre-generated, others on demand).
-- **Stripe / Razorpay** — optional paid "boost" in USD to rank higher; webhooks verify raw-body signature + amount + currency. Publishing itself is now **free**.
-- **Upstash Redis** — atomic write rate limits (fail closed).
-- Web Push (VAPID) notifications, `public/notifications-sw.js`.
-- Env vars (see `.env.example`): `APP_ORIGIN, VAPID_*, SUPABASE_*, STRIPE_*, RAZORPAY_*, MUX_*, UPSTASH_*, CRON_SECRET`. Never prefix secrets with `NEXT_PUBLIC_`/`VITE_`.
+Six display spots and eight classified lines per issue; bidding opens D-7 07:00 IST and closes D-1 22:00 IST (soft close up to 22:30); bids go in before the upload; a person approves each ad in `/admin/ads` after reading its Mux transcript; settled from prepaid credits (Stripe in USD, Razorpay UPI in INR at `USD_INR_RATE`); withdrawals are paid by hand. Schema: `backend/supabase/migrations/`.
 
-### Routes (`app/`)
-`/` (today's market/leaderboard, 799 lines) · `/broadcast` (record & upload) · `/review` (moderator queue) · `/categories` (2722 lines, biggest) · `/magazine` and `/magazine/[slug]` (The BOUGHT Review archive) · `/profile` · `/watchlist` · `/chat` · `/search` + `/search/[type]/[id]` · `/how-it-works` · `/terms` · `/capture-test` · `/drop` (stub). API: single catch-all `app/api/bought/[...path]/route.ts` → `handleApi` (config, drops, uploads, webhooks for stripe/razorpay/mux, `cron`, market snapshot).
+## History
 
-### Key code
-- `components/`: `drop-recorder`, `screen-recorder`, `capture-preflight` (camera/mic + MediaPipe face detect), `drop-player` (Mux player), `magazine-issue-reader`, `market-chrome`/`market-topbar`, sign-in modal steps (category, goals), `add-funds-modal`, `bought-provider`.
-- `lib/`: `magazine.ts` (issue data), `recording-*` (compositor, retention, capabilities, guidance), `local-recording` (IndexedDB recovery copy), `direct-messages`, `market-notifications`, `search`, `caption-languages`, `drop-domain`; `lib/server/` = `api, config, providers, security, transcription, webhooks, push-notifications`.
-- `tests/` covers api routing, DMs, drop DB (PGlite), domain, recording, push, webhooks/providers, preflight.
-- `public/mediapipe/` = face-detector WASM + model; `public/magazine/*.pdf` = generated issues; `scripts/generate_magazine_pdfs.py` builds the PDFs (also into `output/pdf/`).
-- `vercel.json`: strict CSP/security headers, long cache for `/mediapipe`, `/brand`, `/magazine`; daily cron `0 0 * * *` → `/api/bought/cron`.
-
-### Business rules to remember
-- Each account: **3 new Mux uploads per UTC day**; broadcasts up to 2 min (imports up to 250 MB MP4/MOV/WebM).
-- Flow: record → upload to Mux + thumbnail to Supabase → Mux processing + English transcript → **human moderator** approves (`bought_moderator: true` in server-managed app metadata) → public. No auto-approval.
-- Auction: market open **00:00–12:00 UTC**, order frozen at 12:00 UTC, exposure until 00:00. Rank = higher paid amount, then earliest payment confirmation, then `dropId`. Late finishers roll to next auction. DB clock is authoritative.
-- Refund/dispute removes the public entry.
-- Categories (rooms) seen in magazine: Beef, Chaos, Confessions, The Ask, Building, The Rant, Hiring, Indian D2C, Money I Set On Fire, Unpopular Opinion, Pitch, Wrong, Agency Row.
-
-### Magazine ("The BOUGHT Review") — the existing newspaper-ish side in Bought
-- After each 12:00 UTC lock, the next day's issue is published: one **ALL #1 cover** + one cover per category leader, permanent archive. Types in `lib/magazine.ts`: `MagazineIssue {slug, number, date, person, category, title, image, tone(blue|red|orange|green|charcoal), views, opens}`; exports `latestIssue`, `categoryIssues`, `dailyEditions`, `historyIssues`, `roomIssues`. Currently sample/static data (issue 05 "The Cost of Being Seen", Ananya Rao, 09 Sep 2026). Rendered as PDFs.
-- This is **leaderboard/people-focused** (winners' covers), whereas Bt-Newspaper is a **news-focused** daily feed (tech stories). Merging them = adding the news feed/podcast as the reader-facing hook, with Spotlight placements linking to Bought broadcasts.
-
----
-
-## Integration notes / likely next steps
-- Bt-Newspaper is framework-free; porting into Bought means converting the `public/js` rendering into React components (new route, e.g. `/` or `/news`). The data is already real (`issues/<date>/issue.json`).
-- Styling: the site uses its own `styles.css`; check Bought's `app/globals.css` for conflicts before porting.
-- Bought's CSP (`vercel.json`) is strict (`default-src 'self'`) — remote images/fonts need allowlisting.
-- Bought already has Mux captions/translation infra and a language list (`lib/caption-languages.ts`) that could be reused.
-- `Bought/` is a nested git repo inside the Bt-Newspaper repo working tree; don't `git add` it from the parent.
-
----
-
-## 3. `pipeline/` (added 2026-10-20) — newspaper content pipeline, Phase 1
-Standalone Python service (own venv, `pipeline/README.md` has everything): RSS/news-sitemap sources
-(`sources.yaml`) -> SQLite (`data/news.db`) -> dedupe -> score/select -> `out/feed.json` {prime, cards, glance}.
-Settings in `pipeline/config.yaml` (slots 25/25/10 unconfirmed). `python -m pipeline run|show [--dry-run]`,
-tests `pytest pipeline`. Phase 2 (TTS/avatar) is only planned in `pipeline/PHASE2.md`. Licenses: `pipeline/LICENSES.md`.
-Run commands from the project root.
-
-Phase 2a (2026-10-21): prime items get `script`, `audio_url`, `duration_s` via external TTS (Piper tested); see `pipeline/PHASE2.md`. Avatar video (2b) not started.
+- Bought began as a separate Vinext/React app (video broadcast marketplace with a magazine). On 2026-11-05 its non-UI code moved into `backend/`; on 2026-11-06 its pages were deleted (commit 9b937f1) and the newspaper repo (Bt-Newspaper) was merged into this one with its history. The old app is in git history before 9b937f1 if anything needs looking up.
+- Bt-Newspaper on GitHub is the newspaper's old repo; this repo replaces it.
 
 ## Planned: engagement stats and badges (requested, not built)
-Study how long readers actually spend on each story and show LinkedIn-style signals ("Most viewed", impression counts).
-- Client measures per story: impression (card >=50% visible for >=1 s), dwell seconds (visible time, paused when the tab is hidden), video watch seconds and completion.
-- Needs a collector (small endpoint + SQLite) and a nightly pipeline stage that turns counts into badges in `feed.json` (e.g. top 10% by dwell -> "Most viewed"). Hosting the collector needs the user's approval first.
-- Privacy: anonymous random id, no personal data; counts are only shown once a story has enough views.
+
+Measure how long readers spend on each story and show LinkedIn-style signals ("Most viewed", impression counts): impression (card >=50% visible for >=1 s), dwell seconds, video watch seconds. Needs a small collector endpoint plus SQLite and a nightly stage that turns counts into badges. Anonymous random id, no personal data; counts show only once a story has enough views.

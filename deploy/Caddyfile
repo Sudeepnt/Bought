@@ -1,0 +1,67 @@
+# Bought behind Caddy: HTTPS (automatic certificates), HTTP/2 and HTTP/3, compression.
+# Caddy serves the site's files itself; only the dynamic paths reach the Python server on 127.0.0.1:8000.
+# Set BOUGHT_DOMAIN (e.g. bought.example) and BOUGHT_ROOT (the checkout, e.g. /srv/bought) in Caddy's environment.
+{
+	servers {
+		timeouts {
+			read_header 10s
+			idle 2m
+		}
+	}
+}
+
+{$BOUGHT_DOMAIN} {
+	encode zstd gzip
+
+	log {
+		output file {$BOUGHT_LOG:/var/log/caddy/bought.log} {
+			roll_size 50MiB
+			roll_keep 10
+		}
+		format json
+	}
+
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	header -Server
+
+	# admin, subscribing, mail links, the ads API and webhooks, the health check
+	@app path /api/* /admin /admin/* /confirm /unsubscribe /healthz
+	handle @app {
+		request_body {
+			max_size 3MB
+		}
+		reverse_proxy 127.0.0.1:8000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# everything else is a file in public/; the cache rules match cache_policy() in pipeline/server.py
+	handle {
+		root * "{$BOUGHT_ROOT}/public"
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy strict-origin-when-cross-origin
+			X-Frame-Options SAMEORIGIN
+			Permissions-Policy "camera=(self), microphone=(self), geolocation=(), interest-cohort=()"
+		}
+		@versioned query v=*
+		header @versioned Cache-Control "public, max-age=31536000, immutable"
+		@hashed path /js/live/c-*.js /fonts/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@media {
+			path /issues/*
+			not path *.json
+		}
+		header @media Cache-Control "public, max-age=3600"
+		@mediapipe path /mediapipe/*
+		header @mediapipe Cache-Control "public, max-age=86400"
+		header ?Cache-Control "no-cache"
+		file_server {
+			precompressed br gzip
+		}
+	}
+
+	handle_errors {
+		respond "{err.status_code} {err.status_text}"
+	}
+}

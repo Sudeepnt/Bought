@@ -22,7 +22,7 @@ from .funnel import publish as fp
 PKG = Path(__file__).resolve().parent
 ROOT = PKG.parent
 ZONES = {"IST": "Asia/Kolkata", "UTC": "UTC"}
-DEFAULTS = {"publish_time": "07:00", "publish_zone": "IST", "auto_fetch_minutes": "0", "site_url": os.environ.get("SITE_URL", ""), "mail_address": "", "target_stories": "50"}
+DEFAULTS = {"publish_time": "06:00", "publish_zone": "UTC", "reader_hours": "4", "auto_fetch_minutes": "0", "site_url": os.environ.get("SITE_URL", ""), "mail_address": "", "target_stories": "50"}
 STAGES = ("review", "finalized", "building", "ready", "live")
 
 SCHEMA = """
@@ -84,6 +84,11 @@ def save_settings(desk, values: dict) -> dict:
         if n and n < 15:
             raise ValueError("fetch at most every 15 minutes, or 0 for off")
         clean["auto_fetch_minutes"] = str(n)
+    if "reader_hours" in values:
+        n = int(values["reader_hours"])
+        if not 0 <= n <= 20:
+            raise ValueError("reader hours must be between 0 and 20")
+        clean["reader_hours"] = str(n)
     if "target_stories" in values:
         clean["target_stories"] = str(max(1, int(values["target_stories"])))
     if "site_url" in values:
@@ -100,6 +105,18 @@ def save_settings(desk, values: dict) -> dict:
 
 def publish_label(settings: dict) -> str:
     return f"{settings['publish_time']} {settings['publish_zone']}"
+
+
+def in_reader_hours(now: datetime, settings: dict) -> bool:
+    """The hours after the paper goes out belong to readers: background work (fetching, translating) waits for them to pass."""
+    hours = int(settings.get("reader_hours") or 0)
+    zone = ZoneInfo(ZONES[settings["publish_zone"]])
+    local = now.astimezone(zone)
+    for day in (local.date(), local.date() - timedelta(days=1)):
+        start = due_at(day.isoformat(), settings)
+        if start <= now < start + timedelta(hours=hours):
+            return True
+    return False
 
 
 def due_at(date: str, settings: dict) -> datetime:

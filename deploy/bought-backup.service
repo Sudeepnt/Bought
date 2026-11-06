@@ -1,0 +1,9 @@
+# /etc/systemd/system/bought-backup.service, run daily by bought-backup.timer
+[Unit]
+Description=Back up Bought's databases and admin secrets
+
+[Service]
+Type=oneshot
+User=bought
+WorkingDirectory=/srv/bought
+ExecStart=/srv/bought/.venv/bin/python deploy/backup.py /srv/bought/backups --keep 14

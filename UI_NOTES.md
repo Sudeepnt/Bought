@@ -4,7 +4,7 @@
 
 ## Run it
 
-From the project root: `~/.cache/bought/funnel-venv/bin/python -m pipeline serve --port 8000` (it supports the Range requests video seeking needs, and runs `/admin`). No build step, no dependencies. Fonts load from Google Fonts with system fallbacks.
+From the project root: `~/.cache/bought/funnel-venv/bin/python -m pipeline serve --port 8000` (it supports the Range requests video seeking needs, and runs `/admin`). No build step, no dependencies. Fonts are self-hosted in `fonts/` (the same files Google Fonts served), with system fallbacks; `fonts/fonts.css?v=` is the link to bump if they change.
 
 Deep links: `#paper`, `#radio`, `#advertise`, `#spec`. In production add `#paper/p3` for a page.
 

@@ -9,3 +9,10 @@ public/share/
 .DS_Store
 backend/node_modules/
 backend/.env
+/node_modules/
+/.venv/
+/models/
+/backups/
+# precompressed copies made by deploy/setup.sh on the server
+public/**/*.gz
+public/**/*.br
