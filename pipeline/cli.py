@@ -123,7 +123,8 @@ def cmd_podcast(args) -> int:
 def cmd_serve(args) -> int:
     """The site, the admin page at /admin, subscribing and the publish clock, in one process."""
     from .server import serve
-    return serve(args.host, args.port, config=args.config, sources=args.sources)
+    from .server import DESK_PORT
+    return serve(args.host, args.port, config=args.config, sources=args.sources, desk_host=args.desk_host, desk_port=args.desk_port or DESK_PORT)
 
 
 def cmd_funnel(args) -> int:
@@ -226,6 +227,8 @@ def main(argv=None) -> int:
     ps = sub.add_parser("serve", help="the site, /admin, subscribing and the publish clock")
     ps.add_argument("--host", default="127.0.0.1")
     ps.add_argument("--port", type=int, default=8000)
+    ps.add_argument("--desk-host", default="127.0.0.1", help="the private desk (admin); keep it off public addresses")
+    ps.add_argument("--desk-port", type=int, default=None)
     _add_common(ps)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,

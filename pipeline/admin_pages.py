@@ -88,8 +88,9 @@ def date_links(date: str, page: str) -> str:
     return f'<span class="row"><a class="b g" href="/admin{page}?date={dk.add_days(date, -1)}">‹ {day(dk.add_days(date, -1))}</a><a class="b g" href="/admin{page}?date={dk.add_days(date, 1)}">{day(dk.add_days(date, 1))} ›</a></span>'
 
 
-def login(error="") -> str:
-    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Sign in · Bought. admin</title><style>{CSS}</style></head><body><div class="login"><h1>Bought. admin</h1>{notes("", error)}<form method="post" action="/admin/login" class="card"><label for="p">Password</label><input id="p" type="password" name="password" autofocus autocomplete="current-password" required><p style="margin:14px 0 0"><button class="b">Sign in</button></p></form></div></body></html>"""
+def login(error="", code=False) -> str:
+    code_field = '<label for="c" style="margin-top:12px">Code from your authenticator app</label><input id="c" name="code" inputmode="numeric" pattern="[0-9 ]{6,7}" autocomplete="one-time-code" required>' if code else ""
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Sign in · Bought. desk</title><style>{CSS}</style></head><body><div class="login"><h1>Bought. desk</h1>{notes("", error)}<form method="post" action="/admin/login" class="card"><label for="p">Password</label><input id="p" type="password" name="password" autofocus autocomplete="current-password" required>{code_field}<p style="margin:14px 0 0"><button class="b">Sign in</button></p></form></div></body></html>"""
 
 
 def dashboard(data, jobs, issues, mail_ready, date, stage, settings, row, job, now, message, error) -> str:

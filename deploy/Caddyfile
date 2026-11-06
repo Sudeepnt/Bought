@@ -21,11 +21,25 @@
 		format json
 	}
 
-	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
-	header -Server
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		-Server
+		-Via
+		defer
+	}
 
-	# admin, subscribing, mail links, the ads API and webhooks, the health check
-	@app path /api/* /admin /admin/* /confirm /unsubscribe /healthz
+	# There is no admin on this address. The desk listens on 127.0.0.1:8100 only; reach it through an SSH tunnel or Tailscale.
+	# Subscribing, mail links, the ads API and webhooks, the health check, and the HTML pages (so each gets its
+	# Content-Security-Policy, which Python builds from the live Supabase address) go to the Python server.
+	@app {
+		path /api/* /confirm /unsubscribe /healthz
+	}
+	@page path_regexp page ^(/|.*/|.*\.html)$
+	handle @page {
+		reverse_proxy 127.0.0.1:8000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
 	handle @app {
 		request_body {
 			max_size 3MB

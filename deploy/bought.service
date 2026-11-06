@@ -12,19 +12,37 @@ EnvironmentFile=-/etc/bought/bought.env
 Environment=BOUGHT_HOME=/srv/bought/models
 Environment=PLAYWRIGHT_BROWSERS_PATH=/srv/bought/models/ms-playwright
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/srv/bought/.venv/bin/python -m pipeline serve --host 127.0.0.1 --port 8000
+ExecStart=/srv/bought/.venv/bin/python -m pipeline serve --host 127.0.0.1 --port 8000 --desk-host 127.0.0.1 --desk-port 8100
 Restart=always
 RestartSec=3
 TimeoutStopSec=20
 # the backend (node) is a child: stop the whole group
 KillMode=control-group
+LimitNOFILE=65536
+UMask=0027
+# Sandbox: the service can write only its own folder, sees no other users or devices, and can't gain privileges.
+# (No MemoryDenyWriteExecute: Node, Chromium and the wasm runtime need JIT.)
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
+PrivateDevices=true
+ProtectSystem=strict
+ReadWritePaths=/srv/bought
 ProtectHome=true
+ProtectProc=invisible
 ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
 ProtectControlGroups=true
-LimitNOFILE=65536
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
 [Install]
 WantedBy=multi-user.target

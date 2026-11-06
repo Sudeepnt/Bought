@@ -8,7 +8,7 @@ Bought is one project: a daily AI-made tech, AI and business newspaper, its news
 | --- | --- |
 | 06:00 UTC | The publish clock puts the day's issue live and emails subscribers; the day's winning ads go public with it |
 | The next few hours (`reader_hours` in admin Settings, default 4) | Readers come first: automatic fetching and translating wait |
-| After that, when the machine is quiet | Fetch the sources, choose the stories (rules now; jev, the user's decision model, plugs into `funnel_evaluator_command`), make the videos and audio, translate; the user checks it all in `/admin` and clicks Publish |
+| After that, when the machine is quiet | Fetch the sources, choose the stories (rules now; jev, the user's decision model, plugs into `funnel_evaluator_command`), make the videos and audio, translate; the user checks it all in the desk and clicks Publish |
 | Any time | Advertisers bid for the next 6 days' spots; ad deadlines are close D-1 22:00 IST and an unapproved winner is replaced at 05:00 IST |
 
 Funnel jobs run one at a time, at the lowest CPU and disk priority (nice 19, ionice idle), and automatic ones also wait while the 1-minute load is above 70% of the cores.
@@ -30,7 +30,7 @@ Coming, planned by the user: a business-development module that brings readers b
 ## Run it
 
 ```sh
-~/.cache/bought/funnel-venv/bin/python -m pipeline serve --port 8000     # site, /admin, the clock, and the backend if npm-installed
+~/.cache/bought/funnel-venv/bin/python -m pipeline serve --port 8000     # site on :8000, the desk on :8100 (private), the clock, the backend if npm-installed
 PYTHON=~/.cache/bought/funnel-venv/bin/python npm test                   # every test: Python, backend, typecheck
 ```
 
@@ -40,7 +40,7 @@ Without keys in `backend/.env` the Advertise page runs its local simulation. Com
 
 ## Production
 
-`deploy/setup.sh` on Ubuntu 24.04 (see README). Caddy serves `public/` itself (HTTPS, HTTP/2 and 3, zstd/gzip, the cache rules) and passes `/api/*`, `/admin*`, `/confirm`, `/unsubscribe`, `/healthz` to the Python server on 127.0.0.1:8000. Cache rules (`cache_policy` in `pipeline/server.py`, mirrored in `deploy/Caddyfile`): `?v=` files, hashed bundle chunks and fonts for a year; issue media an hour; HTML and JSON always revalidated. Bump `?v=` on any CSS or JS you change. Daily backups of `pipeline/data` at 03:30, 14 kept.
+`deploy/setup.sh` on Ubuntu 24.04 (see README). Caddy serves `public/` itself (HTTPS, HTTP/2 and 3, zstd/gzip, the cache rules) and passes HTML pages, `/api/*`, `/confirm`, `/unsubscribe`, `/healthz` to the Python server on 127.0.0.1:8000. The desk (admin) is a second listener on 127.0.0.1:8100, never public: SSH tunnel or Tailscale, password plus authenticator code. Security model: `SECURITY.md`. Cache rules (`cache_policy` in `pipeline/server.py`, mirrored in `deploy/Caddyfile`): `?v=` files, hashed bundle chunks and fonts for a year; issue media an hour; HTML and JSON always revalidated. Bump `?v=` on any CSS or JS you change. Daily backups of `pipeline/data` at 03:30, 14 kept.
 
 ## Ads backend in one paragraph
 

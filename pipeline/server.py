@@ -34,6 +34,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import admin_pages as pages
 from . import db, desk as dk, mailer
+from . import security as sec
 from .config import load_config, load_sources
 from .funnel import publish as fp
 
@@ -53,8 +54,11 @@ SITE_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Frame-Options": "SAMEORIGIN",
-    "Permissions-Policy": "camera=(self), microphone=(self), geolocation=(), interest-cohort=()",
+    "Permissions-Policy": "camera=(self), microphone=(self), geolocation=(), payment=(self \"https://api.razorpay.com\"), interest-cohort=()",
+    "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
 }
+DESK_CSP = sec.desk_csp([sec.script_hash(pages.REVIEW_JS)])
+DESK_PORT = int(os.environ.get("BOUGHT_DESK_PORT", "8100"))
 
 
 def cache_policy(path: str, query: str) -> str:
@@ -137,6 +141,9 @@ class App:
         self.password = os.environ.get("BOUGHT_ADMIN_PASSWORD") or read_secret("admin_password.txt", lambda: secrets.token_urlsafe(12))
         self.key = read_secret("admin_session_key", lambda: secrets.token_hex(32)).encode()
         self.logins = Throttle(5, 900)
+        totp = os.environ.get("BOUGHT_ADMIN_TOTP", "").strip()
+        self.codes = sec.CodeCheck(totp) if totp else None          # set on the server by deploy/setup.sh
+        self._supabase = (0.0, None)
         self.signups = Throttle(5, 3600)
         self.job_lock = threading.Lock()
         self.process = None
@@ -182,6 +189,15 @@ class App:
             return 0, {}
         finally:
             conn.close()
+
+    def supabase_url(self):
+        """For the site's CSP: the advertiser sign-in address, asked of the backend at most once a minute."""
+        at, url = self._supabase
+        if time.time() - at > 60:
+            code, cfg = self.backend_call("GET", "config")
+            url = cfg.get("supabaseUrl") if code == 200 else None
+            self._supabase = (time.time(), url)
+        return url
 
     def sources(self):
         return load_sources(self.sources_path)
@@ -349,9 +365,27 @@ class App:
 
 
 class Handler(RangeHandler):
+    """The desk: the site plus admin. Listens only inside the server (see serve); PublicHandler is what the internet gets."""
     app: App = None
+    desk = True
     timeout = 60                    # a client that stops sending mid-request can't hold a thread forever
+
+    def version_string(self) -> str:
+        return "Bought"             # no software or version names for anyone to look up
     _static = False
+    _ctype = ""
+    _inline = ()
+
+    def send_header(self, keyword, value):
+        if keyword.lower() == "content-type":
+            self._ctype = value
+        super().send_header(keyword, value)
+
+    def _host_ok(self) -> bool:
+        """The desk answers only to its own names: a site that points its domain at this machine (DNS rebinding) is refused."""
+        if not self.desk:
+            return True
+        return (self.headers.get("Host") or "").strip().lower() in sec.desk_hosts(self.server.server_address[1])
 
     # ---------- the site's files ----------
     def cache_control(self) -> str:
@@ -364,6 +398,9 @@ class Handler(RangeHandler):
         if self._static:
             for k, v in SITE_HEADERS.items():
                 self.send_header(k, v)
+            if self._ctype.startswith("text/html"):
+                https = self.headers.get("X-Forwarded-Proto") == "https"
+                self.send_header("Content-Security-Policy", sec.site_csp(self.app.supabase_url() if self.app else None, https, self._inline))
         super().end_headers()
 
     def list_directory(self, path):
@@ -372,6 +409,11 @@ class Handler(RangeHandler):
 
     def send_head(self):
         """Text files go out gzipped when the browser accepts it; everything else (ranges, video) as before."""
+        html = self.translate_path(self.path)
+        html = os.path.join(html, "index.html") if os.path.isdir(html) else html
+        if html.endswith(".html") and os.path.isfile(html) and os.path.getsize(html) < 1_000_000:
+            with open(html, encoding="utf-8", errors="replace") as f:
+                self._inline = sec.allowed_inline(f.read())
         if self.headers.get("Range") or "gzip" not in (self.headers.get("Accept-Encoding") or ""):
             return super().send_head()
         path = self.translate_path(self.path)
@@ -416,6 +458,8 @@ class Handler(RangeHandler):
         return False
 
     def do_HEAD(self):
+        if not self._host_ok():
+            return self._send("", 421, "text/plain")
         url = urlparse(self.path)
         if url.path.startswith(("/api/", "/admin")) or url.path in ("/confirm", "/unsubscribe", "/healthz"):
             return self._send("", 405, "text/plain")
@@ -442,6 +486,8 @@ class Handler(RangeHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "same-origin")   # browsers send Origin only with this; outside links stay private
         self.send_header("X-Content-Type-Options", "nosniff")
+        if ctype.startswith("text/html"):
+            self.send_header("Content-Security-Policy", DESK_CSP)
         for c in cookies:
             self.send_header("Set-Cookie", c)
         self.end_headers()
@@ -475,7 +521,7 @@ class Handler(RangeHandler):
         origin = self.headers.get("Origin") or self.headers.get("Referer")
         if not origin:
             return False
-        host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host")
+        host = self.headers.get("Host") if self.desk else (self.headers.get("X-Forwarded-Host") or self.headers.get("Host"))
         return urlparse(origin).netloc == host
 
     def _signed_in(self) -> bool:
@@ -487,6 +533,8 @@ class Handler(RangeHandler):
 
     # ---------- GET ----------
     def do_GET(self):
+        if not self._host_ok():
+            return self._send("Misdirected request", 421, "text/plain")
         url = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         if url.path.startswith("/api/bought/"):
@@ -494,13 +542,15 @@ class Handler(RangeHandler):
         if url.path in ("/confirm", "/unsubscribe"):
             return self._send(pages.mail_page(url.path[1:], q.get("t", "")))
         if url.path == "/healthz":
-            code, cfg = self.app.backend_call("GET", "config")       # for an uptime monitor: the site is up; ads say how they are
+            if not self.desk:
+                return self._json({"ok": True})                         # the public learns only that the site is up
+            code, cfg = self.app.backend_call("GET", "config")
             return self._json({"ok": True, "ads": "down" if code != 200 else "live" if cfg.get("live") else "simulated"})
-        if not (url.path == "/admin" or url.path.startswith("/admin/")):
+        if not self.desk or not (url.path == "/admin" or url.path.startswith("/admin/")):
             self._static = True
             return super().do_GET()
         if url.path == "/admin/login":
-            return self._send(pages.login())
+            return self._send(pages.login(code=bool(self.app.codes)))
         if not self._signed_in():
             return self._redirect("/admin/login")
         return self._admin_get(url.path, q)
@@ -566,6 +616,9 @@ class Handler(RangeHandler):
 
     # ---------- POST ----------
     def do_POST(self):
+        if not self._host_ok():
+            self._body()
+            return self._send("Misdirected request", 421, "text/plain")
         url = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         if url.path == "/api/subscribe":
@@ -574,6 +627,9 @@ class Handler(RangeHandler):
             return self._proxy()
         if url.path in ("/confirm", "/unsubscribe"):
             return self._mail_action(url.path[1:], q)
+        if not self.desk:
+            self._body()
+            return self._send("Not found", 404, "text/plain")
         if url.path == "/admin/login":
             return self._login()
         if not url.path.startswith("/admin/"):
@@ -639,11 +695,15 @@ class Handler(RangeHandler):
         return self._send(pages.mail_done(action, done))
 
     def _login(self):
-        form = self._form()
+        form, codes = self._form(), self.app.codes
         if not self.app.logins.allow(self._ip()):
-            return self._send(pages.login("Too many tries. Wait 15 minutes."), 429)
-        if not self.app.password_ok(form.get("password", "")):
-            return self._send(pages.login("That password is not right."), 401)
+            return self._send(pages.login("Too many tries. Wait 15 minutes.", code=bool(codes)), 429)
+        if not self._same_origin():
+            return self._send(pages.login("Open the desk again and sign in from there.", code=bool(codes)), 403)
+        password_ok = self.app.password_ok(form.get("password", ""))
+        code_ok = codes is None or codes.verify(form.get("code", ""))     # both are checked, so a reply can't tell which one was wrong
+        if not (password_ok and code_ok):
+            return self._send(pages.login("That password or code is not right." if codes else "That password is not right.", code=bool(codes)), 401)
         return self._redirect("/admin", [self._session_cookie(self.app.session(), SESSION_HOURS * 3600)])
 
     def _admin_post(self, path):
@@ -733,14 +793,21 @@ class Server(ThreadingHTTPServer):
     daemon_threads = True
 
 
-def serve(host: str, port: int, config=None, sources=None) -> int:
+class PublicHandler(Handler):
+    """What the internet reaches (through Caddy): the site, subscribing, mail links, the ads API and its webhooks.
+    There is no admin here at all: every admin path is just a missing file."""
+    desk = False
+
+
+def serve(host: str, port: int, config=None, sources=None, desk_host: str = "127.0.0.1", desk_port: int = DESK_PORT) -> int:
     app = App(config=config, sources=sources)
     backend = app.start_backend()
     if backend:
         atexit.register(backend.terminate)
     Handler.app = app
-    handler = partial(Handler, directory=str(dk.public_dir()))
-    server = Server((host, port), handler)
+    server = Server((host, port), partial(PublicHandler, directory=str(dk.public_dir())))
+    desk = Server((desk_host, desk_port), partial(Handler, directory=str(dk.public_dir())))
+    threading.Thread(target=desk.serve_forever, daemon=True).start()
 
     def clock():
         while True:
@@ -752,7 +819,9 @@ def serve(host: str, port: int, config=None, sources=None) -> int:
     threading.Thread(target=clock, daemon=True).start()
     # systemd stops the service with SIGTERM: leave through sys.exit so atexit stops the backend too
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    print(f"Site:  http://{host}:{port}/\nAdmin: http://{host}:{port}/admin", flush=True)
+    print(f"Site:  http://{host}:{port}/\nDesk:  http://{desk_host}:{desk_port}/admin  (private: reach it through an SSH tunnel or Tailscale, never the public address)", flush=True)
+    if not app.codes:
+        print("Desk sign-in is password only: set BOUGHT_ADMIN_TOTP for a code from an authenticator app (deploy/setup.sh does).", flush=True)
     if not os.environ.get("BOUGHT_ADMIN_PASSWORD"):
         print(f"Admin password is in {dk.data_dir() / 'admin_password.txt'}", flush=True)
     server.serve_forever()

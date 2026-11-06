@@ -17,7 +17,8 @@ say() { printf '\n== %s\n' "$*"; }
 
 say "system packages"
 apt-get update -qq
-apt-get install -y -qq python3 python3-venv python3-dev ffmpeg git curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https brotli sqlite3 >/dev/null
+apt-get install -y -qq python3 python3-venv python3-dev ffmpeg git curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https brotli sqlite3 \
+  ufw fail2ban unattended-upgrades qrencode >/dev/null
 if ! command -v node >/dev/null || ! node -e 'process.exit(+process.versions.node.split(".")[0] >= 22 ? 0 : 1)'; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
   apt-get install -y -qq nodejs >/dev/null
@@ -28,11 +29,52 @@ if ! command -v caddy >/dev/null; then
   apt-get update -qq && apt-get install -y -qq caddy >/dev/null
 fi
 
+say "security updates install themselves"
+echo 'APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades
+systemctl enable --now unattended-upgrades >/dev/null
+
+say "firewall: only the web (80, 443) and SSH, which is rate-limited"
+SSH_PORT=$(sshd -T 2>/dev/null | awk '/^port /{print $2; exit}'); SSH_PORT=${SSH_PORT:-22}
+ufw --force default deny incoming >/dev/null
+ufw --force default allow outgoing >/dev/null
+ufw limit "$SSH_PORT/tcp" >/dev/null
+ufw allow 80/tcp >/dev/null
+ufw allow 443/tcp >/dev/null
+ufw allow 443/udp >/dev/null            # HTTP/3
+ufw --force enable >/dev/null
+systemctl enable --now fail2ban >/dev/null
+
+say "SSH: keys only"
+if ls /root/.ssh/authorized_keys /home/*/.ssh/authorized_keys 2>/dev/null | xargs -r grep -lE '^(ssh-|ecdsa-|sk-)' >/dev/null 2>&1; then
+  cat > /etc/ssh/sshd_config.d/10-bought.conf <<'SSHD'
+# deploy/setup.sh: passwords can't be guessed if there are none to guess
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin prohibit-password
+PermitEmptyPasswords no
+MaxAuthTries 3
+LoginGraceTime 20
+X11Forwarding no
+AllowAgentForwarding no
+# -L only: the desk is reached through a local tunnel
+AllowTcpForwarding local
+SSHD
+  sshd -t && systemctl reload ssh
+else
+  echo "No SSH key is set up for any account, so password sign-in is left on (to not lock you out)."
+  echo "Add your key to ~/.ssh/authorized_keys and run this script again."
+fi
+
 say "service user"
 id bought >/dev/null 2>&1 || useradd --system --home-dir "$ROOT" --shell /usr/sbin/nologin bought
 mkdir -p "$MODELS" "$ROOT/backups" "$ROOT/pipeline/data" "$ROOT/pipeline/out" "$ROOT/public/issues" /etc/bought /var/log/caddy
 chown -R bought:bought "$ROOT"
 chown caddy:caddy /var/log/caddy
+# Caddy reads public/ through the group; the databases, secrets and backups stay the service's alone
+usermod -aG bought caddy
+chmod 750 "$ROOT"
+chmod 700 "$ROOT/pipeline/data" "$ROOT/backups"
 
 as_bought() { sudo -u bought -H env BOUGHT_HOME="$MODELS" PLAYWRIGHT_BROWSERS_PATH="$MODELS/ms-playwright" "$@"; }
 
@@ -77,7 +119,7 @@ if [ ! -f /etc/bought/bought.env ]; then
     echo "# Bought's settings and keys. Only root and the service read this file."
     echo "SITE_URL=https://$DOMAIN"
     echo "APP_ORIGIN=https://$DOMAIN"
-    echo "BOUGHT_ADMIN_PASSWORD=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')"
+    echo "BOUGHT_ADMIN_PASSWORD=$(head -c 24 /dev/urandom | base64 | tr -d '/+=')"
     echo "CRON_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '/+=')"
     echo "# Email (pipeline/mailer.py)"
     echo "BOUGHT_SMTP_HOST="
@@ -90,8 +132,14 @@ if [ ! -f /etc/bought/bought.env ]; then
   } > /etc/bought/bought.env
   echo "wrote /etc/bought/bought.env: the admin password is in it"
 fi
-chown root:bought /etc/bought/bought.env
-chmod 640 /etc/bought/bought.env
+if ! grep -q '^BOUGHT_ADMIN_TOTP=.' /etc/bought/bought.env; then
+  sed -i '/^BOUGHT_ADMIN_TOTP=/d' /etc/bought/bought.env
+  echo "BOUGHT_ADMIN_TOTP=$(.venv/bin/python -c 'from pipeline.security import new_totp_secret; print(new_totp_secret())')" >> /etc/bought/bought.env
+  NEW_TOTP=1
+fi
+# systemd reads this file as root before the service starts, so nobody else needs to
+chown root:root /etc/bought/bought.env
+chmod 600 /etc/bought/bought.env
 
 say "services"
 install -m 644 deploy/bought.service deploy/bought-backup.service deploy/bought-backup.timer /etc/systemd/system/
@@ -106,4 +154,18 @@ systemctl reload-or-restart caddy
 say "check"
 for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1 && break; sleep 1; done
 curl -fsS http://127.0.0.1:8000/healthz && echo
-echo "Site: https://$DOMAIN/   Admin: https://$DOMAIN/admin   Logs: journalctl -u bought -f"
+echo "Site: https://$DOMAIN/   Logs: journalctl -u bought -f"
+cat <<DESK
+
+The desk (admin) is not on the internet. It listens on 127.0.0.1:8100 inside this server. From your laptop:
+  ssh -N -L 8100:127.0.0.1:8100 root@$DOMAIN
+then open http://localhost:8100/admin and sign in with BOUGHT_ADMIN_PASSWORD (in /etc/bought/bought.env) and the code
+from your authenticator app. For a phone, use Tailscale instead (README, "The desk").
+DESK
+if [ "${NEW_TOTP:-0}" = 1 ]; then
+  SECRET=$(grep '^BOUGHT_ADMIN_TOTP=' /etc/bought/bought.env | cut -d= -f2)
+  URI="otpauth://totp/Bought:desk?secret=$SECRET&issuer=Bought&digits=6&period=30"
+  echo "Add the desk to your authenticator app (Google Authenticator, 1Password, Authy) by scanning this. It is shown only now:"
+  qrencode -t ANSIUTF8 "$URI"
+  echo "or type the key: $SECRET"
+fi

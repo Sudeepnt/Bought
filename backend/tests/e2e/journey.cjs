@@ -1,5 +1,15 @@
 const pw=require(process.env.PLAYWRIGHT_CORE||'playwright-core');const fs=require('fs');const crypto=require('crypto');
 const T=process.argv[2];const U='http://localhost:8010',C='http://127.0.0.1:8798';
+
+// The desk is private (its own port) and asks for a code from an authenticator app, as on the server.
+const DESK='http://localhost:8011',TOTP='JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+function totp(t){const b32='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';let bits='';for(const c of TOTP)bits+=b32.indexOf(c).toString(2).padStart(5,'0');
+ const key=Buffer.from(bits.match(/.{8}/g).map(x=>parseInt(x,2)));const msg=Buffer.alloc(8);msg.writeBigUInt64BE(BigInt(Math.floor(t/30)));
+ const h=require('crypto').createHmac('sha1',key).update(msg).digest();const o=h[h.length-1]&15;return String((h.readUInt32BE(o)&0x7fffffff)%1e6).padStart(6,'0')}
+async function deskLogin(adm){
+ for(let i=0;i<3;i++){await adm.goto(DESK+'/admin/login');await adm.fill('input[name=password]','test-pass');await adm.fill('input[name=code]',totp(Date.now()/1000));await adm.click('button');
+  await adm.waitForLoadState();if(!adm.url().includes('/login'))return;await new Promise(r=>setTimeout(r,31000))}   // a code is good once: wait for the next
+ throw new Error('desk sign-in failed')}
 const q=async s=>(await fetch(C+'/query',{method:'POST',body:s})).json();
 const log=(...a)=>console.log(...a);const errs=[];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -21,7 +31,7 @@ async function ctx(b,name,opts={}){
  await c.route('https://checkout.razorpay.com/**',r=>r.fulfill({status:200,contentType:'text/javascript',body:'window.Razorpay=function(o){window.__rzp=o;this.open=function(){setTimeout(function(){o.handler({})},50)}}'}));
  const p=await c.newPage();
  p.on('pageerror',e=>errs.push(name+': '+e.message));
- p.on('console',m=>{if(m.type()==='error'&&!/favicon|ERR_|Failed to load resource|TensorFlow/.test(m.text()))errs.push(name+' console: '+m.text().slice(0,200))});
+ p.on('console',m=>{if(m.type()==='error'&&!/favicon|ERR_|Failed to load resource|TensorFlow|odml\.pa\.googleapis\.com/.test(m.text()))errs.push(name+' console: '+m.text().slice(0,200))});
  await p.goto(U+'/#advertise');await p.waitForSelector('#adv .adv-tabs');await sleep(400);return p;
 }
 const next=p=>p.click('#sheet [data-next]');
@@ -80,7 +90,7 @@ async function payWebhook(amountInr){
  const adm=await (await b.newContext({viewport:{width:1100,height:900}})).newPage();
  await adm.route('https://stream.mux.com/**',async r=>{const u=new URL(r.request().url());const n=u.pathname.endsWith('.m3u8')?'index.m3u8':u.pathname.split('/').pop();r.fulfill({status:200,headers:{'access-control-allow-origin':'*','content-type':n.endsWith('m3u8')?'application/vnd.apple.mpegurl':'video/mp2t'},body:fs.readFileSync(T+'/hls/'+n)})});
  adm.on('pageerror',e=>errs.push('admin: '+e.message));
- await adm.goto(U+'/admin');await adm.fill('input[name=password]','test-pass');await adm.click('button');await adm.waitForSelector('h1');await adm.goto(U+'/admin/ads');
+ await deskLogin(adm);await adm.goto(DESK+'/admin/ads');
  log('8 admin ads:',(await adm.innerText('main')).slice(0,240).replace(/\n/g,' | '));
  await adm.waitForFunction(()=>{const v=document.querySelector('video[data-stream]');return v&&v.readyState===0?true:!!v},null);
  await adm.evaluate(()=>{const v=document.querySelector('video');v.muted=true;v.play()});await sleep(1500);
@@ -107,7 +117,7 @@ async function payWebhook(amountInr){
  await B.fill('#b-line','Hiring backend engineers in Bengaluru');await next(B);await waitStep(B,'Review and place');await B.check('#b-agree');await next(B);await waitStep(B,'Bids placed');await B.click('#sheet [data-x]');
  log('11 classified:',await B.evaluate(()=>{const e=myBid(AU.dates[1],'cls');return e&&{status:e.status,amt:e.amt,rank:clsRank(e.d,e.ref)}}));
  await fetch(C+'/mux-ready');await sleep(300);
- await adm.goto(U+'/admin/ads');log('12 queue:',await adm.locator('.card h2').allInnerTexts());
+ await adm.goto(DESK+'/admin/ads');log('12 queue:',await adm.locator('.card h2').allInnerTexts());
  // approve everything left in review
  for(let i=0;i<4;i++){const n=await adm.locator('button:has-text("Approve")').count();if(!n)break;await adm.locator('button:has-text("Approve")').first().click();await adm.waitForSelector('h1')}
  const issue=await A.evaluate(()=>AU.dates[1]);
@@ -138,6 +148,7 @@ async function payWebhook(amountInr){
  // ---- security
  const stranger=await fetch(U+'/api/bought/admin/queue',{headers:{authorization:'Bearer cronsecret'}});log('16 admin API from outside even with secret:',stranger.status);
  const cross=await fetch(U+'/api/bought/ads/bid',{method:'POST',headers:{'content-type':'application/json',origin:'https://evil.example'},body:'{}'});log('  anon bid:',cross.status);
+ for(const p of ['/admin','/admin/login','/admin/ads']){const r=await fetch(U+p);log('  public '+p+':',r.status)}
  const noauth=await fetch('http://127.0.0.1:8797/api/bought/admin/queue');log('  backend direct, no secret:',noauth.status);
  await R.locator('#v-paper [data-spot="feed-e"] video').first().evaluate(v=>v.pause());log('  poster loaded:',await R.evaluate(()=>{const v=document.querySelector('#v-paper [data-spot="feed-e"] video');return !!v.poster}));await fetch(C+'/shift?seconds=0');
  log('page errors:',errs.length?errs:'none');

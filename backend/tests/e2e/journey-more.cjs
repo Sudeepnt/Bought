@@ -1,5 +1,15 @@
 const pw=require(process.env.PLAYWRIGHT_CORE||'playwright-core');const fs=require('fs');const crypto=require('crypto');
 const T=process.argv[2];const U='http://localhost:8010',C='http://127.0.0.1:8798';
+
+// The desk is private (its own port) and asks for a code from an authenticator app, as on the server.
+const DESK='http://localhost:8011',TOTP='JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+function totp(t){const b32='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';let bits='';for(const c of TOTP)bits+=b32.indexOf(c).toString(2).padStart(5,'0');
+ const key=Buffer.from(bits.match(/.{8}/g).map(x=>parseInt(x,2)));const msg=Buffer.alloc(8);msg.writeBigUInt64BE(BigInt(Math.floor(t/30)));
+ const h=require('crypto').createHmac('sha1',key).update(msg).digest();const o=h[h.length-1]&15;return String((h.readUInt32BE(o)&0x7fffffff)%1e6).padStart(6,'0')}
+async function deskLogin(adm){
+ for(let i=0;i<3;i++){await adm.goto(DESK+'/admin/login');await adm.fill('input[name=password]','test-pass');await adm.fill('input[name=code]',totp(Date.now()/1000));await adm.click('button');
+  await adm.waitForLoadState();if(!adm.url().includes('/login'))return;await new Promise(r=>setTimeout(r,31000))}   // a code is good once: wait for the next
+ throw new Error('desk sign-in failed')}
 const q=async s=>(await fetch(C+'/query',{method:'POST',body:s})).json();const log=(...a)=>console.log(...a);const errs=[];const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let stall=false,got=0;
 async function ctx(b,name,opts={}){const c=await b.newContext({viewport:{width:1280,height:900},...opts});
@@ -10,7 +20,7 @@ async function ctx(b,name,opts={}){const c=await b.newContext({viewport:{width:1
  await c.route('https://storage.googleapis.com/fake-mux/**',async r=>{const q=r.request();if(q.method()==='OPTIONS')return r.fulfill({status:200,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}});
   if(stall)return r.abort();got+=(q.postDataBuffer()||Buffer.alloc(0)).length;r.fulfill({status:200,headers:{'access-control-allow-origin':'*'},body:''})});
  await c.route('https://checkout.razorpay.com/**',r=>r.fulfill({status:200,contentType:'text/javascript',body:'window.Razorpay=function(o){this.open=function(){setTimeout(function(){o.handler({})},50)}}'}));
- const p=await c.newPage();p.on('pageerror',e=>errs.push(name+': '+e.message));p.on('console',m=>{if(m.type()==='error'&&!/favicon|ERR_|Failed to load resource|TensorFlow/.test(m.text()))errs.push(name+' console: '+m.text().slice(0,200))});
+ const p=await c.newPage();p.on('pageerror',e=>errs.push(name+': '+e.message));p.on('console',m=>{if(m.type()==='error'&&!/favicon|ERR_|Failed to load resource|TensorFlow|odml\.pa\.googleapis\.com/.test(m.text()))errs.push(name+' console: '+m.text().slice(0,200))});
  await p.goto(U+'/#advertise');await p.waitForSelector('#adv .adv-tabs');await sleep(400);return p}
 const next=p=>p.click('#sheet [data-next]');
 const step=async(p,t)=>{try{await p.waitForFunction(x=>document.querySelector('#sheet h3')?.textContent===x,t,{timeout:15000})}catch(e){console.log('STUCK',t,await p.evaluate(()=>[document.querySelector('#sheet h3')?.textContent,document.querySelector('#sheet .msg')?.textContent]));throw e}};
@@ -51,7 +61,7 @@ async function pay(){const o=(await q("select payment_reference,charge_minor fro
  const ad2=(await q("select id,state,media_state from public.bought_ads where fields->>'about'='Third video v2'"))[0];log('4 edited ad:',ad2,'| bid points at it:',(await q(`select count(*)::int c from public.bought_ad_bids where ad_id='${ad2.id}'`))[0].c);
  await fetch(C+'/mux-ready');await sleep(300);
  // ---- send back from /admin, the advertiser sees why
- const adm=await (await b.newContext()).newPage();await adm.goto(U+'/admin');await adm.fill('input[name=password]','test-pass');await adm.click('button');await adm.waitForSelector('h1');await adm.goto(U+'/admin/ads');
+ const adm=await (await b.newContext()).newPage();await deskLogin(adm);await adm.goto(DESK+'/admin/ads');
  const card=adm.locator('.card',{hasText:'Third Co'}).first();await card.locator('input[name=reason]').fill('Please show your <b>face</b>');await card.locator('button:has-text("Send back")').click();await adm.waitForSelector('.note');log('5 sent back:',await adm.innerText('.note'));
  await P.reload();await P.waitForSelector('#adv .adv-tabs');await sleep(500);log('  advertiser sees:',await P.evaluate(()=>AU.inbox[0].msg));
  // ---- raise: credits check, bid goes up
@@ -61,7 +71,7 @@ async function pay(){const o=(await q("select payment_reference,charge_minor fro
  // ---- withdraw what's free; /admin lists it to pay by hand
  await P.click('#adv [data-wallet]');await P.waitForSelector('#sheet [data-withdraw]');await P.click('#sheet [data-withdraw]');await sleep(800);
  log('7 withdrew:',await P.evaluate(()=>[AU.wallet.bal,availCredits()]),(await q('select amount_minor::int a,state from public.bought_withdrawals'))[0]);
- await adm.goto(U+'/admin/ads');log('  admin:',await adm.locator('.card h2').allInnerTexts());
+ await adm.goto(DESK+'/admin/ads');log('  admin:',await adm.locator('.card h2').allInnerTexts());
  // ---- a second device signs in: same account, no retyping kept over the record
  const D=await ctx(b,'D');await D.click('#adv [data-wallet]');await step(D,'Account and payment');await D.fill('#b-biz','SHOULD NOT REPLACE');await D.fill('#b-email','third@example.com');await next(D);await step(D,'Confirm your email');await D.fill('#b-code','123456');await next(D);await D.waitForSelector('#sheet .wallet');
  log('8 second device:',await D.evaluate(()=>[AU.acct.name,AU.wallet.bal,myOpen().length]));
