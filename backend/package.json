@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.13.0" },
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "start": "node --env-file-if-exists=.env --import tsx server.ts",
     "build:client": "node build-client.mjs",
@@ -11,7 +13,6 @@
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "@mediapipe/tasks-vision": "1.0.1",
     "@mux/upchunk": "3.5.0",
     "@supabase/supabase-js": "2.116.0",
     "hls.js": "^1.6.0",

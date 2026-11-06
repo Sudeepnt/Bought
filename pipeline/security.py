@@ -39,7 +39,7 @@ def site_csp(supabase_url: str | None, https: bool, inline=()) -> str:
         sb = [supabase_url.rstrip("/"), "wss://" + supabase_url.rstrip("/")[8:]]
     rules = {
         "default-src": ["'self'"],
-        "script-src": ["'self'", "'wasm-unsafe-eval'", "https://checkout.razorpay.com", *inline],   # wasm: the face guide
+        "script-src": ["'self'", "https://checkout.razorpay.com", *inline],
         "style-src": ["'self'", "'unsafe-inline'"],             # the page sets colours in style attributes; no script can run from CSS
         "img-src": ["'self'", "data:", "blob:", *sb[:1], "https://image.mux.com"],
         "media-src": ["'self'", "blob:", "https://stream.mux.com"],
@@ -65,9 +65,8 @@ def desk_csp(inline=()) -> str:
         "script-src 'self' " + " ".join(inline),
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: https:",
-        "media-src 'self' blob: https://stream.mux.com",
-        "connect-src 'self' https://stream.mux.com",
-        "worker-src 'self' blob:",
+        "media-src 'self'",
+        "connect-src 'self'",
         "object-src 'none'",
         "base-uri 'none'",
         "form-action 'self'",

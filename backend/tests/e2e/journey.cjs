@@ -32,7 +32,7 @@ async function ctx(b,name,opts={}){
  await c.route('https://checkout.razorpay.com/**',r=>r.fulfill({status:200,contentType:'text/javascript',body:'window.Razorpay=function(o){window.__rzp=o;this.open=function(){setTimeout(function(){o.handler({})},50)}}'}));
  const p=await c.newPage();
  p.on('pageerror',e=>errs.push(name+': '+e.message));
- p.on('console',m=>{if(m.type()==='error'&&!/favicon|ERR_|Failed to load resource|TensorFlow|odml\.pa\.googleapis\.com/.test(m.text()))errs.push(name+' console: '+m.text().slice(0,200))});
+ p.on('console',m=>{if(m.type()==='error'&&!/favicon|ERR_|Failed to load resource/.test(m.text()))errs.push(name+' console: '+m.text().slice(0,200))});
  await p.goto(U+'/#advertise');await p.waitForSelector('#adv .adv-tabs');await sleep(400);return p;
 }
 const next=p=>p.click('#sheet [data-next]');
@@ -68,37 +68,33 @@ async function payWebhook(amountInr){
  await A.fill('#b-code','000000');await next(A);await A.waitForSelector('#sheet .msg');log('3 wrong code:',await A.innerText('#sheet .msg'));
  await A.fill('#b-code','123456');await next(A);await waitStep(A,'Account and payment');
  log('  email carried over:',await A.inputValue('#b-email'));await A.fill('#b-biz','Clinic Co');await next(A);await waitStep(A,'Review and place');
+ log('  free points on the new account:',await A.evaluate(()=>[AU.wallet.bal,AU.wallet.free,AU.wallet.tx[0]?.label]));
  log('  signed in:',await A.evaluate(()=>({user:Live.user,acct:AU.acct.name,bal:AU.wallet.bal})));
- await A.check('#b-agree');await next(A);await A.waitForSelector('#sheet .msg');log('4 no credits:',await A.innerText('#sheet .msg'));
+ await A.check('#b-agree');await next(A);await A.waitForSelector('#sheet .msg');log('4 not enough points:',await A.innerText('#sheet .msg'));
  // ---- pay
  await A.screenshot({path:T+'/4-review.png'});
  await A.evaluate(()=>{document.querySelector('#sheet input[name=wpm][value=upi]')?.click()});
- await A.click('#sheet [data-topup="500"]').catch(async()=>{await A.locator('#sheet [data-topup]').first().click()});
+ log('  buy buttons:',await A.locator('#sheet [data-topup]').allInnerTexts());await A.locator('#sheet [data-topup]').first().click();
  await sleep(1200);
  const [st,o]=await payWebhook();log('5 webhook',st,'charged',Number(o.charge_minor)/100,'INR');
  const forged=await fetch(U+'/api/bought/webhooks/razorpay',{method:'POST',headers:{'content-type':'application/json','x-razorpay-signature':'0'.repeat(64)},body:'{}'});log('  forged webhook:',forged.status);
- await A.waitForFunction(()=>AU.wallet.bal>0,null,{timeout:20000});log('  wallet:',await A.evaluate(()=>AU.wallet.bal));
+ await A.waitForFunction(()=>AU.wallet.bal>100,null,{timeout:20000});log('  wallet:',await A.evaluate(()=>AU.wallet.bal));
  await A.waitForFunction(()=>Bid.st&&Bid.st.steps[Bid.st.i]==='review');await sleep(300);
  if(!await A.isChecked('#b-agree'))await A.check('#b-agree');await next(A);
  await waitStep(A,'Bids placed');log('6 placed:',await A.innerText('#sheet .done-h'),'|',await A.innerText('#sheet .mb-rows'));
- await A.waitForFunction(()=>/uploaded\. A person/.test(document.getElementById('b-up')?.textContent||''),null,{timeout:30000}).catch(()=>{});
+ await A.waitForFunction(()=>/uploaded\./.test(document.getElementById('b-up')?.textContent||''),null,{timeout:30000}).catch(()=>{});
  log('  upload status:',await A.innerText('#b-up'),'| bytes at mux:',uploaded);
  await A.screenshot({path:T+'/6-done.png'});await A.click('#sheet [data-x]');
  log('  ad row:',(await q("select state,media_state,kind,thumbnail_verified,fields->>'about' a from public.bought_ads"))[0]);
  const st2=await (await fetch(C+'/state')).json();log('  mux request:',JSON.stringify(st2.mux[0]).slice(0,200));
- // ---- Mux finishes, then a person reviews in /admin
+ // ---- Mux finishes: the ad is ready, with nobody reviewing it
  log('7 mux events:',await (await fetch(C+'/mux-ready')).json());
- log('  ad row:',(await q("select state,media_state,transcription_status,transcript_english t from public.bought_ads"))[0]);
+ log('  ad row:',(await q("select state,media_state from public.bought_ads"))[0]);
  const adm=await (await b.newContext({viewport:{width:1100,height:900}})).newPage();
- await adm.route('https://stream.mux.com/**',async r=>{const u=new URL(r.request().url());const n=u.pathname.endsWith('.m3u8')?'index.m3u8':u.pathname.split('/').pop();r.fulfill({status:200,headers:{'access-control-allow-origin':'*','content-type':n.endsWith('m3u8')?'application/vnd.apple.mpegurl':'video/mp2t'},body:fs.readFileSync(T+'/hls/'+n)})});
- adm.on('pageerror',e=>errs.push('admin: '+e.message));
+ adm.on('pageerror',e=>errs.push('desk: '+e.message));
  await deskLogin(adm);await adm.goto(DESK+'/admin/ads');
- log('8 admin ads:',(await adm.innerText('main')).slice(0,240).replace(/\n/g,' | '));
- await adm.waitForFunction(()=>{const v=document.querySelector('video[data-stream]');return v&&v.readyState===0?true:!!v},null);
- await adm.evaluate(()=>{const v=document.querySelector('video');v.muted=true;v.play()});await sleep(1500);
- log('  admin video plays:',await adm.evaluate(()=>({t:document.querySelector('video').currentTime>0,w:document.querySelector('video').videoWidth})));
+ log('8 desk ads:',(await adm.innerText('main')).slice(0,200).replace(/\n/g,' | '),'| review buttons:',await adm.locator('button:has-text("Approve"),button:has-text("Send back")').count());
  await adm.screenshot({path:T+'/8-admin.png',fullPage:true});
- await adm.click('button:has-text("Approve")');await adm.waitForSelector('.note');log('  approve:',await adm.innerText('.note'));
  // ---- B uploads a file and fights the auto-raise
  const B=await ctx(b,'B');
  await openBid(B,'feed-e');await next(B);await waitStep(B,'Set your bid');
@@ -109,7 +105,7 @@ async function payWebhook(amountInr){
  await waitStep(B,'Sign in');await B.fill('#b-email','ben@example.com');await next(B);
  await waitStep(B,'Confirm your email');await B.fill('#b-code','123456');await next(B);
  await waitStep(B,'Account and payment');await B.fill('#b-biz','Rival Inc');await B.selectOption('#b-country',{label:'United States'}).catch(()=>{});await next(B);await waitStep(B,'Review and place');
- await B.locator('#sheet [data-topup]').first().click();await sleep(1200);await payWebhook();await B.waitForFunction(()=>AU.wallet.bal>0,null,{timeout:20000});
+ await B.locator('#sheet [data-topup]').first().click();await sleep(1200);await payWebhook();await B.waitForFunction(()=>AU.wallet.bal>100,null,{timeout:20000});
  await B.waitForFunction(()=>Bid.st&&Bid.st.steps[Bid.st.i]==='review');await sleep(300);if(!await B.isChecked('#b-agree'))await B.check('#b-agree');await next(B);await waitStep(B,'Bids placed');
  log('  B result:',await B.innerText('#sheet .mb-rows'),'| wallet',await B.evaluate(()=>[AU.wallet.bal,heldTotal()]));await B.click('#sheet [data-x]');
  await sleep(6000);
@@ -119,15 +115,13 @@ async function payWebhook(amountInr){
  await B.fill('#b-line','Hiring backend engineers in Bengaluru');await next(B);await waitStep(B,'Review and place');await B.check('#b-agree');await next(B);await waitStep(B,'Bids placed');await B.click('#sheet [data-x]');
  log('11 classified:',await B.evaluate(()=>{const e=myBid(AU.dates[1],'cls');return e&&{status:e.status,amt:e.amt,rank:clsRank(e.d,e.ref)}}));
  await fetch(C+'/mux-ready');await sleep(300);
- await adm.goto(DESK+'/admin/ads');log('12 queue:',await adm.locator('.card h2').allInnerTexts());
- // approve everything left in review
- for(let i=0;i<4;i++){const n=await adm.locator('button:has-text("Approve")').count();if(!n)break;await adm.locator('button:has-text("Approve")').first().click();await adm.waitForSelector('h1')}
+ log('12 ads:',await q("select fields->>'about' a,fields->>'line' l,state from public.bought_ads order by created_at"));
  const issue=await A.evaluate(()=>AU.dates[1]);
  // ---- the clock passes close
  const shift=await A.evaluate(d=>Math.ceil((closeAt(d)-Date.now())/1000)+120,issue);
  await fetch(C+'/shift?seconds='+shift);await A.reload();await A.waitForSelector('#adv .adv-tabs');await sleep(800);
  await A.evaluate(()=>Adv.tab('mine'));await sleep(300);
- log('13 settled:',await q("select spot,status,price_minor::int p,tax_minor::int t,total_minor::int tot,invoice from public.bought_ad_results order by spot"));
+ log('13 settled:',await q("select spot,status,price_minor::int p,free_minor::int free,total_minor::int tot,invoice from public.bought_ad_results order by spot"));
  log('  A wallet:',await A.evaluate(()=>[AU.wallet.bal,AU.past.map(e=>[e.k,e.status,e.total]),AU.wallet.tx.map(x=>x.label)]));
  await A.screenshot({path:T+'/13-mybids.png',fullPage:false});
  // ---- issue goes live; a stranger reads it. The test reads the issue on screen.
@@ -150,10 +144,10 @@ async function payWebhook(amountInr){
  await el.locator('a[rel~="sponsored"]').first().evaluate(a=>{a.addEventListener('click',e=>e.preventDefault());a.click()});await sleep(600);
  log('  counters:',await q("select spot,views::int,plays::int,clicks::int from public.bought_ad_results where status='live' order by spot"));
  // ---- security
- const stranger=await fetch(U+'/api/bought/admin/queue',{headers:{authorization:'Bearer cronsecret'}});log('16 admin API from outside even with secret:',stranger.status);
+ const stranger=await fetch(U+'/api/bought/admin/money',{headers:{authorization:'Bearer cronsecret'}});log('16 admin API from outside even with secret:',stranger.status);
  const cross=await fetch(U+'/api/bought/ads/bid',{method:'POST',headers:{'content-type':'application/json',origin:'https://evil.example'},body:'{}'});log('  anon bid:',cross.status);
  for(const p of ['/admin','/admin/login','/admin/ads']){const r=await fetch(U+p);log('  public '+p+':',r.status)}
- const noauth=await fetch('http://127.0.0.1:8797/api/bought/admin/queue');log('  backend direct, no secret:',noauth.status);
+ const noauth=await fetch('http://127.0.0.1:8797/api/bought/admin/money');log('  backend direct, no secret:',noauth.status);
  await R.locator('#v-paper [data-spot="feed-e"] video').first().evaluate(v=>v.pause());log('  poster loaded:',await R.evaluate(()=>{const v=document.querySelector('#v-paper [data-spot="feed-e"] video');return !!v.poster}));await fetch(C+'/shift?seconds=0');
  log('page errors:',errs.length?errs:'none');
  await b.close();

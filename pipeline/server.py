@@ -68,8 +68,6 @@ def cache_policy(path: str, query: str) -> str:
         return "public, max-age=31536000, immutable"
     if path.startswith("/issues/") and not path.endswith(".json"):
         return "public, max-age=3600"          # an issue's pictures, videos and audio; a recut keeps the name, so not forever
-    if path.startswith("/mediapipe/"):
-        return "public, max-age=86400"
     return "no-cache"
 
 
@@ -593,8 +591,8 @@ class Handler(RangeHandler):
             return self._send(pages.settings_page(**common))
         if path == "/admin/ads":
             code, status = app.backend_call("GET", "admin/status")
-            queue = app.backend_call("GET", "admin/queue")[1] if code == 200 and status.get("live") else {}
-            return self._send(pages.ads_page(running=code != 0, status=status, queue=queue, **common))
+            data = app.backend_call("GET", "admin/money")[1] if code == 200 and status.get("live") else {}
+            return self._send(pages.ads_page(running=code != 0, status=status, data=data, **common))
         if path == "/admin/log":
             return self._log_page(desk, q, common)
         return self._send("Not found", 404, "text/plain")
@@ -741,12 +739,6 @@ class Handler(RangeHandler):
                     return back("/final", e="The issue is not ready yet.")
                 dk.set_issue(desk, date, go_now=1, held=0)      # the clock does it: copying the issue takes longer than a click should wait
                 return back("/final")
-            if path == "/admin/ads/review":
-                code, res = app.backend_call("POST", f"admin/ads/{quote_id(form.get('ad', ''))}/review", {"approve": form.get("approve") == "1", "reason": form.get("reason", "")})
-                return self._redirect("/admin/ads?" + (f"m={pages.quote('Saved.')}" if code == 200 else f"e={pages.quote(res.get('error') or 'That did not save. Try again.')}"))
-            if path == "/admin/ads/transcribe":
-                code, res = app.backend_call("POST", f"admin/ads/{quote_id(form.get('ad', ''))}/transcribe", {})
-                return self._redirect("/admin/ads?" + (f"m={pages.quote('Asked Mux for the transcript.')}" if code == 200 else f"e={pages.quote(res.get('error') or 'That did not work. Try again.')}"))
             if path == "/admin/ads/withdrawal":
                 code, res = app.backend_call("POST", "admin/withdrawal", {"id": form.get("id", "")})
                 return self._redirect("/admin/ads?" + (f"m={pages.quote('Marked as paid.')}" if code == 200 else f"e={pages.quote(res.get('error') or 'That did not save. Try again.')}"))
@@ -779,11 +771,6 @@ class Handler(RangeHandler):
             target = {"/admin/settings": "/settings", "/admin/email/test": "/email", "/admin/email/retry": "/email"}.get(path, "/final")
             return back(target, e=str(e))
         return self._send("Not found", 404, "text/plain")
-
-
-def quote_id(value: str) -> str:
-    """Ad IDs go into a backend path, so nothing but a UUID gets through."""
-    return value if re.fullmatch(r"[0-9a-fA-F-]{36}", value or "") else "invalid"
 
 
 class Server(ThreadingHTTPServer):

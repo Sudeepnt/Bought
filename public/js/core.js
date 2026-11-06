@@ -6,7 +6,9 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 const fmt=x=>Math.floor(x/60)+":"+String(Math.floor(x%60)).padStart(2,"0");
 const usd=n=>"$"+Math.round(n).toLocaleString("en-US");
-const usd2=n=>"$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+/* ads are bid in points: 100 free for every new advertiser, more at $1 each */
+const pts=n=>{const r=Math.round(n);return r.toLocaleString("en-US")+(Math.abs(r)===1?" point":" points")};
+const ptsShort=n=>Math.round(n).toLocaleString("en-US")+" pts";   /* for the narrow slots: classified prices, the wallet chip */
 const num=n=>Math.round(n).toLocaleString("en-US");
 const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
 const rnd=a=>a[Math.floor(Math.random()*a.length)];
@@ -14,13 +16,14 @@ function seeded(seed){let a=seed>>>0;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul
 function hashStr(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
 
 /* ---------- clock: all auction times are IST; CLOCK_OFFSET lets the prototype fast-forward ---------- */
-const IST_MS=5.5*3600e3, SOFT_MS=5*60e3, HARD_MS=30*60e3;
+const IST_MS=5.5*3600e3, SOFT_MS=5*60e3, HARD_MS=5*60e3;
 let CLOCK_OFFSET=0;
 const now=()=>Date.now()+CLOCK_OFFSET;
 const istISO=(t=now())=>new Date(t+IST_MS).toISOString().slice(0,10);
 const addDays=(iso,n)=>{const d=new Date(iso+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
 const wdOf=iso=>new Date(iso+"T00:00:00Z").getUTCDay();
-const closeAt=iso=>Date.parse(addDays(iso,-1)+"T22:00:00+05:30");
+/* an issue goes live at 06:00 UTC (11:30 IST); bidding closes at 11:15 IST that morning, 11:20 at the latest */
+const closeAt=iso=>Date.parse(iso+"T05:45:00Z");
 const dayShort=iso=>new Date(iso+"T00:00:00Z").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",timeZone:"UTC"});
 const dayLong=iso=>new Date(iso+"T00:00:00Z").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric",timeZone:"UTC"});
 const dayNum=iso=>new Date(iso+"T00:00:00Z").toLocaleDateString("en-GB",{day:"numeric",month:"short",timeZone:"UTC"});

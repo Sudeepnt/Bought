@@ -3,12 +3,13 @@
 const ADV={tab:"spots",date:null,spot:"top"};
 
 /* ---------- small parts ---------- */
-const closeText=(d,k)=>{const c=closeOf(d,k);return `${timeIST(c)} IST ${istISO(c)===istISO(now())?"tonight":"on "+dayShort(istISO(c))}`};
+const closeText=(d,k)=>{const c=closeOf(d,k);return `${timeIST(c)} IST ${istISO(c)===istISO(now())?"today":"on "+dayShort(istISO(c))}`};
 function statusPill(e){
- const m=({leading:()=>["ok",e.mode==="auto"?`Leading · auto to ${usd(e.max)}`:"Leading"],outbid:()=>["out","Outbid"],in:()=>["ok",`In · line ${e.ref&&AU.cls[e.d]?clsRank(e.d,e.ref):e.rank} of ${SPOTS.cls.seats}`],out:()=>["out",`Below line ${SPOTS.cls.seats}`],won:()=>["ink",`Won · ${usd2(e.total)} charged`],live:()=>["ink","Live · report ready"],lost:()=>["muted","Not won · hold released"]})[e.status]();
+ const m=({leading:()=>["ok",e.mode==="auto"?`Leading · auto to ${pts(e.max)}`:"Leading"],outbid:()=>["out","Outbid"],in:()=>["ok",`In · line ${e.ref&&AU.cls[e.d]?clsRank(e.d,e.ref):e.rank} of ${SPOTS.cls.seats}`],out:()=>["out",`Below line ${SPOTS.cls.seats}`],won:()=>["ink",`Won · ${pts(e.total)} spent`],live:()=>["ink","Live · report ready"],lost:()=>["muted","Not won · hold released"]})[e.status]();
  return `<span class="pill ${m[0]}">${m[1]}</span>`;
 }
-const reviewPill=e=>e.adState==="rejected"?`<span class="pill sub out">Ad needs changes</span>`:e.review==="approved"?`<span class="pill sub ok">Ad approved</span>`:`<span class="pill sub">Ad in review</span>`;
+/* no review: an ad is ready once its video or picture is in; a file Mux can't use comes back with the reason */
+const reviewPill=e=>e.adState==="rejected"?`<span class="pill sub out">Ad needs a new file</span>`:e.adState==="processing"?`<span class="pill sub">Video processing</span>`:e.adState==="draft"?`<span class="pill sub">Ad not uploaded yet</span>`:`<span class="pill sub ok">Ad ready</span>`;
 const needsRaise=e=>e.status==="outbid"||e.status==="out";
 function demoHTML(){
  if(Live.on)return "";
@@ -22,7 +23,7 @@ function demoHTML(){
 /* ---------- Spots tab ---------- */
 function tmSpot(d,k,label,extra=""){
  const sp=SPOTS[k], hi=highOf(d,k), my=myBid(d,k);
- const val=k==="cls"?(hi!=null?`cut-off ${usd(hi)}`:`from ${usd(reserveFor(k,d))}`):(hi!=null?usd(hi):`reserve ${usd(reserveFor(k,d))}`);
+ const val=k==="cls"?(hi!=null?`cut-off ${pts(hi)}`:`from ${pts(reserveFor(k,d))}`):(hi!=null?pts(hi):`reserve ${pts(reserveFor(k,d))}`);
  const me=my?`<i class="me ${needsRaise(my)?"out":"ok"}" title="${needsRaise(my)?"You were outbid":"You lead"}"></i>`:"";
  return `<button type="button" class="tm-sp f-${sp.fmt} ${extra}" data-spot-sel="${k}" aria-pressed="${ADV.spot===k}"><span class="tm-n">${me}${esc(label||sp.name)}</span><span class="tm-v">${val}</span></button>`;
 }
@@ -58,22 +59,22 @@ function mapHTML(d){
  </div>`;
 }
 function previewFor(k){
- if(k==="cls")return `<ol class="cls-list one">${CLS_TODAY.slice(0,3).map(([p,t,w])=>`<li><b>${usd(p)}</b><span>${esc(t)} <em>${esc(w)}</em></span></li>`).join("")}</ol>`;
+ if(k==="cls")return `<ol class="cls-list one">${CLS_TODAY.slice(0,3).map(([p,t,w])=>`<li><b>${ptsShort(p)}</b><span>${esc(t)} <em>${esc(w)}</em></span></li>`).join("")}</ol>`;
  if(k==="spon-a"||k==="spon-d")return `<div class="spp-spon"><span class="sec-mock">${k==="spon-a"?"Page 2 · AI":"Page 5 · Founders"}</span>${sponsorHTML(k,true).replace(/data-adv-spot="[^"]*"/,"disabled")}</div>`;
  if(k==="clip")return `<div class="spp-clip">${bvHTML("pv-clip",TODAY_ADS.clip,"vert")}</div>`;
  return spotHTML(k,k==="top"?"banner":k==="half"?"half":"native",{preview:true}).replace(" rv"," in");
 }
 function panelHTML(d,k){
  const sp=SPOTS[k], f=FORMATS[sp.fmt], my=myBid(d,k), open=isOpenSpot(d,k), hi=highOf(d,k), st=spotState(d,k);
- const hist=k==="cls"?clsSorted(d).slice(0,SPOTS.cls.seats).map((x,i)=>`<li class="${x.me?"me":""}"><span>${i+1}. ${x.me?"You":esc(x.h)}</span><b>${usd(x.amt)}</b><em>block ${Math.floor(i/4)+1}</em></li>`).join("")
-  :st.hist.slice(0,6).map(h=>`<li class="${h.me?"me":""}"><span>${esc(h.h)}</span><b>${usd(h.amt)}</b><em>${ago(h.t)}</em></li>`).join("");
- const btn=!open?`<button class="btn" disabled>Bidding closed</button>`:my?`<button class="btn${needsRaise(my)?" accent":""}" data-raise="${d}|${k}">${needsRaise(my)?`Raise to ${usd(minBid(d,k))}`:"Raise your bid"}</button>`:`<button class="btn" data-bid-start="${k}">Bid on this spot</button>`;
+ const hist=k==="cls"?clsSorted(d).slice(0,SPOTS.cls.seats).map((x,i)=>`<li class="${x.me?"me":""}"><span>${i+1}. ${x.me?"You":esc(x.h)}</span><b>${pts(x.amt)}</b><em>block ${Math.floor(i/4)+1}</em></li>`).join("")
+  :st.hist.slice(0,6).map(h=>`<li class="${h.me?"me":""}"><span>${esc(h.h)}</span><b>${pts(h.amt)}</b><em>${ago(h.t)}</em></li>`).join("");
+ const btn=!open?`<button class="btn" disabled>Bidding closed</button>`:my?`<button class="btn${needsRaise(my)?" accent":""}" data-raise="${d}|${k}">${needsRaise(my)?`Raise to ${pts(minBid(d,k))}`:"Raise your bid"}</button>`:`<button class="btn" data-bid-start="${k}">Bid on this spot</button>`;
  return `<div class="spp-h"><span class="fchip f-${sp.fmt}">${f.name}</span><h2>${esc(sp.name)}</h2><p>${esc(sp.zone)} · ${esc(sp.view)}</p></div>
   <div class="spp-pv"><small>Example: today's winner</small>${previewFor(k)}</div>
-  <dl class="spp-stats"><div><dt>${k==="cls"?`Cut-off · line ${SPOTS.cls.seats}`:"Highest bid"}</dt><dd>${hi!=null?usd(hi):"None yet"}</dd></div><div><dt>Next minimum</dt><dd>${usd(minBid(d,k))}</dd></div><div><dt>Bids</dt><dd>${bidsOf(d,k)}</dd></div><div><dt>Reserve</dt><dd>${usd(reserveFor(k,d))}</dd></div></dl>
+  <dl class="spp-stats"><div><dt>${k==="cls"?`Cut-off · line ${SPOTS.cls.seats}`:"Highest bid"}</dt><dd>${hi!=null?pts(hi):"None yet"}</dd></div><div><dt>Next minimum</dt><dd>${pts(minBid(d,k))}</dd></div><div><dt>Bids</dt><dd>${bidsOf(d,k)}</dd></div><div><dt>Reserve</dt><dd>${pts(reserveFor(k,d))}</dd></div></dl>
   <p class="spp-close">${open?`Bidding for the <b>${dayShort(d)}</b> issue closes ${closeText(d,k)} · <b class="cdx" data-until="${closeOf(d,k)}">${hms(closeOf(d,k)-now())}</b>${st.ext?` · <span class="ext">extended ${st.ext}×</span>`:""}`:"Bidding for this issue has closed."}</p>
-  ${my?`<div class="spp-me">${statusPill(my)}${reviewPill(my)}<span>${my.mode==="auto"?`Your price ${usd(my.amt)}, max ${usd(my.max)}`:`Your bid ${usd(my.amt)}`}</span></div>`:""}
-  <div class="spp-act">${btn}<span class="spp-note">Only the winner pays. ${k==="cls"?`Top ${SPOTS.cls.seats} run.`:`+${usd(sp.inc)} increments.`}</span></div>
+  ${my?`<div class="spp-me">${statusPill(my)}${reviewPill(my)}<span>${my.mode==="auto"?`Your price ${pts(my.amt)}, max ${pts(my.max)}`:`Your bid ${pts(my.amt)}`}</span></div>`:""}
+  <div class="spp-act">${btn}<span class="spp-note">Only the winner pays. ${k==="cls"?`Top ${SPOTS.cls.seats} run.`:`+${pts(sp.inc)} increments.`}</span></div>
   <div class="spp-hist"><h4>${k==="cls"?`Current top ${SPOTS.cls.seats}`:"Recent bids"}</h4>${hist?`<ul>${hist}</ul>`:`<p class="hint">No bids yet. Be first at the reserve price.</p>`}<small>Bidders stay anonymous until close.</small></div>
   <details class="spp-spec"${ADV.specOpen?" open":""}><summary>Format and specs</summary><ul>${f.spec.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></details>`;
 }
@@ -81,10 +82,10 @@ function spotsHTML(){
  const d=ADV.date, d0=AU.dates[0];
  return `<section class="adv-hero rv"><span class="eyebrow">Bought. Ads</span>
   <h1>Buy a spot in the paper. <span>Only the winner pays.</span></h1>
-  <p>Every spot in every issue is its own live auction. Bid, upload a short video of yourself, and if yours is the highest bid at close, it runs from 07:00 IST with your price printed beside it.</p>
-  <ol class="adv-steps"><li><b>1</b>Pick an issue and a spot</li><li><b>2</b>Bid and add your ad</li><li><b>3</b>Highest bid at 22:00 IST wins</li></ol>
-  <div class="adv-kpis"><div><small>Next close</small><b class="cdx" data-until="${nextClose()}">${hms(nextClose()-now())}</b><span>${dayShort(d0)} issue · 22:00 IST</span></div><div><small>Open issues</small><b>${AU.dates.length}</b><span>book up to a week ahead</span></div><div><small>Per issue</small><b>6 + 8</b><span>display spots + classified lines</span></div></div></section>
-  <div class="adv-dates" role="tablist" aria-label="Choose an issue">${AU.dates.map((x,i)=>{const T=THEMES[wdOf(x)],c=closeAt(x);return `<button type="button" role="tab" aria-selected="${x===d}" data-adate="${x}" style="--th:${T.hue}"><span class="dw">${new Date(x+"T00:00:00Z").toLocaleDateString("en-GB",{weekday:"short",timeZone:"UTC"})}</span><span class="dd">${dayNum(x)}</span><span class="dt">${T.short}</span><span class="dc">${istISO(c)===istISO(now())?"Closes tonight":"Closes "+dayNum(istISO(c))}</span></button>`}).join("")}</div>
+  <p>Every spot in every issue is its own live auction. Bid, upload a short video of yourself, and if yours is the highest bid at close, it runs from 11:30 IST that day with your price printed beside it. Every spot starts at 1 point, and new advertisers get 100 free points.</p>
+  <ol class="adv-steps"><li><b>1</b>Pick an issue and a spot</li><li><b>2</b>Bid and add your ad</li><li><b>3</b>Highest bid at 11:15 IST wins</li></ol>
+  <div class="adv-kpis"><div><small>Next close</small><b class="cdx" data-until="${nextClose()}">${hms(nextClose()-now())}</b><span>${dayShort(d0)} issue · 11:15 IST</span></div><div><small>Open issues</small><b>${AU.dates.length}</b><span>book up to a week ahead</span></div><div><small>Per issue</small><b>6 + 8</b><span>display spots + classified lines</span></div></div></section>
+  <div class="adv-dates" role="tablist" aria-label="Choose an issue">${AU.dates.map((x,i)=>{const T=THEMES[wdOf(x)],c=closeAt(x);return `<button type="button" role="tab" aria-selected="${x===d}" data-adate="${x}" style="--th:${T.hue}"><span class="dw">${new Date(x+"T00:00:00Z").toLocaleDateString("en-GB",{weekday:"short",timeZone:"UTC"})}</span><span class="dd">${dayNum(x)}</span><span class="dt">${T.short}</span><span class="dc">${istISO(c)===istISO(now())?"Closes today":"Closes "+dayNum(istISO(c))}</span></button>`}).join("")}</div>
   <div class="adv-grid"><div class="adv-map">${mapHTML(d)}</div><aside class="sp-panel" id="sp-panel" aria-live="polite">${panelHTML(d,ADV.spot)}</aside></div>
   ${demoHTML()}`;
 }
@@ -92,15 +93,15 @@ function spotsHTML(){
 /* ---------- My bids tab ---------- */
 function mineHTML(){
  const open=myOpen(), past=AU.past.slice().reverse(), charged=AU.past.filter(e=>e.inv).reduce((a,e)=>a+e.total,0);
- let h=`<div class="mb-sum rv"><div><small>Active bids</small><b>${open.length}</b><span>${open.filter(e=>!needsRaise(e)).length} leading</span></div><div><small>Credits free</small><b>${usd(availCredits())}</b><span>${usd(heldTotal())} set aside · <button type="button" class="linkbtn" data-wallet>Wallet</button></span></div><div><small>Spent</small><b>${usd(charged)}</b><span>${AU.past.filter(e=>e.inv).length} invoice${AU.past.filter(e=>e.inv).length===1?"":"s"}</span></div><div><small>Next close</small><b class="cdx" data-until="${nextClose()}">${hms(nextClose()-now())}</b><span>${dayShort(AU.dates[0])} issue</span></div></div>`;
- if(!open.length&&!past.length)h+=`<div class="empty rv"><b>No bids yet</b><p>Add credits to your wallet, pick an issue and a spot, set your price and add your ad. Credits are only used if you win.</p><button class="btn" type="button" data-atab="spots">See the spots</button></div>`;
+ let h=`<div class="mb-sum rv"><div><small>Active bids</small><b>${open.length}</b><span>${open.filter(e=>!needsRaise(e)).length} leading</span></div><div><small>Points free</small><b>${pts(availCredits())}</b><span>${pts(heldTotal())} set aside · <button type="button" class="linkbtn" data-wallet>Wallet</button></span></div><div><small>Spent</small><b>${pts(charged)}</b><span>${AU.past.filter(e=>e.inv).length} invoice${AU.past.filter(e=>e.inv).length===1?"":"s"}</span></div><div><small>Next close</small><b class="cdx" data-until="${nextClose()}">${hms(nextClose()-now())}</b><span>${dayShort(AU.dates[0])} issue</span></div></div>`;
+ if(!open.length&&!past.length)h+=`<div class="empty rv"><b>No bids yet</b><p>You have 100 free points. Pick an issue and a spot, set your price and add your ad. Points are only used if you win.</p><button class="btn" type="button" data-atab="spots">See the spots</button></div>`;
  AU.dates.forEach(d=>{
   const es=open.filter(e=>e.d===d);if(!es.length)return;
-  h+=`<section class="mb-group rv"><div class="mb-gh"><div><b>${dayLong(d)}</b><span>${THEMES[wdOf(d)].name} · Issue ${issueNo(d)}</span></div><span class="mb-close">Closes in <b class="cdx" data-until="${lastClose(d)}">${hms(lastClose(d)-now())}</b></span></div><ul class="mb-rows">${es.map(e=>`<li><div class="mb-spot"><b>${esc(SPOTS[e.k].name)}</b><small>${e.mode==="auto"?`Your price ${usd(e.amt)} · max ${usd(e.max)}`:`Your bid ${usd(e.amt)}`} · highest ${usd(highOf(d,e.k)??e.amt)}</small></div><div class="mb-st">${statusPill(e)}${reviewPill(e)}</div><div class="mb-act"><button type="button" class="chip-btn${needsRaise(e)?" warn":""}" data-raise="${d}|${e.k}">${needsRaise(e)?`Raise to ${usd(minBid(d,e.k))}`:"Raise"}</button><button type="button" class="chip-btn" data-editad="${d}|${e.k}">Edit ad</button></div></li>`).join("")}</ul></section>`;
+  h+=`<section class="mb-group rv"><div class="mb-gh"><div><b>${dayLong(d)}</b><span>${THEMES[wdOf(d)].name} · Issue ${issueNo(d)}</span></div><span class="mb-close">Closes in <b class="cdx" data-until="${lastClose(d)}">${hms(lastClose(d)-now())}</b></span></div><ul class="mb-rows">${es.map(e=>`<li><div class="mb-spot"><b>${esc(SPOTS[e.k].name)}</b><small>${e.mode==="auto"?`Your price ${pts(e.amt)} · max ${pts(e.max)}`:`Your bid ${pts(e.amt)}`} · highest ${pts(highOf(d,e.k)??e.amt)}</small></div><div class="mb-st">${statusPill(e)}${reviewPill(e)}</div><div class="mb-act"><button type="button" class="chip-btn${needsRaise(e)?" warn":""}" data-raise="${d}|${e.k}">${needsRaise(e)?`Raise to ${pts(minBid(d,e.k))}`:"Raise"}</button><button type="button" class="chip-btn" data-editad="${d}|${e.k}">Edit ad</button></div></li>`).join("")}</ul></section>`;
  });
  if(AU.inbox.length)h+=`<section class="mb-inbox rv"><h4>Updates</h4><ul>${AU.inbox.slice(0,6).map(n=>`<li class="${n.kind}"><span>${esc(n.msg)}</span><em>${ago(n.t)}</em></li>`).join("")}</ul></section>`;
  const pd=[...new Set(past.map(e=>e.d))];
- if(pd.length)h+=`<h3 class="mb-h">Results</h3>`+pd.map(d=>`<section class="mb-group rv"><div class="mb-gh"><div><b>${dayLong(d)}</b><span>Issue ${issueNo(d)} · bidding closed</span></div></div><ul class="mb-rows">${past.filter(e=>e.d===d).map(e=>{const i=AU.past.indexOf(e);return `<li><div class="mb-spot"><b>${esc(SPOTS[e.k].name)}</b><small>${e.status==="lost"?`Your bid ${usd(e.price)} · the spot went for ${usd(e.final)}`:`Won at ${usd(e.price)}${e.gst?` + ${usd2(e.gst)} GST`:""} · invoice ${e.inv}`}</small></div><div class="mb-st">${statusPill(e)}</div><div class="mb-act">${e.inv?`<button type="button" class="chip-btn" data-receipt="${i}">Invoice</button><button type="button" class="chip-btn" data-seepaper="${e.k}">See it in the paper</button>`:""}${e.status==="live"?`<button type="button" class="chip-btn" data-report="${i}">Report</button>`:""}<button type="button" class="chip-btn" data-book="${e.k}">Book again</button></div></li>`}).join("")}</ul></section>`).join("");
+ if(pd.length)h+=`<h3 class="mb-h">Results</h3>`+pd.map(d=>`<section class="mb-group rv"><div class="mb-gh"><div><b>${dayLong(d)}</b><span>Issue ${issueNo(d)} · bidding closed</span></div></div><ul class="mb-rows">${past.filter(e=>e.d===d).map(e=>{const i=AU.past.indexOf(e);return `<li><div class="mb-spot"><b>${esc(SPOTS[e.k].name)}</b><small>${e.status==="lost"?`Your bid ${pts(e.price)} · the spot went for ${pts(e.final)}`:`Won at ${pts(e.price)} · invoice ${e.inv}`}</small></div><div class="mb-st">${statusPill(e)}</div><div class="mb-act">${e.inv?`<button type="button" class="chip-btn" data-receipt="${i}">Invoice</button><button type="button" class="chip-btn" data-seepaper="${e.k}">See it in the paper</button>`:""}${e.status==="live"?`<button type="button" class="chip-btn" data-report="${i}">Report</button>`:""}<button type="button" class="chip-btn" data-book="${e.k}">Book again</button></div></li>`}).join("")}</ul></section>`).join("");
  return h+demoHTML();
 }
 
@@ -117,7 +118,7 @@ function rulesHTML(){
 const Adv={
  render(){
   const nOut=myOpen().filter(needsRaise).length, nMy=myOpen().length;
-  $("adv").innerHTML=`<div class="adv-tabs" role="tablist">${[["spots","Spots"],["mine",`My bids${nMy?` <span class="cnt${nOut?" warn":""}">${nMy}</span>`:""}`],["rules","How it works"]].map(([k,l])=>`<button type="button" role="tab" data-atab="${k}" aria-selected="${ADV.tab===k}">${l}</button>`).join("")}<button type="button" class="wallet-chip" data-wallet aria-label="Wallet: ${usd2(availCredits())} free to bid"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="13" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 8.5h4" stroke="currentColor" stroke-width="1.3"/><circle cx="11.5" cy="8.5" r=".9" fill="currentColor"/></svg><span>Wallet</span><b>${usd(availCredits())}</b></button></div><div id="adv-body">${Adv.body()}</div>`;
+  $("adv").innerHTML=`<div class="adv-tabs" role="tablist">${[["spots","Spots"],["mine",`My bids${nMy?` <span class="cnt${nOut?" warn":""}">${nMy}</span>`:""}`],["rules","How it works"]].map(([k,l])=>`<button type="button" role="tab" data-atab="${k}" aria-selected="${ADV.tab===k}">${l}</button>`).join("")}<button type="button" class="wallet-chip" data-wallet aria-label="Wallet: ${pts(availCredits())} free to bid"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="13" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 8.5h4" stroke="currentColor" stroke-width="1.3"/><circle cx="11.5" cy="8.5" r=".9" fill="currentColor"/></svg><span>Wallet</span><b>${ptsShort(availCredits())}</b></button></div><div id="adv-body">${Adv.body()}</div>`;
  },
  body(){return ADV.tab==="mine"?mineHTML():ADV.tab==="rules"?rulesHTML():spotsHTML()},
  refresh(force){
@@ -135,14 +136,14 @@ const Adv={
  receipt(e){
   const rate=e.gst?"18%":"0%, export of services";
   Sheet.open(`<div class="sh-top"><div><span class="eyebrow">Invoice ${e.inv}</span><h3>${esc(SPOTS[e.k].name)} · ${dayShort(e.d)}</h3></div><button type="button" class="chip-btn" data-x>Close</button></div>
-  <div class="sh-body"><table class="inv"><tr><td>Winning bid, Issue ${e.issue}</td><td>${usd2(e.price)}</td></tr><tr><td>GST (${rate})</td><td>${usd2(e.gst)}</td></tr><tr class="tot"><td>Total deducted</td><td>${usd2(e.total)}</td></tr></table>
-  <dl class="kv"><dt>Billed to</dt><dd>${esc(AU.acct?.name||e.cre?.adv||"Advertiser")}${AU.acct?.gstin?` · GSTIN ${esc(AU.acct.gstin)}`:""}</dd><dt>Paid with</dt><dd>Bought. credits, deducted from your wallet at close</dd><dt>Deducted</dt><dd>${dayShort(istISO(e.settledAt))}, ${timeIST(e.settledAt)} IST</dd></dl>
+  <div class="sh-body"><table class="inv"><tr><td>Winning bid, Issue ${e.issue}</td><td>${pts(e.price)}</td></tr><tr class="tot"><td>Total deducted</td><td>${pts(e.total)}</td></tr></table>
+  <dl class="kv"><dt>Billed to</dt><dd>${esc(AU.acct?.name||e.cre?.adv||"Advertiser")}${AU.acct?.gstin?` · GSTIN ${esc(AU.acct.gstin)}`:""}</dd><dt>Paid with</dt><dd>Points from your wallet, spent at close</dd><dt>Deducted</dt><dd>${dayShort(istISO(e.settledAt))}, ${timeIST(e.settledAt)} IST</dd></dl>
   ${Live.on?"":`<p class="hint">Sample invoice from the prototype. No money moved.</p>`}</div><div class="sh-acts"><button type="button" class="btn" data-x>Done</button></div>`,{label:"Invoice"});
  },
  report(e){
   const r=e.report;if(!r)return;
   Sheet.open(`<div class="sh-top"><div><span class="eyebrow">Delivery report · Issue ${e.issue}</span><h3>${esc(SPOTS[e.k].name)} · ${dayShort(e.d)}</h3></div><button type="button" class="chip-btn" data-x>Close</button></div>
-  <div class="sh-body"><div class="rep">${[["Readers reached",num(r.views)],...(r.plays?[["Video plays",num(r.plays)],...(r.watch?[["Average watch",r.watch+" s"]]:[])]:[]),["Clicks",num(r.clicks)],["Click rate",(r.clicks/(r.views||1)*100).toFixed(1)+"%"],["Cost per 1,000 readers",usd2(e.price/(r.views||1)*1000)]].map(([a,b])=>`<div><small>${a}</small><b>${b}</b></div>`).join("")}</div>
+  <div class="sh-body"><div class="rep">${[["Readers reached",num(r.views)],...(r.plays?[["Video plays",num(r.plays)],...(r.watch?[["Average watch",r.watch+" s"]]:[])]:[]),["Clicks",num(r.clicks)],["Click rate",(r.clicks/(r.views||1)*100).toFixed(1)+"%"],["Cost per 1,000 readers",pts(e.price/(r.views||1)*1000)]].map(([a,b])=>`<div><small>${a}</small><b>${b}</b></div>`).join("")}</div>
   ${Live.on?"":`<p class="hint">Sample numbers from the prototype.</p>`}</div><div class="sh-acts"><button type="button" class="chip-btn" data-book="${e.k}">Book this spot again</button><button type="button" class="btn" data-x>Done</button></div>`,{label:"Delivery report"});
  },
  click(e){
@@ -150,7 +151,7 @@ const Adv={
   if(t.closest("[data-wallet]")){Wallet.open();return true}
   const tu=t.closest("[data-topup]");if(tu){Wallet.topup(tu);return true}
   if(Live.on&&t.closest("[data-withdraw]")){Live.withdraw();return true}
-  if(t.closest("[data-withdraw]")){const a=withdrawCredits(availCredits());Wallet.render();Adv.refresh(true);toast(a?`${usd2(a)} is on its way to your bank. It usually arrives in 3–5 working days.`:"Nothing to withdraw right now.");return true}
+  if(t.closest("[data-withdraw]")){const a=withdrawCredits(withdrawable());Wallet.render();Adv.refresh(true);toast(a?`${usd(a)} for ${pts(a)} is on its way to your bank. It usually arrives in 3–5 working days.`:"Nothing to withdraw right now.");return true}
   const at=t.closest("[data-atab]");if(at){Sheet.close();Adv.tab(at.dataset.atab);return true}
   const dt=t.closest("[data-adate]");if(dt){ADV.date=dt.dataset.adate;Adv.render();$$("#adv .rv").forEach(el=>el.classList.add("in"));$("adv").querySelector(`[data-adate="${ADV.date}"]`)?.focus({preventScroll:true});return true}
   const ss=t.closest("[data-spot-sel]");if(ss){ADV.spot=ss.dataset.spotSel;$("sp-panel").innerHTML=panelHTML(ADV.date,ADV.spot);$$("[data-spot-sel]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.spotSel===ADV.spot)));if(innerWidth<=900)$("sp-panel").scrollIntoView({block:"start",behavior:reduce?"auto":"smooth"});return true}
@@ -221,12 +222,12 @@ const Bid={
   return minBid(d,k);
  },
  amt(d){const v=Bid.st.same?Bid.st.one:Bid.st.per[d];return Math.round(+v)},
- /* credits this bid would set aside, net of what the same bids already hold */
+ /* points this bid would set aside, net of what the same bids already hold */
  need(){const st=Bid.st,rate=gstRate(st.acct);return c2(Bid.ds().reduce((a,d)=>{const m=Bid.amt(d)||0,my=myBid(d,st.k);const nm=my&&st.k!=="cls"&&my.status==="leading"&&st.mode==="exact"?Math.max(my.max,m):m;return a+Math.max(0,nm*(1+rate)-(my?setAside(my,rate):0))},0))},
  sumHTML(){
   const st=Bid.st, ds=Bid.ds(), tot=ds.reduce((a,d)=>a+(Bid.amt(d)||0),0), rate=gstRate(st.acct), tax=tot*rate;
   const need=Bid.need(), av=availCredits();
-  return `<b>Only winners pay.</b> The most you can spend is ${usd(tot)}${rate?` + ${usd2(tax)} GST`:""}${ds.length>1?` across ${ds.length} issues`:""}. We set this aside from your credits until bidding closes, then deduct only what you win. <span class="wb-inline${need>av?" short":""}">Wallet: ${usd2(av)} free${need>av?` · you'll need ${usd2(need-av)} more`:""}.</span>`;
+  return `<b>Only winners pay.</b> The most you can spend is ${pts(tot)}${rate?` + ${pts(tax)} GST`:""}${ds.length>1?` across ${ds.length} issues`:""}. We set this aside from your points until bidding closes, then spend only what you win. <span class="wb-inline${need>av?" short":""}">Wallet: ${pts(av)} free${need>av?` · you'll need ${pts(need-av)} more`:""}.</span>`;
  },
  collect(){
   const st=Bid.st, step=st.steps[st.i], q=id=>$(id)?.value??"";
@@ -238,12 +239,12 @@ const Bid={
  validate(){
   const st=Bid.st, step=st.steps[st.i], ds=Bid.ds();
   if(step==="dates"&&!ds.length)return "Choose at least one issue.";
-  if(step==="bid"||step==="review"){for(const d of ds){const a=Bid.amt(d),m=Bid.minFor(d);if(!(a>=m))return `${dayShort(d)}: the minimum is now ${usd(m)}. Raise your amount and try again.`}}
+  if(step==="bid"||step==="review"){for(const d of ds){const a=Bid.amt(d),m=Bid.minFor(d);if(!(a>=m))return `${dayShort(d)}: the minimum is now ${pts(m)}. Raise your amount and try again.`}}
   if(step==="ad"){const bad=adChecks(st.k,st.cre).find(c=>!c.ok);if(bad)return `Fix this before you continue: ${bad.l.toLowerCase()}.`}
   if(step==="signin"&&!/^\S+@\S+\.\S+$/.test(st.acct.email))return "Add your work email, like you@company.com, or continue with Google.";
   if(step==="acct"){if(!st.acct.name)return "Add your business name.";if(!/^\S+@\S+\.\S+$/.test(st.acct.email))return "Add a work email, like you@company.com.";if(st.acct.country==="India"&&st.acct.gstin&&!/^[0-9A-Z]{15}$/.test(st.acct.gstin.toUpperCase()))return "A GSTIN has 15 letters and digits. Check it, or leave it blank.";}
   if(step==="review"&&!st.agree)return "Tick the box to confirm you understand bids are binding.";
-  if(step==="review"){const sh=c2(Bid.need()-availCredits());if(sh>0)return `Add at least ${usd2(sh)} in credits to place ${ds.length>1?"these bids":"this bid"}.`}
+  if(step==="review"){const sh=c2(Bid.need()-availCredits());if(sh>0)return `Get at least ${pts(sh)} more to place ${ds.length>1?"these bids":"this bid"}.`}
   return "";
  },
  async next(){
@@ -272,19 +273,19 @@ const Bid={
  },
  saveAd(){
   const st=Bid.st,d=[...st.dates][0],my=myBid(d,st.k);
-  if(my){const cre={...st.cre,adv:my.cre.adv};if(SPOTS[st.k].fmt==="video"&&!(cre.img&&!cre.file)){cre.script=cre.about?[cre.about,`${cre.adv}.`]:[cre.thumb];cre.line=cre.about||cre.thumb;cre.sub=cre.who}if(SPOTS[st.k].fmt==="video"){cre.web=normUrl(cre.web);cre.social=normUrl(cre.social);cre.email=(cre.email||"").trim();cre.cta=hostOf(cre.web)}if(Live.on){Live.saveAd(st,d,my,cre);return}my.cre=cre;my.review="pending";AU.cre[st.k]={...st.cre};scheduleReview(K(d,st.k))}
-  Sheet.close();toast("Ad saved. It goes back through review, usually within minutes.");Adv.refresh(true);
+  if(my){const cre={...st.cre,adv:my.cre.adv};if(SPOTS[st.k].fmt==="video"&&!(cre.img&&!cre.file)){cre.script=cre.about?[cre.about,`${cre.adv}.`]:[cre.thumb];cre.line=cre.about||cre.thumb;cre.sub=cre.who}if(SPOTS[st.k].fmt==="video"){cre.web=normUrl(cre.web);cre.social=normUrl(cre.social);cre.email=(cre.email||"").trim();cre.cta=hostOf(cre.web)}if(Live.on){Live.saveAd(st,d,my,cre);return}my.cre=cre;AU.cre[st.k]={...st.cre}}
+  Sheet.close();toast("Ad saved.");Adv.refresh(true);
  },
  onMarket(){
   const st=Bid.st;if(!st||$("sheetwrap").hidden)return;
   const step=st.steps[st.i];if(step!=="bid"&&step!=="review")return;
-  Bid.ds().forEach(d=>{const el=$("sheet").querySelector(`[data-min-d="${d}"]`);if(el){const m=Bid.minFor(d);if(el.dataset.v!==String(m)){el.dataset.v=m;el.textContent=`min ${usd(m)}`;el.classList.add("bump");const n=$("b-live");if(n){n.hidden=false;n.textContent=`New bid on ${dayShort(d)}. The minimum is now ${usd(m)}.`}}}});
+  Bid.ds().forEach(d=>{const el=$("sheet").querySelector(`[data-min-d="${d}"]`);if(el){const m=Bid.minFor(d);if(el.dataset.v!==String(m)){el.dataset.v=m;el.textContent=`min ${pts(m)}`;el.classList.add("bump");const n=$("b-live");if(n){n.hidden=false;n.textContent=`New bid on ${dayShort(d)}. The minimum is now ${pts(m)}.`}}}});
  },
  preview(){
   const st=Bid.st, f=SPOTS[st.k].fmt, c={...st.cre,adv:st.acct?.name||"Your company"};
   if(f==="video"){if(!(c.img&&!c.file)){c.thumb=c.thumb||"Your thumbnail text";c.script=c.about?[c.about]:[c.thumb]}return bvHTML("pv-bid",c,SPOTS[st.k].shape==="vert"?"vert":"std")+adLinks({...c,web:c.web&&normUrl(c.web),social:c.social&&normUrl(c.social)},"pv-links")}
   if(f==="creative")return `<div class="spot native in f-creative pvc"><div class="sp-media">${creMark({...c,mark:{...c.mark,init:initials(c.adv)}})}</div><div class="sp-txt"><div class="sp-meta"><span class="sp-l"><i></i>Sponsored</span></div><span class="sp-adv">${esc(c.adv)}</span><b class="sp-hl">${esc(c.line||"Your headline")}</b>${c.sub?`<span class="sp-line">${esc(c.sub)}</span>`:""}</div></div>`;
-  return `<ol class="cls-list one"><li class="mine"><b>${usd(Bid.amt(Bid.ds()[0])||reserveFor("cls",Bid.ds()[0]||AU.dates[0]))}</b><span>${esc(c.line||"Your line goes here.")} <em>${esc(c.adv)}</em></span></li></ol>`;
+  return `<ol class="cls-list one"><li class="mine"><b>${pts(Bid.amt(Bid.ds()[0])||reserveFor("cls",Bid.ds()[0]||AU.dates[0]))}</b><span>${esc(c.line||"Your line goes here.")} <em>${esc(c.adv)}</em></span></li></ol>`;
  },
  render(){
   const st=Bid.st;if(!st)return;
@@ -295,7 +296,7 @@ const Bid={
   const back=st.i>0&&step!=="done"?`<button type="button" class="btn ghost" data-back>Back</button>`:"";
   if(step==="dates"){
    body=`<p class="hint">Each issue is its own auction. Pick as many as you like; you only pay for the issues you win.</p>
-   <div class="dpick">${AU.dates.map(d=>{const open=isOpenSpot(d,k), mine=myBid(d,k), T=THEMES[wdOf(d)], hi=highOf(d,k);return `<label class="dp${open&&!mine?"":" dis"}" style="--th:${T.hue}"><input type="checkbox" data-pick="${d}"${st.dates.has(d)?" checked":""}${open&&!mine?"":" disabled"}><span class="dp-d"><b>${dayShort(d)}</b><em>${T.short}</em></span><span class="dp-v">${hi!=null?`Highest ${usd(hi)}`:`Reserve ${usd(reserveFor(k,d))}`}<small>${mine?"You're already bidding":`min ${usd(minBid(d,k))} · ${bidsOf(d,k)} bids`}</small></span></label>`}).join("")}</div>
+   <div class="dpick">${AU.dates.map(d=>{const open=isOpenSpot(d,k), mine=myBid(d,k), T=THEMES[wdOf(d)], hi=highOf(d,k);return `<label class="dp${open&&!mine?"":" dis"}" style="--th:${T.hue}"><input type="checkbox" data-pick="${d}"${st.dates.has(d)?" checked":""}${open&&!mine?"":" disabled"}><span class="dp-d"><b>${dayShort(d)}</b><em>${T.short}</em></span><span class="dp-v">${hi!=null?`Highest ${pts(hi)}`:`Reserve ${pts(reserveFor(k,d))}`}<small>${mine?"You're already bidding":`min ${pts(minBid(d,k))} · ${bidsOf(d,k)} bids`}</small></span></label>`}).join("")}</div>
    <div class="qchips"><button type="button" data-pickall>All open issues</button><button type="button" data-pickwk>Weekdays only</button><button type="button" data-pickone>Just the next one</button></div>`;
    acts=`<span class="sh-note">${ds.length} issue${ds.length===1?"":"s"} selected</span><button type="button" class="btn" data-next>Continue</button>`;
   }
@@ -305,11 +306,11 @@ const Bid={
    const lab=cls||st.mode==="exact"?"Your bid":"Your maximum";
    body=(cls?`<p class="hint">Classifieds are pay-as-bid: your line runs if it's in the top 8 at close, and you pay exactly what you bid. Higher bids run earlier in the paper.</p>`
     :`<div class="seg" role="radiogroup" aria-label="How to bid"><button type="button" role="radio" aria-checked="${st.mode==="auto"}" data-mode="auto"><b>Auto-raise</b><small>Set a maximum. We bid for you, one step at a time, only when someone outbids you. You win at the lowest price that beats them.</small></button><button type="button" role="radio" aria-checked="${st.mode==="exact"}" data-mode="exact"><b>Exact bid</b><small>Bid one amount. If someone beats it, you'll need to raise it yourself.</small></button></div>`)
-   +`<ul class="bidtbl">${ds.map(d=>`<li><span>${dayShort(d)}<small>${THEMES[wdOf(d)].short}</small></span><span>${highOf(d,k)!=null?`Highest ${usd(highOf(d,k))}`:"No bids yet"}</span><b data-min-d="${d}" data-v="${mins[d]}">min ${usd(mins[d])}</b></li>`).join("")}</ul>
+   +`<ul class="bidtbl">${ds.map(d=>`<li><span>${dayShort(d)}<small>${THEMES[wdOf(d)].short}</small></span><span>${highOf(d,k)!=null?`Highest ${pts(highOf(d,k))}`:"No bids yet"}</span><b data-min-d="${d}" data-v="${mins[d]}">min ${pts(mins[d])}</b></li>`).join("")}</ul>
    <p class="msg live" id="b-live" hidden></p>`
    +(ds.length>1?`<label class="chk"><input type="checkbox" id="b-same"${st.same?" checked":""}> Same ${lab.toLowerCase().replace("your ","")} for every issue</label>`:"")
-   +(st.same?`<label class="fld" for="b-one">${lab} in USD<small>${ds.length>1?"for each issue · ":""}at least ${usd(maxMin)}</small><span class="money"><i>$</i><input id="b-one" type="number" inputmode="numeric" min="${maxMin}" step="${sp.inc}" value="${st.one}"></span></label><div class="qchips"><button type="button" data-q="0">Minimum</button><button type="button" data-q="${sp.inc*5}">+${usd(sp.inc*5)}</button><button type="button" data-q="${sp.inc*20}">+${usd(sp.inc*20)}</button></div>`
-    :`<div class="perfld">${ds.map(d=>`<label class="fld">${dayShort(d)}<small>at least ${usd(mins[d])}</small><span class="money"><i>$</i><input type="number" inputmode="numeric" data-per="${d}" min="${mins[d]}" step="${sp.inc}" value="${st.per[d]??mins[d]}"></span></label>`).join("")}</div>`)
+   +(st.same?`<label class="fld" for="b-one">${lab} in USD<small>${ds.length>1?"for each issue · ":""}at least ${pts(maxMin)}</small><span class="money"><i>$</i><input id="b-one" type="number" inputmode="numeric" min="${maxMin}" step="${sp.inc}" value="${st.one}"></span></label><div class="qchips"><button type="button" data-q="0">Minimum</button><button type="button" data-q="${sp.inc*5}">+${pts(sp.inc*5)}</button><button type="button" data-q="${sp.inc*20}">+${pts(sp.inc*20)}</button></div>`
+    :`<div class="perfld">${ds.map(d=>`<label class="fld">${dayShort(d)}<small>at least ${pts(mins[d])}</small><span class="money"><i>$</i><input type="number" inputmode="numeric" data-per="${d}" min="${mins[d]}" step="${sp.inc}" value="${st.per[d]??mins[d]}"></span></label>`).join("")}</div>`)
    +`<div class="paybox" id="b-sum">${Bid.sumHTML()}</div>`;
    acts=`${back}<button type="button" class="btn" data-next>Continue</button>`;
   }
@@ -336,7 +337,7 @@ const Bid={
     <div class="sw-w"><small>Brand colours</small><div class="sw">${[["#1f3b5c","#f4efe4"],["#e9c84a","#1a1916"],["#1d3b2a","#e9f5ec"],["#7a2e22","#fbefe8"],["#e8e1d4","#2a2723"]].map(([b,f])=>`<button type="button" data-sw="${b},${f}" style="--ab:${b};--af:${f}" aria-label="Colour ${b}" aria-pressed="${c.mark.bg===b}">Aa</button>`).join("")}</div></div>`;
    else form=`<label class="fld" for="b-line">Your line<input id="b-line" maxlength="120" placeholder="Up to 120 characters" value="${esc(c.line)}"></label>
     <label class="fld" for="b-link">Link (optional)<input id="b-link" inputmode="url" placeholder="https://" value="${esc(c.link)}"></label>`;
-   body=form+`<div class="pv"><small>Preview</small><div id="b-pv">${Bid.preview()}</div></div><ul class="checks" id="b-checks">${adChecks(k,c).map(x=>`<li class="${x.ok?"ok":"no"}">${esc(x.l)}</li>`).join("")}</ul><p class="hint">A person reviews every ad within 2 hours, always before 04:00 IST on issue day.</p>`;
+   body=form+`<div class="pv"><small>Preview</small><div id="b-pv">${Bid.preview()}</div></div><ul class="checks" id="b-checks">${adChecks(k,c).map(x=>`<li class="${x.ok?"ok":"no"}">${esc(x.l)}</li>`).join("")}</ul><p class="hint">Your ad runs as you made it, so check it here. It can change until bidding closes at 11:15 IST on issue day.</p>`;
    acts=`${back}<button type="button" class="btn" data-next>${st.edit?"Save ad":"Continue"}</button>`;
   }
   if(step==="acct"){
@@ -346,8 +347,8 @@ const Bid={
    <label class="fld" for="b-email">Work email<input id="b-email" type="email" autocomplete="email" value="${esc(a.email)}" placeholder="you@company.com"></label>
    <div class="row2"><label class="fld" for="b-country">Billing country<select id="b-country"><option${a.country==="India"?" selected":""}>India</option><option value="Other"${a.country!=="India"?" selected":""}>Another country</option></select></label>
    <label class="fld" for="b-gst">GSTIN <small>optional</small><input id="b-gst" value="${esc(a.gstin)}" placeholder="15 characters" maxlength="15"></label></div>
-   <fieldset class="methods"><legend>Buy credits with</legend><label><input type="radio" name="pm" value="upi"${a.method!=="card"?" checked":""}> UPI <small>India</small></label><label><input type="radio" name="pm" value="card"${a.method==="card"?" checked":""}> Card <small>any country</small></label></fieldset>
-   <div class="paybox"><b>How credits work.</b> You bid from prepaid credits in your wallet (1 credit = $1). A live bid sets aside its maximum plus tax. If you're outbid, those credits are free again at once. At 22:00 IST we deduct only what you win. Unused credits can be withdrawn any time.</div>
+   <fieldset class="methods"><legend>Buy points with</legend><label><input type="radio" name="pm" value="upi"${a.method!=="card"?" checked":""}> UPI <small>India</small></label><label><input type="radio" name="pm" value="card"${a.method==="card"?" checked":""}> Card <small>any country</small></label></fieldset>
+   <div class="paybox"><b>How points work.</b> You get 100 free points, and more cost $1 each (plus 18% GST in India). A live bid sets aside its maximum. If you're outbid, those points are free again at once. At 11:15 IST we spend only what you win, free points first. Bought points you haven't used can be withdrawn; free ones can't.</div>
    ${Live.on?"":`<p class="hint">Prototype: no payment details are collected and no money moves.</p>`}`;
    acts=`${back}<button type="button" class="btn" data-next>Continue</button>`;
   }
@@ -355,10 +356,10 @@ const Bid={
    const cls=sp.fmt==="classified", rate=gstRate(st.acct), tot=ds.reduce((x,d)=>x+Bid.amt(d),0);
    const c=st.cre, adSum=sp.fmt==="video"?`"${esc(c.thumb)}" · ${c.fname?esc(c.fname):"sample presenter"}`:esc(c.line);
    body=`<dl class="kv"><dt>Spot</dt><dd>${esc(sp.name)}</dd><dt>Advertiser</dt><dd>${esc(st.acct?.name||"")}</dd><dt>Ad</dt><dd>${adSum}${st.raise?"":` <button type="button" class="linkbtn" data-goto-step="ad">Edit</button>`}</dd>${sp.fmt==="video"?`<dt>Links</dt><dd>${[c.web&&hostOf(c.web),c.social&&socialName(c.social),c.email].filter(Boolean).map(esc).join(" · ")||"None"} <button type="button" class="linkbtn" data-goto-step="ad">Edit</button></dd>`:""}<dt>How</dt><dd>${cls?"Pay-as-bid":st.mode==="auto"?"Auto-raise up to your maximum":"Exact bid"} <button type="button" class="linkbtn" data-goto-step="bid">Change</button></dd></dl>
-   <div class="tblw"><table class="rvtbl"><thead><tr><th>Issue</th><th>Highest now</th><th>${cls||st.mode==="exact"?"Your bid":"Your max"}</th><th>Price if it closed now</th></tr></thead><tbody>${ds.map(d=>{const a=Bid.amt(d),m=Bid.minFor(d),now_=cls||st.mode==="exact"?a:Math.max(m,Math.min(a,m));return `<tr><td>${dayShort(d)}</td><td>${highOf(d,k)!=null?usd(highOf(d,k)):"None"}</td><td>${usd(a)}</td><td>${usd(st.raise&&st.mode==="auto"?myBid(d,k).amt:now_)}</td></tr>`}).join("")}</tbody></table></div>
+   <div class="tblw"><table class="rvtbl"><thead><tr><th>Issue</th><th>Highest now</th><th>${cls||st.mode==="exact"?"Your bid":"Your max"}</th><th>Price if it closed now</th></tr></thead><tbody>${ds.map(d=>{const a=Bid.amt(d),m=Bid.minFor(d),now_=cls||st.mode==="exact"?a:Math.max(m,Math.min(a,m));return `<tr><td>${dayShort(d)}</td><td>${highOf(d,k)!=null?pts(highOf(d,k)):"None"}</td><td>${pts(a)}</td><td>${pts(st.raise&&st.mode==="auto"?myBid(d,k).amt:now_)}</td></tr>`}).join("")}</tbody></table></div>
    ${walletBox(Bid.need(),ds.length,rate)}
-   <label class="chk agree"><input type="checkbox" id="b-agree"${st.agree?" checked":""}> I understand bids can be raised but not lowered or withdrawn, and credits are only deducted for bids I win.</label>`;
-   acts=`${back}<button type="button" class="btn" data-next>${st.raise?"Confirm":"Place "+(ds.length>1?ds.length+" bids":"bid")} · up to ${usd(tot)}</button>`;
+   <label class="chk agree"><input type="checkbox" id="b-agree"${st.agree?" checked":""}> I understand bids can be raised but not lowered or withdrawn, and points are only spent on bids I win.</label>`;
+   acts=`${back}<button type="button" class="btn" data-next>${st.raise?"Confirm":"Place "+(ds.length>1?ds.length+" bids":"bid")} · up to ${pts(tot)}</button>`;
   }
   if(step==="signin"){
    body=st.waiting?`<p class="hint">Finish signing in with Google in the window that opened. This sheet carries on by itself.</p>`
@@ -375,7 +376,7 @@ const Bid={
   if(step==="done"){
    const rs=st.results||[];
    body=`<div class="okmark" aria-hidden="true">✓</div><p class="done-h">${rs.filter(r=>r.ok).length===rs.length?(st.raise?"Your bid is updated.":"You're in the auction."):"Some bids didn't go through."}</p>
-   <ul class="mb-rows compact">${rs.map(r=>{const e=myBid(r.d,k);return `<li><div class="mb-spot"><b>${dayShort(r.d)}</b><small>${r.ok&&e?(e.mode==="auto"?`Price ${usd(e.amt)} · max ${usd(e.max)}`:`Bid ${usd(e.amt)}`):esc(r.err)}</small></div><div class="mb-st">${r.ok&&e?statusPill(e):`<span class="pill out">Not placed</span>`}</div></li>`}).join("")}</ul>
+   <ul class="mb-rows compact">${rs.map(r=>{const e=myBid(r.d,k);return `<li><div class="mb-spot"><b>${dayShort(r.d)}</b><small>${r.ok&&e?(e.mode==="auto"?`Price ${pts(e.amt)} · max ${pts(e.max)}`:`Bid ${pts(e.amt)}`):esc(r.err)}</small></div><div class="mb-st">${r.ok&&e?statusPill(e):`<span class="pill out">Not placed</span>`}</div></li>`}).join("")}</ul>
    <p class="hint">We'll tell you here the moment you're outbid. Bidding for the ${dayShort(ds[0])} issue closes ${closeText(ds[0],k)}.</p>${st.sending?`<p class="hint" id="b-up" role="status">Uploading your ad…</p>`:""}`;
    acts=`<button type="button" class="btn ghost" data-atab="mine">Track in My bids</button><button type="button" class="btn" data-x>Done</button>`;
   }
@@ -441,16 +442,16 @@ const Bid={
 
 
 /* =========================================================
-   Wallet: prepaid credits for bidding
+   Wallet: points for bidding (100 free, more at $1 each)
    ========================================================= */
-const PACKS=[500,1000,2500,5000];
-function packsFor(short){const up=Math.ceil(short/10)*10, ps=PACKS.filter(p=>p>up).slice(0,2);return [up,...ps]}
+const PACKS=[10,25,50,100];
+function packsFor(short){const up=Math.max(10,Math.ceil(short)), ps=PACKS.filter(p=>p>up).slice(0,2);return [up,...ps]}
 function walletBox(need,n,rate){
  const av=availCredits(), short=c2(need-av), m=Bid.st?.acct?.method||AU.acct?.method||"upi";
  return `<div class="wbox${short>0?" short":""}">
-  <div class="wb-rows"><div><small>Free in your wallet</small><b>${usd2(av)}</b></div><div><small>${n>1?"These bids set":"This bid sets"} aside</small><b>${usd2(need)}</b></div><div><small>Left after</small><b>${short>0?"—":usd2(av-need)}</b></div></div>
-  ${short>0?`<p class="wb-msg">Add at least <b>${usd2(short)}</b> in credits${rate?" (bids are set aside with 18% GST)":""}.</p><div class="wb-packs">${packsFor(short).map((a,i)=>`<button type="button" class="${i?"chip-btn":"btn sm"}" data-topup="${a}">Add ${usd(a)}</button>`).join("")}</div><small class="wb-pay">Paid by ${m==="card"?"card":"UPI"} · 1 credit = $1 · unused credits can be withdrawn</small>`
-  :`<p class="wb-msg ok">Covered by your credits. They're set aside until close: deducted only if you win, free again the moment you're outbid.</p>`}
+  <div class="wb-rows"><div><small>Free in your wallet</small><b>${pts(av)}</b></div><div><small>${n>1?"These bids set":"This bid sets"} aside</small><b>${pts(need)}</b></div><div><small>Left after</small><b>${short>0?"—":pts(av-need)}</b></div></div>
+  ${short>0?`<p class="wb-msg">Get at least <b>${pts(short)}</b> more.</p><div class="wb-packs">${packsFor(short).map((a,i)=>`<button type="button" class="${i?"chip-btn":"btn sm"}" data-topup="${a}">Buy ${pts(a)} · ${usd(a)}</button>`).join("")}</div><small class="wb-pay">Paid by ${m==="card"?"card":"UPI"} · 1 point = $1${(Bid.st?.acct?.country||AU.acct?.country||"India")==="India"?" + 18% GST":""}</small>`
+  :`<p class="wb-msg ok">Covered by your points. They're set aside until close: spent only if you win, free again the moment you're outbid.</p>`}
  </div>`;
 }
 const Wallet={
@@ -458,26 +459,26 @@ const Wallet={
  render(){if(!$("sheetwrap").hidden&&$("sheet").querySelector(".wallet"))Sheet.set(Wallet.html())},
  html(){
   const w=AU.wallet, held=heldTotal(), av=availCredits(), m=AU.acct?.method||"upi", nLive=myOpen().filter(e=>setAside(e)>0).length;
-  return `<div class="sh-top"><div><span class="eyebrow">Bought. credits</span><h3>Your wallet</h3></div><button type="button" class="chip-btn" data-x>Close</button></div>
+  return `<div class="sh-top"><div><span class="eyebrow">Bought. points</span><h3>Your wallet</h3></div><button type="button" class="chip-btn" data-x>Close</button></div>
   <div class="sh-body wallet">
-   <div class="w-kpis"><div><small>Balance</small><b>${usd2(w.bal)}</b></div><div><small>Set aside</small><b>${usd2(held)}</b><span>${nLive} live bid${nLive===1?"":"s"}</span></div><div class="on"><small>Free to bid</small><b>${usd2(av)}</b></div></div>
-   <div class="w-add"><b>Add credits</b>
-    <div class="wb-packs">${PACKS.map(a=>`<button type="button" class="chip-btn" data-topup="${a}">+${usd(a)}</button>`).join("")}</div>
-    <div class="w-custom"><span class="money"><i>$</i><input id="w-amt" type="number" inputmode="numeric" min="50" step="50" placeholder="Other amount"></span><button type="button" class="btn sm" data-topup="custom">Add</button></div>
+   <div class="w-kpis"><div><small>Balance</small><b>${pts(w.bal)}</b>${w.free>0?`<span>${pts(Math.min(w.free,w.bal))} free</span>`:""}</div><div><small>Set aside</small><b>${pts(held)}</b><span>${nLive} live bid${nLive===1?"":"s"}</span></div><div class="on"><small>Free to bid</small><b>${pts(av)}</b></div></div>
+   <div class="w-add"><b>Buy points</b>
+    <div class="wb-packs">${PACKS.map(a=>`<button type="button" class="chip-btn" data-topup="${a}">+${pts(a)} · ${usd(a)}</button>`).join("")}</div>
+    <div class="w-custom"><span class="money"><i>+</i><input id="w-amt" type="number" inputmode="numeric" min="10" step="1" placeholder="Other amount"></span><button type="button" class="btn sm" data-topup="custom">Add</button></div>
     <fieldset class="methods"><legend>Pay with</legend><label><input type="radio" name="wpm" value="upi"${m!=="card"?" checked":""}> UPI <small>India</small></label><label><input type="radio" name="wpm" value="card"${m==="card"?" checked":""}> Card <small>any country</small></label></fieldset>
-    <p class="hint">1 credit = $1; in India you pay in rupees at the day's rate. Minimum top-up $50. Credits never expire.</p></div>
-   <div class="w-tx"><b>Activity</b>${w.tx.length?`<ul>${w.tx.map(x=>`<li><span>${esc(x.label)}<small>${dayShort(istISO(x.t))}, ${timeIST(x.t)} IST</small></span><b class="${x.amt<0?"neg":"pos"}">${x.amt<0?"−":"+"}${usd2(Math.abs(x.amt))}</b></li>`).join("")}</ul>`:`<p class="hint">No activity yet. Add credits to start bidding.</p>`}</div>
+    <p class="hint">1 point = $1. In India you pay in rupees at the day's rate, plus 18% GST. At least 10 points at a time. Points never expire.</p></div>
+   <div class="w-tx"><b>Activity</b>${w.tx.length?`<ul>${w.tx.map(x=>`<li><span>${esc(x.label)}<small>${dayShort(istISO(x.t))}, ${timeIST(x.t)} IST</small></span><b class="${x.amt<0?"neg":"pos"}">${x.amt<0?"−":"+"}${pts(Math.abs(x.amt))}</b></li>`).join("")}</ul>`:`<p class="hint">No activity yet.</p>`}</div>
    ${Live.on?"":`<p class="hint">Prototype: no payment details are collected and no money moves.</p>`}
   </div>
-  <div class="sh-acts">${av>0?`<button type="button" class="btn ghost" data-withdraw>Withdraw ${usd2(av)}</button>`:""}<button type="button" class="btn" data-x autofocus>Done</button></div>`;
+  <div class="sh-acts">${withdrawable()>0?`<button type="button" class="btn ghost" data-withdraw>Withdraw ${pts(withdrawable())}</button>`:""}<button type="button" class="btn" data-x autofocus>Done</button></div>`;
  },
  topup(btn){
   let amt=btn.dataset.topup;
-  if(amt==="custom"){amt=Math.round(+($("w-amt")?.value||0));if(!(amt>=50)){toast("Enter at least $50.");return}}else amt=+amt;
+  if(amt==="custom"){amt=Math.round(+($("w-amt")?.value||0));if(!(amt>=10)){toast("Buy at least 10 points at a time.");return}}else amt=+amt;
   const method=(document.querySelector('input[name="wpm"]:checked')||{}).value||Bid.st?.acct?.method||AU.acct?.method||"upi";
   btn.disabled=true;btn.textContent="Adding…";
   if(Live.on){Live.topup(btn,amt,method);return}
-  setTimeout(()=>{addCredits(amt,method);if(Bid.st){Bid.st.err="";Bid.render()}else Wallet.render();Adv.refresh(true);toast(`${usd(amt)} in credits added to your wallet.`)},reduce?0:800);
+  setTimeout(()=>{addCredits(amt,method);if(Bid.st){Bid.st.err="";Bid.render()}else Wallet.render();Adv.refresh(true);toast(`${pts(amt)} added to your wallet.`)},reduce?0:800);
  }
 };
 
@@ -489,7 +490,7 @@ function trimHTML(c){
  if(!c.file||!c.dur)return "";
  if(c.dur<=60)return `<p class="trim ok">Video length ${fmt(c.dur)}. It fits the 60-second limit.</p>`;
  const s=Math.min(c.trimStart||0,c.dur-60);
- return `<div class="trim"><b>Your video is ${fmt(c.dur)}. Only 60 seconds run.</b><label for="b-trim">Choose the minute that runs: <output id="b-trim-o">${fmt(s)} → ${fmt(s+60)}</output></label><input type="range" id="b-trim" min="0" max="${Math.floor(c.dur-60)}" step="1" value="${s}"><small>Everything outside this window is cut. Change it any time before 04:00 IST on issue day.</small></div>`;
+ return `<div class="trim"><b>Your video is ${fmt(c.dur)}. Only 60 seconds run.</b><label for="b-trim">Choose the minute that runs: <output id="b-trim-o">${fmt(s)} → ${fmt(s+60)}</output></label><input type="range" id="b-trim" min="0" max="${Math.floor(c.dur-60)}" step="1" value="${s}"><small>Everything outside this window is cut. Change it any time until bidding closes at 11:15 IST on issue day.</small></div>`;
 }
 const Rec={stream:null,mr:null,t0:0,timer:0,chunks:[],cancelled:false,
  async start(){
@@ -504,7 +505,7 @@ const Rec={stream:null,mr:null,t0:0,timer:0,chunks:[],cancelled:false,
   $("rec-v").srcObject=Rec.stream;Rec.chunks=[];Rec.cancelled=false;
   try{Rec.mr=lib?lib.recorderFor(Rec.stream,set.profile.cameraBitsPerSecond):new MediaRecorder(Rec.stream)}catch(e){Rec.release();Rec.fail();return}
   if(lib){Rec.unhold=lib.holdScreen();
-   Rec.unwatch=lib.watchTake($("rec-v"),Rec.stream,({face,sound})=>{const h=$("rec-hint");if(!h)return;const msg=Date.now()-Rec.t0<3000?"":face===false?"We can't see your face. Stay in the frame.":!sound?"We can't hear you. Check your microphone.":"";h.hidden=!msg;h.textContent=msg},set.profile.faceSampleMs)}
+   Rec.unwatch=lib.watchTake($("rec-v"),Rec.stream,({sound})=>{const h=$("rec-hint");if(!h)return;const msg=Date.now()-Rec.t0<3000?"":!sound?"We can't hear you. Check your microphone.":"";h.hidden=!msg;h.textContent=msg},set.profile.soundSampleMs)}
   Rec.mr.ondataavailable=e=>{if(e.data&&e.data.size)Rec.chunks.push(e.data)};
   Rec.mr.onstop=()=>{const elapsed=Date.now()-Rec.t0,secs=Math.max(1,Math.min(60,Math.round(elapsed/1000))), type=Rec.mr.mimeType||"video/webm";Rec.release();
    if(Rec.cancelled||!Bid.st){Rec.cancelled=false;return}

@@ -67,8 +67,6 @@
 			not path *.json
 		}
 		header @media Cache-Control "public, max-age=3600"
-		@mediapipe path /mediapipe/*
-		header @mediapipe Cache-Control "public, max-age=86400"
 		header ?Cache-Control "no-cache"
 		file_server {
 			precompressed br gzip

@@ -2,7 +2,6 @@ import { validMedia } from '../drop-domain';
 import { HttpError, required } from './config';
 import { basic, mux, providerRequest, type MuxAsset } from './providers';
 import { database, dbError, hmac, readBody, verifyWebhook } from './security';
-import { processMuxCaptionTrack } from './transcription';
 
 type Entity = {
   id: string;
@@ -70,94 +69,6 @@ export async function webhook(request: Request, provider: string) {
   if (provider === 'mux') {
     if (!event.id || !event.data)
       throw new HttpError(400, 'Missing event information.');
-    if (
-      [
-        'robots.job.translate_captions.completed',
-        'robots.job.translate_captions.errored',
-      ].includes(event.type ?? '')
-    ) {
-      const assetId = event.data.parameters?.asset_id;
-      if (!assetId) throw new HttpError(400, 'Missing caption asset identity.');
-      // The remaining languages are playback-only tracks. English is the one
-      // stored for editorial review and therefore the only translation whose
-      // completion changes the broadcast's transcription state.
-      if (event.data.parameters?.to_language_code !== 'en') return;
-      const asset = (
-        await mux<MuxAsset>(`assets/${encodeURIComponent(assetId)}`)
-      ).data;
-      if (!asset.upload_id) throw new HttpError(400, 'Missing upload identity.');
-      const { data: drop, error } = await db
-        .from('bought_ads')
-        .select('id,title,mux_asset_id,mux_playback_id,media_state')
-        .eq('mux_upload_id', asset.upload_id)
-        .maybeSingle();
-      dbError(error);
-      if (!drop) return;
-      if (drop.mux_asset_id !== assetId || drop.media_state !== 'ready')
-        throw new HttpError(503, 'The ready media event is still being linked.');
-      if (event.type === 'robots.job.translate_captions.errored') {
-        const { error: failError } = await db.rpc('bought_ad_fail_transcription', {
-          p_ad_id: drop.id,
-          p_asset_id: assetId,
-          p_error:
-            event.data.errors?.[0]?.message ??
-            'Mux could not translate these captions to English.',
-        });
-        dbError(failError);
-        return;
-      }
-      const playbackId =
-        drop.mux_playback_id ??
-        asset.playback_ids?.find((playback) => playback.policy === 'signed')
-          ?.id;
-      const trackId = event.data.outputs?.uploaded_track_id;
-      if (!playbackId || !trackId)
-        throw new HttpError(503, 'English captions are still being attached.');
-      await processMuxCaptionTrack({
-        dropId: drop.id,
-        assetId,
-        playbackId,
-        trackId,
-        title: drop.title,
-      });
-      return;
-    }
-    if (event.type === 'video.asset.track.ready') {
-      if (event.data.type !== 'text' || !event.data.asset_id || !event.data.id)
-        return;
-      const assetId = event.data.asset_id;
-      const asset = (
-        await mux<MuxAsset>(`assets/${encodeURIComponent(assetId)}`)
-      ).data;
-      if (!asset.upload_id)
-        throw new HttpError(400, 'Missing upload identity.');
-      const { data: drop, error } = await db
-        .from('bought_ads')
-        .select('id,title,mux_upload_id,mux_asset_id,mux_playback_id,media_state')
-        .eq('mux_upload_id', asset.upload_id)
-        .maybeSingle();
-      dbError(error);
-      if (!drop) return; // A replaced upload cannot update the current take.
-      if (drop.mux_asset_id !== assetId || drop.media_state !== 'ready')
-        throw new HttpError(
-          503,
-          'The ready media event is still being linked. Retry delivery.',
-        );
-      const playbackId =
-        drop.mux_playback_id ??
-        asset.playback_ids?.find((playback) => playback.policy === 'signed')
-          ?.id;
-      if (!playbackId)
-        throw new HttpError(503, 'Signed playback is still being linked.');
-      await processMuxCaptionTrack({
-        dropId: drop.id,
-        assetId,
-        playbackId,
-        trackId: event.data.id,
-        title: drop.title,
-      });
-      return;
-    }
     if (
       ![
         'video.asset.ready',

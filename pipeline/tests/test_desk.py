@@ -404,29 +404,22 @@ def test_private_files_are_not_served(web):
         assert "private" not in web.call("GET", path).text, path
 
 
-def test_ad_ids_cannot_reach_other_backend_paths():
-    from pipeline.server import quote_id
-    good = "c83fccdd-df06-4566-9cfc-3d12be1935b8"
-    assert quote_id(good) == good
-    for bad in ("../../cron", "x", "", None, good + "/review", "../admin/queue-aaaaaaaaaaaaaaaaaaaaaaaa"):
-        assert quote_id(bad) == "invalid"
-
-
-def test_ads_page_escapes_what_an_advertiser_typed():
+def test_ads_page_shows_money_out_and_what_sold_escaped():
     from pipeline import admin_pages as pages
-    ad = {"id": "c83fccdd-df06-4566-9cfc-3d12be1935b8", "spot": "top", "kind": "video", "state": "review", "advertiser": "<script>x</script>",
-          "fields": {"line": "<img src=x onerror=alert(1)>", "web": "javascript:alert(1)"}, "transcript_english": "<b>hi</b>"}
-    html = pages.ad_card(ad)
-    assert "<script>x" not in html and "<img src=x" not in html and "<b>hi" not in html
-    assert "javascript:" not in html
+    common = dict(date="2026-11-06", stage="review", settings={}, row=None, job=None, now=None, message="", error="")
+    data = {"withdrawals": [{"id": 3, "amount_minor": 5000, "requested_at": "2026-11-06T07:00:00Z"}],
+            "sold": [{"issue": "2026-11-07", "spot": "<b>top</b>", "price_minor": 2100, "status": "live", "invoice": "BGT-300-0001"}]}
+    html = pages.ads_page(running=True, status={"live": True}, data=data, **common)
+    assert "50 points = $50" in html and "21 points" in html and "<b>top</b>" not in html
+    assert "Approve" not in html and "Send back" not in html and "Transcript" not in html
 
 
 def test_ads_page_names_what_is_missing_and_never_values():
     from pipeline import admin_pages as pages
     common = dict(date="2026-11-06", stage="review", settings={}, row=None, job=None, now=None, message="", error="")
-    html = pages.ads_page(running=True, status={"live": False, "missing": ["MUX_TOKEN_ID"], "providers": {}}, queue={}, **common)
+    html = pages.ads_page(running=True, status={"live": False, "missing": ["MUX_TOKEN_ID"], "providers": {}}, data={}, **common)
     assert "MUX_TOKEN_ID" in html and "simulation" in html
-    assert "not running" in pages.ads_page(running=False, status={}, queue={}, **common)
+    assert "not running" in pages.ads_page(running=False, status={}, data={}, **common)
 
 
 def _get(web, path, **headers):
@@ -586,8 +579,8 @@ def test_no_software_names_in_answers(public, web):
 
 def test_the_page_gets_a_strict_content_security_policy(public, env):
     csp = public.call("GET", "/").headers["Content-Security-Policy"]
-    assert "script-src 'self' 'wasm-unsafe-eval' https://checkout.razorpay.com;" in csp
-    assert "object-src 'none'" in csp and "frame-ancestors 'self'" in csp and "'unsafe-eval'" not in csp.replace("wasm-unsafe-eval", "")
+    assert "script-src 'self' https://checkout.razorpay.com;" in csp
+    assert "object-src 'none'" in csp and "frame-ancestors 'self'" in csp and "unsafe-eval" not in csp
     assert "upgrade-insecure-requests" not in csp
     assert "upgrade-insecure-requests" in public.call("GET", "/", headers={"X-Forwarded-Proto": "https"}).headers["Content-Security-Policy"]
 

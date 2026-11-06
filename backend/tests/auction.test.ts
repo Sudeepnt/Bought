@@ -5,7 +5,7 @@ import type { PGlite } from '@electric-sql/pglite';
 import { testDatabase } from './support/database';
 
 type Row = Record<string, unknown>;
-// Issue date for every test: Sat 7 Nov 2026 (weekday multiplier 0.8). Closes Fri 6 Nov 22:00 IST = 16:30 UTC.
+// Issue date for every test: Sat 7 Nov 2026. It goes live at 06:00 UTC; bidding closes 05:45 UTC, 05:50 at the latest.
 const ISSUE = '2026-11-07';
 
 async function setClock(db: PGlite, at: string) {
@@ -14,6 +14,7 @@ async function setClock(db: PGlite, at: string) {
 async function one<T = Row>(db: PGlite, sql: string, args: unknown[] = []) {
   return (await db.query<T>(sql, args)).rows[0];
 }
+// an account holding `balance` bought points (no free ones), the way most tests want it
 async function user(db: PGlite, balance = 100000, country = 'India') {
   const id = randomUUID();
   await db.query('insert into auth.users(id) values ($1)', [id]);
@@ -23,10 +24,10 @@ async function user(db: PGlite, balance = 100000, country = 'India') {
   );
   return id;
 }
-async function ad(db: PGlite, owner: string, spot = 'feed-e', state = 'approved') {
+async function ad(db: PGlite, owner: string, spot = 'feed-e', state = 'ready') {
   const id = randomUUID();
   await db.query(
-    "insert into public.bought_ads(id,user_id,spot,kind,title,state,reviewed_at) values ($1,$2,$3,$4,'An ad',$5,public.test_now())",
+    "insert into public.bought_ads(id,user_id,spot,kind,title,state) values ($1,$2,$3,$4,'An ad',$5)",
     [id, owner, spot, spot === 'cls' ? 'classified' : 'image', state],
   );
   return id;
@@ -35,13 +36,13 @@ async function bid(
   db: PGlite,
   who: string,
   adId: string | null,
-  usd: number,
+  points: number,
   { spot = 'feed-e', mode = 'exact', issue = ISSUE } = {},
 ) {
   const row = await one<{ r: { ok: boolean; err?: string; credits?: boolean; short?: number; outbid?: boolean } }>(
     db,
     'select public.bought_ad_bid($1,$2,$3,$4,$5,$6) as r',
-    [who, issue, spot, mode, usd * 100, adId],
+    [who, issue, spot, mode, points * 100, adId],
   );
   return row.r;
 }
@@ -59,122 +60,149 @@ const spotRow = (db: PGlite, spot = 'feed-e') =>
   );
 const balance = async (db: PGlite, who: string) =>
   Number((await one<{ b: number }>(db, 'select balance_minor as b from public.bought_accounts where user_id=$1', [who])).b);
+const free = async (db: PGlite, who: string) =>
+  Number((await one<{ f: number }>(db, 'select free_minor as f from public.bought_accounts where user_id=$1', [who])).f);
+const held = async (db: PGlite, who: string) =>
+  Number((await one<{ h: number }>(db, 'select public.bought_ad_held($1) as h', [who])).h);
+const withdraw = async (db: PGlite, who: string, minor: number) =>
+  Number((await one<{ w: number }>(db, 'select public.bought_ad_withdraw($1,$2) as w', [who, minor])).w);
+async function signUp(db: PGlite, email: string) {
+  const id = randomUUID();
+  await db.query('insert into auth.users(id,email) values ($1,$2)', [id, email]);
+  const r = await one<{ r: { bonus: boolean } }>(db, "select public.bought_ad_open_account($1,$2,'Biz','India',null,'upi') as r", [id, email]);
+  return { id, bonus: r.r.bonus };
+}
 
-void test('reserves match the prices the Advertise page prints', async () => {
+void test('every spot starts at 1 point', async () => {
   const db = await testDatabase();
-  // data.template.js: DAY_MULT=[0.9,1,1,1.1,1.1,1.25,0.8], display rounded to $10, classifieds at least $5.
   const reserve = async (spot: string, issue: string) =>
     Number((await one<{ r: number }>(db, 'select public.bought_ad_reserve($1,$2) as r', [spot, issue])).r) / 100;
-  assert.equal(await reserve('top', '2026-11-08'), 540); // Sunday 0.9
-  assert.equal(await reserve('half', '2026-11-13'), 880); // Friday 1.25 → 875 → 880
-  assert.equal(await reserve('feed-e', ISSUE), 140); // Saturday 0.8 → 144 → 140
-  assert.equal(await reserve('cls', ISSUE), 5);
+  for (const spot of ['top', 'front', 'feed-a', 'half', 'feed-e', 'clip', 'cls']) {
+    assert.equal(await reserve(spot, ISSUE), 1, spot);
+    assert.equal(await reserve(spot, '2026-11-13'), 1, spot);
+  }
   await db.close();
 });
 
-void test('bidding opens at D-7 07:00 IST and closes at D-1 22:00 IST', async () => {
-  const db = await testDatabase('2026-10-31T01:29:00Z'); // 06:59 IST on D-7
+void test('bidding opens at D-7 06:00 UTC and closes at 05:45 UTC on the day, 15 minutes before the issue', async () => {
+  const db = await testDatabase('2026-10-31T05:59:00Z');
   const a = await user(db);
   const adId = await ad(db, a);
-  assert.match((await bid(db, a, adId, 200)).err ?? '', /not opened/);
-  await setClock(db, '2026-10-31T01:30:00Z');
-  assert.equal((await bid(db, a, adId, 200)).ok, true);
-  await setClock(db, '2026-11-06T16:30:00Z');
-  assert.match((await bid(db, a, adId, 300)).err ?? '', /closed/);
+  assert.match((await bid(db, a, adId, 2)).err ?? '', /not opened/);
+  await setClock(db, '2026-10-31T06:00:00Z');
+  assert.equal((await bid(db, a, adId, 2)).ok, true);
+  await setClock(db, '2026-11-07T05:44:59Z');
+  assert.equal((await bid(db, a, adId, 3)).ok, true);
+  await setClock(db, '2026-11-07T05:50:00Z');
+  assert.match((await bid(db, a, adId, 4)).err ?? '', /closed/);
   await db.close();
 });
 
-void test('a bid must meet the reserve, then the increment', async () => {
+void test('a bid must meet the 1-point reserve, then go up a point at a time', async () => {
   const db = await testDatabase();
   const [a, b] = [await user(db), await user(db)];
   const [adA, adB] = [await ad(db, a), await ad(db, b)];
-  assert.match((await bid(db, a, adA, 130)).err ?? '', /minimum bid is \$140/);
-  assert.equal((await bid(db, a, adA, 140)).ok, true);
-  assert.match((await bid(db, b, adB, 145)).err ?? '', /minimum bid is \$150/);
-  assert.equal((await bid(db, b, adB, 150)).ok, true);
+  assert.match((await bid(db, a, adA, 0)).err ?? '', /whole points/);
+  assert.equal((await bid(db, a, adA, 1)).ok, true);
+  assert.match((await bid(db, b, adB, 1)).err ?? '', /minimum bid is 2 points/);
+  assert.equal((await bid(db, b, adB, 2)).ok, true);
   assert.equal((await status(db, a)).status, 'outbid');
   assert.equal((await status(db, b)).status, 'leading');
   await db.close();
 });
 
-void test('auto-raise answers one increment above, never past the maximum, hidden from others', async () => {
+void test('auto-raise answers one point above, never past the maximum, hidden from others', async () => {
   const db = await testDatabase();
   const [a, b, c] = [await user(db), await user(db), await user(db)];
   const [adA, adB, adC] = [await ad(db, a), await ad(db, b), await ad(db, c)];
-  assert.equal((await bid(db, a, adA, 300, { mode: 'auto' })).ok, true);
-  assert.equal((await status(db, a)).amount_minor, 14000); // leads at the reserve, not the maximum
-  assert.equal((await spotRow(db)).high_minor, 14000);
-
-  const r = await bid(db, b, adB, 200);
+  assert.equal((await bid(db, a, adA, 30, { mode: 'auto' })).ok, true);
+  assert.equal((await status(db, a)).amount_minor, 100); // leads at the reserve, not the maximum
+  const r = await bid(db, b, adB, 20);
   assert.equal(r.ok, true);
   assert.equal(r.outbid, true);
-  assert.equal((await status(db, a)).status, 'leading');
-  assert.equal((await status(db, a)).amount_minor, 21000);
+  assert.equal((await status(db, a)).amount_minor, 2100);
   assert.equal((await status(db, b)).status, 'outbid');
-
-  // Equal maximums go to the earlier bid.
-  assert.equal((await bid(db, b, adB, 300)).outbid, true);
-  assert.equal((await status(db, a)).amount_minor, 30000);
-
-  // Past the maximum, the challenger wins at their exact bid and the old leader's hold is freed.
-  assert.equal((await bid(db, c, adC, 400)).ok, true);
+  assert.equal((await bid(db, b, adB, 30)).outbid, true); // equal maximums go to the earlier bid
+  assert.equal((await status(db, a)).amount_minor, 3000);
+  assert.equal((await bid(db, c, adC, 40)).ok, true);
   assert.equal((await status(db, c)).status, 'leading');
   assert.equal((await status(db, a)).status, 'outbid');
-  const market = await one<{ m: { spots: Record<string, { hist: { h: string }[]; leader: string }> } }>(
-    db,
-    'select public.bought_ad_market($1) as m',
-    [b],
-  );
-  const raw = JSON.stringify(market.m);
-  assert.ok(!raw.includes(a), 'no other bidder identity in the market');
-  // c's hidden maximum is never shown to anyone else.
-  assert.equal((await bid(db, c, adC, 777, { mode: 'auto' })).ok, true);
+  const market = await one<{ m: unknown }>(db, 'select public.bought_ad_market($1) as m', [b]);
+  assert.ok(!JSON.stringify(market.m).includes(a), 'no other bidder identity in the market');
+  assert.equal((await bid(db, c, adC, 77, { mode: 'auto' })).ok, true);
   const later = await one<{ m: unknown }>(db, 'select public.bought_ad_market($1) as m', [b]);
-  assert.ok(!JSON.stringify(later.m).includes('77700'), 'no hidden maximum in the market');
+  assert.ok(!JSON.stringify(later.m).includes('7700'), 'no hidden maximum in the market');
   await db.close();
 });
 
-void test('credits: a bid sets aside maximum plus tax and being outbid frees it', async () => {
+void test('points: a bid sets aside its maximum, no tax, and being outbid frees it', async () => {
   const db = await testDatabase();
-  const a = await user(db, 200); // $200, India: 18% GST
-  const b = await user(db, 10000);
+  const a = await user(db, 20); // 20 bought points, India
+  const b = await user(db, 1000);
   const [adA, adB] = [await ad(db, a), await ad(db, b)];
-  const short = await bid(db, a, adA, 170); // needs 170 x 1.18 = 200.60
+  const short = await bid(db, a, adA, 21);
   assert.equal(short.ok, false);
   assert.equal(short.credits, true);
-  assert.equal(short.short, 60);
-  assert.equal((await bid(db, a, adA, 160)).ok, true); // holds 188.80
-  const held = await one<{ h: number }>(db, 'select public.bought_ad_held($1,0.18) as h', [a]);
-  assert.equal(Number(held.h), 18880);
-  assert.equal(await balance(db, a), 20000); // nothing has left the wallet
-  assert.equal(Number(await one<{ w: number }>(db, 'select public.bought_ad_withdraw($1,20000) as w', [a]).then((x) => x.w)), 1120);
-  assert.equal((await bid(db, b, adB, 170)).ok, true);
-  assert.equal(Number((await one<{ h: number }>(db, 'select public.bought_ad_held($1,0.18) as h', [a])).h), 0);
+  assert.equal(short.short, 100);
+  assert.match(short.err ?? '', /1 point more/);
+  assert.equal((await bid(db, a, adA, 16)).ok, true);
+  assert.equal(await held(db, a), 1600);
+  assert.equal(await balance(db, a), 2000); // nothing has left the wallet
+  assert.equal(await withdraw(db, a, 2000), 400); // only what isn't set aside
+  assert.equal((await bid(db, b, adB, 17)).ok, true);
+  assert.equal(await held(db, a), 0);
   await db.close();
 });
 
-void test('no GST outside India', async () => {
+void test('100 free points once per email; spent first; never withdrawn', async () => {
   const db = await testDatabase();
-  const a = await user(db, 200, 'United States');
-  assert.equal((await bid(db, a, await ad(db, a), 200)).ok, true);
+  const first = await signUp(db, 'Asha@Example.com');
+  assert.equal(first.bonus, true);
+  assert.equal(await balance(db, first.id), 10000);
+  assert.equal(await free(db, first.id), 10000);
+  const again = await one<{ r: { bonus: boolean } }>(db, "select public.bought_ad_open_account($1,'asha@example.com','Biz 2','India',null,'card') as r", [first.id]);
+  assert.equal(again.r.bonus, false, 'saving the account again gives nothing');
+  const remade = await signUp(db, 'asha@example.com'); // the same email on a new sign-in account
+  assert.equal(remade.bonus, false);
+  assert.equal(await balance(db, remade.id), 0);
+  const tx = await one<{ label: string; kind: string }>(db, 'select label,kind from public.bought_wallet_tx where user_id=$1', [first.id]);
+  assert.deepEqual(tx, { label: '100 free points to start', kind: 'bonus' });
+
+  assert.equal(await withdraw(db, first.id, 10000), 0, 'free points never go to a bank');
+  await db.query("update public.bought_accounts set balance_minor = balance_minor + 5000 where user_id=$1", [first.id]); // 50 bought
+  assert.equal(await withdraw(db, first.id, 100000), 5000);
+  await db.query("update public.bought_accounts set balance_minor = balance_minor + 5000 where user_id=$1", [first.id]);
+  // win 120 points: the 100 free go first, then 20 bought; 30 bought remain and only those can be withdrawn
+  const rival = await user(db, 1000);
+  await bid(db, first.id, await ad(db, first.id), 120);
+  await bid(db, rival, await ad(db, rival), 5, { spot: 'top' });
+  await setClock(db, '2026-11-07T05:46:00Z');
+  await one(db, 'select public.bought_ad_tick()');
+  assert.equal(await balance(db, first.id), 3000);
+  assert.equal(await free(db, first.id), 0);
+  assert.equal(await withdraw(db, first.id, 100000), 3000);
   await db.close();
 });
 
-void test('a late bid extends only that spot, up to 22:30 IST', async () => {
+void test('a late bid extends only that spot, and never past 05:50 UTC', async () => {
   const db = await testDatabase();
   const [a, b] = [await user(db), await user(db)];
   const [adA, adB] = [await ad(db, a), await ad(db, b)];
-  await bid(db, a, adA, 200);
-  await setClock(db, '2026-11-06T16:27:00Z'); // 21:57 IST
-  await bid(db, b, adB, 210);
+  await bid(db, a, adA, 20);
+  await setClock(db, '2026-11-07T05:42:00Z');
+  await bid(db, b, adB, 21);
   const s = await spotRow(db);
   assert.equal(s.ext, 1);
-  assert.equal(new Date(s.closes_at).toISOString(), '2026-11-06T16:32:00.000Z');
-  assert.equal(new Date((await spotRow(db, 'top')).closes_at).toISOString(), '2026-11-06T16:30:00.000Z');
-  await setClock(db, '2026-11-06T16:58:00Z'); // bids keep it open: walk the close forward first
-  await db.query("update public.bought_issue_spots set closes_at='2026-11-06T16:59:00Z' where issue=$1 and spot='feed-e'", [ISSUE]);
-  await bid(db, a, adA, 220);
-  assert.equal(new Date((await spotRow(db)).closes_at).toISOString(), '2026-11-06T17:00:00.000Z'); // hard stop
+  assert.equal(new Date(s.closes_at).toISOString(), '2026-11-07T05:47:00.000Z');
+  assert.equal(new Date((await spotRow(db, 'top')).closes_at).toISOString(), '2026-11-07T05:45:00.000Z');
+  await setClock(db, '2026-11-07T05:46:30Z');
+  await bid(db, a, adA, 22);
+  assert.equal(new Date((await spotRow(db)).closes_at).toISOString(), '2026-11-07T05:50:00.000Z'); // the hard stop
+  await setClock(db, '2026-11-07T05:49:00Z');
+  await bid(db, b, adB, 23);
+  assert.equal(new Date((await spotRow(db)).closes_at).toISOString(), '2026-11-07T05:50:00.000Z');
+  const note = await one<{ msg: string }>(db, "select msg from public.bought_ad_notices where kind='ext' order by id desc limit 1");
+  assert.match(note.msg, /to 11:20 IST/);
   await db.close();
 });
 
@@ -186,91 +214,92 @@ void test('classifieds: top 8 run, pay as bid, falling out frees the hold and no
     assert.equal((await bid(db, users[i], await ad(db, users[i], 'cls'), 10 + i, { spot: 'cls' })).ok, true);
   const last = users[8];
   const adL = await ad(db, last, 'cls');
-  assert.match((await bid(db, last, adL, 10, { spot: 'cls' })).err ?? '', /minimum to get into the top 8 is \$11/);
+  assert.match((await bid(db, last, adL, 10, { spot: 'cls' })).err ?? '', /minimum to get into the top 8 is 11 points/);
   assert.equal((await bid(db, last, adL, 11, { spot: 'cls' })).ok, true);
   assert.equal((await status(db, users[0], 'cls')).status, 'out');
   assert.equal((await status(db, last, 'cls')).status, 'in');
-  assert.equal(Number((await one<{ h: number }>(db, 'select public.bought_ad_held($1,0.18) as h', [users[0]])).h), 0);
+  assert.equal(await held(db, users[0]), 0);
   const note = await one<{ msg: string }>(db, 'select msg from public.bought_ad_notices where user_id=$1', [users[0]]);
   assert.match(note.msg, /below line 8/);
   await db.close();
 });
 
-void test('settling charges winners once, frees everyone else, and a repeat run changes nothing', async () => {
+void test('settling spends winners\' points once, frees everyone else, and a repeat run changes nothing', async () => {
   const db = await testDatabase();
   const [a, b] = [await user(db, 1000), await user(db, 1000)];
   const [adA, adB] = [await ad(db, a), await ad(db, b)];
   await bid(db, a, adA, 300, { mode: 'auto' });
   await bid(db, b, adB, 200);
   assert.equal(Number((await one<{ n: number }>(db, 'select public.bought_ad_settle($1) as n', [ISSUE])).n), 0); // still open
-  await setClock(db, '2026-11-06T16:31:00Z');
+  await setClock(db, '2026-11-07T05:45:00Z');
   await one(db, 'select public.bought_ad_tick()');
   await one(db, 'select public.bought_ad_tick()');
   assert.equal((await status(db, a)).status, 'won');
   assert.equal((await status(db, b)).status, 'lost');
-  // Wins at $210 (one increment past the next bidder) + 18% GST = $247.80.
-  assert.equal(await balance(db, a), 100000 - 24780);
+  assert.equal(await balance(db, a), 100000 - 20100); // 201 points: one past the next bidder, no tax
   assert.equal(await balance(db, b), 100000);
   const count = await one<{ c: number }>(db, 'select count(*)::int c from public.bought_ad_results');
   assert.equal(count.c, 1);
   const invoice = await one<{ invoice: string }>(db, 'select invoice from public.bought_ad_results');
-  assert.equal(invoice.invoice, 'BGT-300-0001'); // issue 300 = 287 + 13 days after 25 Oct
+  assert.equal(invoice.invoice, 'BGT-300-0001');
+  const note = await one<{ msg: string }>(db, "select msg from public.bought_ad_notices where user_id=$1 and kind='close'", [a]);
+  assert.match(note.msg, /spent 201 points/);
   await db.close();
 });
 
-void test('05:00 IST: an unapproved winner is refunded and the next bidder runs', async () => {
+void test('going live: ready ads run with no review; a winner whose ad isn\'t ready gets every point back', async () => {
   const db = await testDatabase();
-  const [a, b] = [await user(db, 1000), await user(db, 1000)];
-  const adA = await ad(db, a, 'feed-e', 'review');
-  const adB = await ad(db, b);
-  await bid(db, b, adB, 200);
-  await bid(db, a, adA, 300);
-  await setClock(db, '2026-11-06T16:31:00Z');
+  const late = await signUp(db, 'late@example.com'); // 100 free points
+  const [ready, rival] = [await user(db, 1000), await user(db, 1000)];
+  const adLate = await ad(db, late.id, 'feed-e', 'processing');
+  await bid(db, late.id, adLate, 40);
+  await bid(db, ready, await ad(db, ready, 'top'), 30, { spot: 'top' });
+  await bid(db, rival, await ad(db, rival, 'top'), 10, { spot: 'top' });
+  await setClock(db, '2026-11-07T05:51:00Z');
   await one(db, 'select public.bought_ad_tick()');
-  assert.equal(await balance(db, a), 100000 - 35400);
-  await setClock(db, '2026-11-06T23:29:00Z'); // 04:59 IST
-  await one(db, 'select public.bought_ad_tick()');
-  assert.equal(await balance(db, a), 100000 - 35400);
-  await setClock(db, '2026-11-06T23:30:00Z'); // 05:00 IST
-  await one(db, 'select public.bought_ad_tick()');
-  assert.equal(await balance(db, a), 100000);
-  assert.equal(await balance(db, b), 100000 - 23600);
-  assert.equal((await status(db, b)).status, 'won');
-  await one(db, 'select public.bought_ad_tick()');
-  assert.equal(await balance(db, b), 100000 - 23600);
+  assert.equal(await balance(db, late.id), 6000);
+  assert.equal(await free(db, late.id), 6000);
+  await setClock(db, '2026-11-07T06:00:00Z');
   assert.equal(Number((await one<{ n: number }>(db, 'select public.bought_ad_mark_live($1) as n', [ISSUE])).n), 1);
-  const winners = await one<{ w: { spot: string; amt: number; adv: string }[] }>(db, 'select public.bought_ad_winners($1) as w', [ISSUE]);
-  assert.equal(winners.w.length, 1);
-  assert.equal(Number(winners.w[0].amt), 20000);
-  assert.ok(!JSON.stringify(winners.w).includes(b), 'winners carry no user ID');
+  assert.equal(await balance(db, late.id), 10000, 'every point back');
+  assert.equal(await free(db, late.id), 10000, 'free points come back as free');
+  const note = await one<{ msg: string }>(db, "select msg from public.bought_ad_notices where user_id=$1 order by id desc limit 1", [late.id]);
+  assert.match(note.msg, /wasn't ready.*40 points are back/);
+  const winners = await one<{ w: { spot: string; amt: number }[] }>(db, 'select public.bought_ad_winners($1) as w', [ISSUE]);
+  assert.deepEqual(winners.w.map((w) => [w.spot, Number(w.amt)]), [['top', 3000]]);
+  assert.ok(!JSON.stringify(winners.w).includes(ready), 'winners carry no user ID');
+  assert.equal(Number((await one<{ n: number }>(db, 'select public.bought_ad_mark_live($1) as n', [ISSUE])).n), 0, 'a second call changes nothing');
+  assert.equal(await balance(db, late.id), 10000);
   await db.close();
 });
 
-void test('only a matching signed payment adds credits, once, and a reversal removes them', async () => {
+void test('only a matching signed payment adds points, once, and a reversal removes them', async () => {
   const db = await testDatabase();
   const a = await user(db, 0);
   const id = randomUUID();
   await db.query(
-    "insert into public.bought_topups(id,user_id,credit_minor,charge_minor,charge_currency,provider,method,payment_reference) values ($1,$2,10000,8500000,'INR','razorpay','upi','order_1')",
+    "insert into public.bought_topups(id,user_id,credit_minor,tax_minor,charge_minor,charge_currency,provider,method,payment_reference) values ($1,$2,10000,1800,1003000,'INR','razorpay','upi','order_1')",
     [id, a],
   );
   const pay = (amount: number, currency: string, event: string, state = 'paid') =>
     db.query('select public.bought_ad_payment_event($1,$2,$3,$4,$5,$6,$7)', ['razorpay', event, 'order_1', 'pay_1', amount, currency, state]);
   await assert.rejects(pay(100, 'INR', 'e0'), /does not match/);
-  await assert.rejects(pay(8500000, 'USD', 'e0'), /does not match/);
+  await assert.rejects(pay(1003000, 'USD', 'e0'), /does not match/);
   assert.equal(await balance(db, a), 0);
-  await pay(8500000, 'INR', 'e1');
-  await pay(8500000, 'INR', 'e1');
-  await pay(8500000, 'INR', 'e2');
+  await pay(1003000, 'INR', 'e1');
+  await pay(1003000, 'INR', 'e1');
+  await pay(1003000, 'INR', 'e2');
   assert.equal(await balance(db, a), 10000);
-  await pay(8500000, 'INR', 'e3', 'refunded');
+  const tx = await one<{ label: string }>(db, "select label from public.bought_wallet_tx where user_id=$1 and kind='topup'", [a]);
+  assert.equal(tx.label, 'Points bought · UPI');
+  await pay(1003000, 'INR', 'e3', 'refunded');
   assert.equal(await balance(db, a), 0);
-  await pay(8500000, 'INR', 'e4');
+  await pay(1003000, 'INR', 'e4');
   assert.equal(await balance(db, a), 0, 'a late capture cannot revive a reversed payment');
   await db.close();
 });
 
-void test('media: a replaced upload cannot touch the current take, and approval needs a transcript', async () => {
+void test('media: a replaced upload cannot touch the current take; a ready video is ready, a broken one is sent back', async () => {
   const db = await testDatabase();
   const a = await user(db);
   const id = randomUUID();
@@ -278,33 +307,37 @@ void test('media: a replaced upload cannot touch the current take, and approval 
   assert.equal((await one<{ c: boolean }>(db, 'select public.bought_ad_claim_upload($1) as c', [id])).c, true);
   await db.query("update public.bought_ads set mux_upload_id='up1',mux_upload_url='https://x',mux_upload_expires_at=public.test_now()+interval '2 hours',media_state='waiting',upload_claimed_at=null where id=$1", [id]);
   await db.query('select public.bought_ad_submit($1)', [id]);
-  assert.equal((await one<{ state: string }>(db, 'select state from public.bought_ads where id=$1', [id])).state, 'processing');
-  const event = (eventId: string, upload: string, ready = true, valid = true) =>
-    db.query('select public.bought_ad_media_event($1,$2,$3,$4,$5,$6,$7)', [eventId, upload, 'asset1', 'play1', ready, valid, null]);
+  const state = async () => (await one<{ state: string; media_state: string; problem: string | null }>(db, 'select state,media_state,problem from public.bought_ads where id=$1', [id]));
+  assert.equal((await state()).state, 'processing');
+  const event = (eventId: string, upload: string, ready = true, valid = true, reason: string | null = null) =>
+    db.query('select public.bought_ad_media_event($1,$2,$3,$4,$5,$6,$7)', [eventId, upload, 'asset1', 'play1', ready, valid, reason]);
   await event('e0', 'old-upload');
-  assert.equal((await one<{ media_state: string }>(db, 'select media_state from public.bought_ads where id=$1', [id])).media_state, 'waiting');
+  assert.equal((await state()).media_state, 'waiting');
   await event('e1', 'up1');
-  assert.equal((await one<{ state: string }>(db, 'select state from public.bought_ads where id=$1', [id])).state, 'review');
-  await assert.rejects(db.query('select public.bought_ad_review($1,true)', [id]), /transcript/);
-  assert.equal((await one<{ c: boolean }>(db, "select public.bought_ad_claim_transcription($1,'asset1') as c", [id])).c, true);
-  await db.query("select public.bought_ad_finish_transcription($1,'asset1','Hello world.','WEBVTT\n\n')", [id]);
-  await db.query('select public.bought_ad_review($1,true)', [id]);
-  assert.equal((await one<{ state: string }>(db, 'select state from public.bought_ads where id=$1', [id])).state, 'approved');
+  assert.equal((await state()).state, 'ready');
+  // a retake that Mux can't use comes back to the advertiser with the reason
+  assert.equal((await one<{ c: boolean }>(db, 'select public.bought_ad_claim_upload($1,true) as c', [id])).c, true);
+  await db.query("update public.bought_ads set mux_upload_id='up2',media_state='waiting',upload_claimed_at=null where id=$1", [id]);
+  await db.query('select public.bought_ad_submit($1)', [id]);
+  await event('e2', 'up2', true, false, 'Your video needs a picture and a sound track.');
+  assert.deepEqual(await state(), { state: 'rejected', media_state: 'errored', problem: 'Your video needs a picture and a sound track.' });
   await db.close();
 });
 
-void test('the market shows a stranger public numbers and a bidder their own bids', async () => {
+void test('the market shows a stranger public numbers and a bidder their own bids and free points', async () => {
   const db = await testDatabase();
-  const a = await user(db);
-  await bid(db, a, await ad(db, a), 200);
-  type Market = { dates: string[]; me: null | { my: { d: string; k: string; status: string }[]; balance: number }; spots: Record<string, { high: number; leader: string }> };
+  const a = await signUp(db, 'm@example.com');
+  await bid(db, a.id, await ad(db, a.id), 20);
+  type Market = { dates: string[]; me: null | { my: Record<string, unknown>[]; balance: number; free: number }; spots: Record<string, { high: number; leader: string }> };
   const anon = (await one<{ m: Market }>(db, 'select public.bought_ad_market(null) as m')).m;
   assert.ok(anon.dates.includes(ISSUE));
   assert.equal(anon.me, null);
-  assert.equal(Number(anon.spots[`${ISSUE}|feed-e`].high), 20000);
+  assert.equal(Number(anon.spots[`${ISSUE}|feed-e`].high), 2000);
   assert.equal(anon.spots[`${ISSUE}|feed-e`].leader, 'rival');
-  const own = (await one<{ m: Market }>(db, 'select public.bought_ad_market($1) as m', [a])).m;
+  const own = (await one<{ m: Market }>(db, 'select public.bought_ad_market($1) as m', [a.id])).m;
   assert.equal(own.me?.my[0].status, 'leading');
+  assert.equal(Number(own.me?.free), 10000);
+  assert.ok(!('review' in (own.me?.my[0] ?? {})), 'no review state any more');
   assert.equal(own.spots[`${ISSUE}|feed-e`].leader, 'me');
   await db.close();
 });
@@ -331,7 +364,7 @@ void test('the service role the API runs as can do the whole job', async () => {
   assert.equal((await bid(db, b, adB, 200)).ok, true);
   await one(db, 'select public.bought_ad_market($1)', [a]);
   await db.exec('reset role');
-  await setClock(db, '2026-11-06T23:31:00Z');
+  await setClock(db, '2026-11-07T05:51:00Z');
   await db.exec('set role service_role');
   await one(db, 'select public.bought_ad_tick()');
   assert.equal((await status(db, a)).status, 'won');
@@ -339,6 +372,11 @@ void test('the service role the API runs as can do the whole job', async () => {
   await one(db, 'select public.bought_ad_winners($1)', [ISSUE]);
   await one(db, "select public.bought_ad_count($1,'feed-e','view')", [ISSUE]);
   await one(db, 'select public.bought_ad_withdraw($1,100)', [b]);
+  await db.exec('reset role');
+  const c = randomUUID();
+  await db.query("insert into auth.users(id,email) values ($1,'svc@example.com')", [c]);
+  await db.exec('set role service_role');
+  await one(db, "select public.bought_ad_open_account($1,'svc@example.com','Biz','India',null,'upi')", [c]);
   await db.exec('reset role');
   await db.close();
 });

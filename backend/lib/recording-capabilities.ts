@@ -21,7 +21,7 @@ export function recordingProfile({
         height: 540,
         cameraBitsPerSecond: 1_800_000,
         screenBitsPerSecond: 2_200_000,
-        faceSampleMs: 650,
+        soundSampleMs: 650,
         frameRate: 24,
       }
     : {
@@ -29,7 +29,7 @@ export function recordingProfile({
         height: 720,
         cameraBitsPerSecond: 2_500_000,
         screenBitsPerSecond: 3_000_000,
-        faceSampleMs: 400,
+        soundSampleMs: 400,
         frameRate: 30,
       };
 }

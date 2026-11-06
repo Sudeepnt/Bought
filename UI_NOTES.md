@@ -44,9 +44,9 @@ The masthead's top-right control steps to the previous or next issue (‹ ›) a
 
 Every display ad carries small links to the advertiser's website (required), a social profile (LinkedIn, X, Instagram, YouTube and so on; optional) and an email address (optional). They're collected in the ad step of the bid flow, checked (a bare `yourcompany.com` is accepted and saved as `https://…`), previewed, listed on the review step, and shown on the ad as chips; on phones the top banner shows them as icons. Links open in a new tab with `rel="noopener sponsored"`; email opens the mail app. Helpers: `adLinks`, `normUrl`, `hostOf`, `socialName` in `js/media.js`.
 
-## Wallet credits for advertisers
+## Points for advertisers
 
-Advertisers bid from prepaid credits (1 credit = $1), topped up by UPI or card from the wallet chip on Advertise or inline at the review step. A live bid sets aside its maximum plus tax; being outbid frees those credits at once; at close the winners' credits are deducted and an invoice is issued. A bid that free credits can't cover is refused with the exact shortfall and one-tap top-ups. Free credits can be withdrawn. Engine: `availCredits`, `heldTotal`, `addCredits`, `withdrawCredits` and the check at the top of `placeBid` in `js/auction.js`; UI: `Wallet` and `walletBox` in `js/advertise.js`.
+Advertisers bid in points. Every new advertiser gets 100 free points; more cost $1 each (plus 18% GST in India), bought by UPI or card from the wallet chip on Advertise or inline at the review step. Every spot starts at 1 point and rises 1 point at a time. A live bid sets aside its maximum; being outbid frees those points at once; at close the winners' points are spent, free ones first, and a receipt is issued. A bid that free points can't cover is refused with the exact shortfall and one-tap buys. Only unused bought points can be withdrawn (`withdrawable`). Amounts are shown with `pts()` in `js/core.js`; `usd()` is only for real money. Engine: `availCredits`, `heldTotal`, `addCredits`, `withdrawCredits` and the check at the top of `placeBid` in `js/auction.js`; UI: `Wallet` and `walletBox` in `js/advertise.js`.
 
 ## How this issue was made
 
@@ -67,7 +67,7 @@ Every story has a Reddit-style thread under it (open the story, or tap the comme
 
 ## The auction in one paragraph
 
-Each issue has 6 display spots and 8 classified lines, in fixed template positions. Every display spot takes a video (recorded in the browser or on the phone camera, or uploaded; anything over 60 seconds is cut at 60 s and the advertiser picks which minute runs) or an image; classifieds are text only. Bidding for an issue opens 7 days ahead at 07:00 IST and closes at 22:00 IST the night before; a bid in a spot's last 5 minutes extends that spot by 5 minutes, hard stop 22:30. The highest bid wins each display spot (ties go to the earlier bid); the 8 highest classified bids run, ordered by bid. Auto-raise bids for you up to a hidden maximum. A hold for the maximum plus tax is placed at bid time (2 days before close for far-out issues); at close, winners are charged the winning price and every other hold is released. Ads are reviewed within 2 hours and always before 04:00 IST; unfixed ads by 05:00 forfeit to the runner-up. Full rules and edge cases: `#spec`.
+Each issue has 6 display spots and 8 classified lines, in fixed template positions. Every display spot takes a video (recorded in the browser or on the phone camera, or uploaded; anything over 60 seconds is cut at 60 s and the advertiser picks which minute runs) or an image; classifieds are text only. Bidding for an issue opens 7 days ahead at 11:30 IST and closes at 11:15 IST on the issue day (05:45 UTC); a bid in a spot's last 5 minutes extends that spot by 5 minutes, hard stop 11:20 IST. The issue goes live at 11:30 IST (06:00 UTC). There is no ad review. The highest bid wins each display spot (ties go to the earlier bid); the 8 highest classified bids run, ordered by bid. Auto-raise bids for you up to a hidden maximum. A hold for the maximum plus tax is placed at bid time (2 days before close for far-out issues); at close, winners are charged the winning price and every other hold is released. Ads are reviewed within 2 hours and always before 04:00 IST; unfixed ads by 05:00 forfeit to the runner-up. Full rules and edge cases: `#spec`.
 
 ## What's simulated
 
@@ -78,10 +78,10 @@ Rival bidders, the clock ("Prototype controls" fast-forward and close), payments
 
 ## Production checklist
 
-- Auction service: per-auction row lock on every bid, server timestamps, websocket events (`bid`, `auto_raise`, `outbid`, `extended`, `closed`, `settled`, `review`).
-- Scheduled jobs: open D−7, close watch from 21:55, settle on each spot's close, capture/release, payment-failure fallback (30 min), hold placement at D−2 for far-out bids, review SLA, 04:00 final check, 05:00 runner-up swap, 07:00 publish, D+1 reports.
+- Auction service: per-auction row lock on every bid, server timestamps, websocket events (`bid`, `auto_raise`, `outbid`, `extended`, `closed`, `settled`, `live`).
+- Scheduled jobs: open D−7, close watch from 11:10 IST, settle on each spot's close, 11:30 IST publish, D+1 reports.
 - Payments: authorise-then-capture (UPI one-time mandate or card authorisation in India; manual-capture card payments elsewhere). Check hold expiry rules with your provider.
-- Advertiser video: managed upload, transcoding and captions; render thumbnail text server-side over a frame.
+- Advertiser video: managed upload and transcoding; render thumbnail text server-side over a frame.
 - Accounts: business verification (GSTIN in India), one account per business, linked-account detection.
 - Engagement: one vote and one reaction per reader, rate-limited.
 - Accessibility: keep the keyboard paths (Esc closes, arrows move between stories in the reader), focus return, and reduced-motion handling.

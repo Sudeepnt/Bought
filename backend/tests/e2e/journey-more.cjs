@@ -21,7 +21,7 @@ async function ctx(b,name,opts={}){const c=await b.newContext({viewport:{width:1
  await c.route('https://storage.googleapis.com/fake-mux/**',async r=>{const q=r.request();if(q.method()==='OPTIONS')return r.fulfill({status:200,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}});
   if(stall)return r.abort();got+=(q.postDataBuffer()||Buffer.alloc(0)).length;r.fulfill({status:200,headers:{'access-control-allow-origin':'*'},body:''})});
  await c.route('https://checkout.razorpay.com/**',r=>r.fulfill({status:200,contentType:'text/javascript',body:'window.Razorpay=function(o){this.open=function(){setTimeout(function(){o.handler({})},50)}}'}));
- const p=await c.newPage();p.on('pageerror',e=>errs.push(name+': '+e.message));p.on('console',m=>{if(m.type()==='error'&&!/favicon|ERR_|Failed to load resource|TensorFlow|odml\.pa\.googleapis\.com/.test(m.text()))errs.push(name+' console: '+m.text().slice(0,200))});
+ const p=await c.newPage();p.on('pageerror',e=>errs.push(name+': '+e.message));p.on('console',m=>{if(m.type()==='error'&&!/favicon|ERR_|Failed to load resource/.test(m.text()))errs.push(name+' console: '+m.text().slice(0,200))});
  await p.goto(U+'/#advertise');await p.waitForSelector('#adv .adv-tabs');await sleep(400);return p}
 const next=p=>p.click('#sheet [data-next]');
 const step=async(p,t)=>{try{await p.waitForFunction(x=>document.querySelector('#sheet h3')?.textContent===x,t,{timeout:15000})}catch(e){console.log('STUCK',t,await p.evaluate(()=>[document.querySelector('#sheet h3')?.textContent,document.querySelector('#sheet .msg')?.textContent]));throw e}};
@@ -35,10 +35,10 @@ async function pay(){const o=(await q("select payment_reference,charge_minor fro
  const P=await ctx(b,'P');
  await P.click('#adv [data-wallet]');await step(P,'Sign in');
  await P.fill('#b-email','third@example.com');await next(P);await step(P,'Confirm your email');
- await P.fill('#b-code','123456');await next(P);await step(P,'Account and payment');await P.fill('#b-biz','Third Co');await next(P);await P.waitForSelector('#sheet .wallet');log('1 wallet opens after sign-in:',await P.evaluate(()=>[Live.user,AU.acct.name,AU.wallet.bal]));
+ await P.fill('#b-code','123456');await next(P);await step(P,'Account and payment');await P.fill('#b-biz','Third Co');await next(P);await P.waitForSelector('#sheet .wallet');log('1 wallet opens after sign-in:',await P.evaluate(()=>[Live.user,AU.acct.name,AU.wallet.bal,AU.wallet.free]),'| withdraw button:',await P.locator('#sheet [data-withdraw]').count());
  await P.screenshot({path:T+'/w-wallet.png'});
- await P.click('#sheet .wallet [data-topup="1000"]').catch(()=>P.locator('#sheet .wallet [data-topup]').last().click());await sleep(1000);await pay();
- await P.waitForFunction(()=>AU.wallet.bal>0,null,{timeout:20000});log('  credits:',await P.evaluate(()=>AU.wallet.bal));
+ await P.click('#sheet .wallet [data-topup="100"]');await sleep(1000);await pay();
+ await P.waitForFunction(()=>AU.wallet.bal>100,null,{timeout:20000});log('  points after buying 100:',await P.evaluate(()=>[AU.wallet.bal,AU.wallet.free,withdrawable()]));
  await P.click('#sheet [data-x]');
  // ---- a dropped connection mid-upload, then a refresh: the saved copy carries on
  stall=true;
@@ -53,25 +53,24 @@ async function pay(){const o=(await q("select payment_reference,charge_minor fro
  log('  after refresh: bytes at mux',got,'| pending',await P.evaluate(()=>Object.keys(store.get('bought-pending',{})).length),'|',(await q("select state,media_state from public.bought_ads where fields->>'about'='Third video'"))[0]);
  // ---- Mux says the file has no sound / bad media → rejected with a reason on the page
  await fetch(C+'/mux-ready?duration=9999');await sleep(300);await P.reload();await P.waitForSelector('#adv .adv-tabs');await sleep(500);
- log('3 bad media:',(await q("select state,media_state,review_reason from public.bought_ads where fields->>'about'='Third video'"))[0]);
+ log('3 bad media:',(await q("select state,media_state,problem from public.bought_ads where fields->>'about'='Third video'"))[0]);
  await P.evaluate(()=>Adv.tab('mine'));await sleep(300);log('  pill:',await P.locator('#adv .pill.sub').first().innerText());
  await P.screenshot({path:T+'/w-mine.png'});
- // ---- edit the ad with a new file: a new take, back through review
+ // ---- edit the ad with a new file: a new take
  await P.evaluate(d=>Bid.editAd(d,'front'),iss);await step(P,'Edit your ad');
  await P.setInputFiles('#b-file',T+'/upload.mp4');await P.waitForFunction(()=>Bid.st.cre.dur>0&&Bid.st.cre.blob);await P.fill('#b-about','Third video v2');await next(P);await P.waitForSelector('#sheet',{state:'hidden'}).catch(()=>{});await sleep(1500);
  const ad2=(await q("select id,state,media_state from public.bought_ads where fields->>'about'='Third video v2'"))[0];log('4 edited ad:',ad2,'| bid points at it:',(await q(`select count(*)::int c from public.bought_ad_bids where ad_id='${ad2.id}'`))[0].c);
  await fetch(C+'/mux-ready');await sleep(300);
- // ---- send back from /admin, the advertiser sees why
- const adm=await (await b.newContext()).newPage();await deskLogin(adm);await adm.goto(DESK+'/admin/ads');
- const card=adm.locator('.card',{hasText:'Third Co'}).first();await card.locator('input[name=reason]').fill('Please show your <b>face</b>');await card.locator('button:has-text("Send back")').click();await adm.waitForSelector('.note');log('5 sent back:',await adm.innerText('.note'));
- await P.reload();await P.waitForSelector('#adv .adv-tabs');await sleep(500);log('  advertiser sees:',await P.evaluate(()=>AU.inbox[0].msg));
+ log('5 new take ready, no review:',(await q("select state,media_state from public.bought_ads where fields->>'about'='Third video v2'"))[0]);
+ await P.reload();await P.waitForSelector('#adv .adv-tabs');await sleep(500);await P.evaluate(()=>Adv.tab('mine'));await sleep(300);log('  pill:',await P.locator('#adv .pill.sub').first().innerText());
+ const adm=await (await b.newContext()).newPage();await deskLogin(adm);
  // ---- raise: credits check, bid goes up
  await P.evaluate(d=>Bid.raise(d,'front'),iss);await step(P,'Raise your bid');
- const min=await P.evaluate(()=>Bid.minFor(Bid.ds()[0]));await P.fill('#b-one',String(min+200));await next(P);await step(P,'Review and place');await P.check('#b-agree');await next(P);await step(P,'Bids placed');await P.click('#sheet [data-x]');
+ const min=await P.evaluate(()=>Bid.minFor(Bid.ds()[0]));await P.fill('#b-one',String(min+20));await next(P);await step(P,'Review and place');await P.check('#b-agree');await next(P);await step(P,'Bids placed');await P.click('#sheet [data-x]');
  log('6 raised:',await P.evaluate(d=>{const e=myBid(d,'front');return [e.mode,e.amt,e.max,e.status]},iss),'held',await P.evaluate(()=>heldTotal()));
  // ---- withdraw what's free; /admin lists it to pay by hand
  await P.click('#adv [data-wallet]');await P.waitForSelector('#sheet [data-withdraw]');await P.click('#sheet [data-withdraw]');await sleep(800);
- log('7 withdrew:',await P.evaluate(()=>[AU.wallet.bal,availCredits()]),(await q('select amount_minor::int a,state from public.bought_withdrawals'))[0]);
+ log('7 withdrew:',await P.evaluate(()=>[AU.wallet.bal,AU.wallet.free,availCredits()]),(await q('select amount_minor::int a,state from public.bought_withdrawals'))[0],'| free points kept back');
  await adm.goto(DESK+'/admin/ads');log('  admin:',await adm.locator('.card h2').allInnerTexts());
  // ---- a second device signs in: same account, no retyping kept over the record
  const D=await ctx(b,'D');await D.click('#adv [data-wallet]');await step(D,'Sign in');await D.fill('#b-email','third@example.com');await next(D);await step(D,'Confirm your email');await D.fill('#b-code','123456');await next(D);await D.waitForSelector('#sheet .wallet');
@@ -82,7 +81,7 @@ async function pay(){const o=(await q("select payment_reference,charge_minor fro
  log('  waiting text:',(await G.innerText('#sheet .hint')).slice(0,60));
  await pop.waitForURL(/auth\/done\.html/,{timeout:15000}).catch(async e=>{log('  popup at:',pop.url(),'|',(await pop.content().catch(()=>'')).slice(0,300));throw e});log('  window came back to:',new URL(pop.url()).pathname);
  await step(G,'Account and payment');log('11 google signed in:',await G.evaluate(()=>[Live.user,Live.email,document.getElementById('b-email').value]));
- await G.fill('#b-biz','Gita Labs');await next(G);await G.waitForSelector('#sheet .wallet');log('  google account:',await G.evaluate(()=>[AU.acct.name,AU.acct.email]));
+ await G.fill('#b-biz','Gita Labs');await next(G);await G.waitForSelector('#sheet .wallet');log('  google account:',await G.evaluate(()=>[AU.acct.name,AU.acct.email,AU.wallet.bal,AU.wallet.free]));
  if(!pop.isClosed())await pop.waitForEvent('close',{timeout:5000}).catch(()=>{});log('  window closed itself:',pop.isClosed());
  // ---- phone width
  const M=await ctx(b,'M',{viewport:{width:390,height:844},isMobile:true,hasTouch:true});await M.evaluate(()=>Bid.start('feed-a',[AU.dates[1]]));await next(M);await step(M,'Set your bid');await next(M);await step(M,'Add your ad');await M.screenshot({path:T+'/w-phone-ad.png'});

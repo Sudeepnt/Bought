@@ -1,7 +1,6 @@
 // Bought's browser side with no interface of its own: sign-in, the camera profile and take checks,
-// the face and sound guide, the wake lock, the local recovery copy, resumable upload to Mux, image
+// the microphone check, the wake lock, the local recovery copy, resumable upload to Mux, image
 // upload, signed playback and checkout. The newspaper's Advertise page calls these from its own buttons.
-import type { FaceDetector } from '@mediapipe/tasks-vision';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { THUMBNAIL_BUCKET } from '../lib/drop-domain';
 import {
@@ -190,36 +189,16 @@ export function holdScreen() {
   };
 }
 
-// A recording aid, never proof of identity. A person still reviews every ad. MediaPipe runs on the
-// device: no picture leaves the browser for this check.
+// A recording aid: tells the person when the microphone hears nothing. Runs on the device only.
 export function watchTake(
-  video: HTMLVideoElement,
+  _video: HTMLVideoElement,
   stream: MediaStream,
-  report: (state: { face: boolean | null; sound: boolean }) => void,
+  report: (state: { sound: boolean }) => void,
   sampleMs: number,
 ) {
-  let active = true;
-  let detector: FaceDetector | null = null;
   let audio: AudioContext | null = null;
   let timer = 0;
-  let face: boolean | null = null;
-  let previous = -1;
   let loud = 0;
-  void (async () => {
-    try {
-      const { FaceDetector, FilesetResolver } = await import('@mediapipe/tasks-vision');
-      const vision = await FilesetResolver.forVisionTasks('mediapipe/wasm');
-      const made = await FaceDetector.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: 'mediapipe/blaze_face_short_range.tflite' },
-        runningMode: 'VIDEO',
-        minDetectionConfidence: 0.6,
-      });
-      if (!active) made.close();
-      else detector = made;
-    } catch {
-      // The face guide is optional. Recording never depends on it.
-    }
-  })();
   try {
     audio = new AudioContext();
     const analyser = audio.createAnalyser();
@@ -230,24 +209,14 @@ export function watchTake(
       analyser.getByteTimeDomainData(values);
       const level = Math.sqrt(values.reduce((sum, v) => sum + ((v - 128) / 128) ** 2, 0) / values.length) * 5;
       loud = level > 0.04 ? Date.now() : loud;
-      if (detector && video.readyState >= 2 && video.currentTime !== previous) {
-        previous = video.currentTime;
-        try {
-          face = detector.detectForVideo(video, performance.now()).detections.length === 1;
-        } catch {
-          face = null;
-        }
-      }
-      report({ face, sound: Date.now() - loud < 6000 });
+      report({ sound: Date.now() - loud < 6000 });
     }, sampleMs);
   } catch {
     // Without an audio graph the take still records.
   }
   return () => {
-    active = false;
     window.clearInterval(timer);
     void audio?.close().catch(() => {});
-    detector?.close();
   };
 }
 

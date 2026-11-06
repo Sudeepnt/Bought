@@ -63,7 +63,7 @@ function spMeta(k,sample){
  const pv=PREVIEW[k];
  if(!sample&&isHouse(k))return {label:`<span class="sp-l"><i></i>From Bought.</span>`,price:""};
  return {label:`<span class="sp-l"><i></i>${pv?"Your ad · preview":"Sponsored"}</span>`,
-  price:pv?`<span class="sp-p">You won at ${usd(pv.amt)} · ${dayShort(pv.date)}</span>`:`<span class="sp-p">Won at ${usd(ISSUE_ADS[k]?ISSUE_ADS[k].amt:TODAY_PRICE[k])}</span>`};
+  price:pv?`<span class="sp-p">You won at ${pts(pv.amt)} · ${dayShort(pv.date)}</span>`:`<span class="sp-p">Won at ${pts(ISSUE_ADS[k]?ISSUE_ADS[k].amt:TODAY_PRICE[k])}</span>`};
 }
 function spotHTML(k,layout,opt={}){
  if(!opt.preview&&spotEmpty(k))return emptySpot(k,layout);
@@ -86,7 +86,7 @@ function clsBlock(n){
  if(!lines.length&&!mine)return emptySpot("cls","cls-"+n);
  return `<aside class="cls-block rv" data-spot="cls" data-layout="cls-${n}">
   <div class="cls-h"><h4>Classifieds</h4><span class="sp-l"><i></i>Lines ${n*4+1}–${n*4+4} · ranked by bid</span></div>
-  <ol class="cls-list">${mine?`<li class="mine"><b>${usd(mine.amt)}</b><span>${esc(mine.cre.line)} <em>${esc(mine.cre.adv)} · your line, ${dayShort(mine.date)}</em></span></li>`:""}${lines.map(([p,t,w])=>`<li><b>${usd(p)}</b><span>${esc(t)} <em>${esc(w)}</em></span></li>`).join("")}</ol>
+  <ol class="cls-list">${mine?`<li class="mine"><b>${ptsShort(mine.amt)}</b><span>${esc(mine.cre.line)} <em>${esc(mine.cre.adv)} · your line, ${dayShort(mine.date)}</em></span></li>`:""}${lines.map(([p,t,w])=>`<li><b>${ptsShort(p)}</b><span>${esc(t)} <em>${esc(w)}</em></span></li>`).join("")}</ol>
   <button type="button" class="sp-bid" data-adv-spot="cls">Place a line in an upcoming issue</button></aside>`;
 }
 function clipAdHTML(){if(spotEmpty("clip"))return emptySpot("clip","clip");const cre=adCre("clip");return `<div class="clip-ad" data-spot="clip" data-layout="clip"><button type="button" class="clip-ad-btn" data-adplay="clip" aria-label="Play ad from ${esc(cre.adv)}">${bvHTML("ad-clip",cre,"vert")}</button><span class="sp-l"><i></i>Sponsored</span><button type="button" class="sp-bid" data-adv-spot="clip">Bid for this spot</button></div>`}

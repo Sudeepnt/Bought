@@ -108,7 +108,7 @@ if [ $missing = 1 ]; then
 fi
 
 say "precompressed copies of the big static files (Caddy serves .br/.gz when the browser accepts them)"
-find public/mediapipe public/js public/fonts public/styles.css -type f \( -name '*.js' -o -name '*.wasm' -o -name '*.css' \) | while read -r f; do
+find public/js public/fonts public/styles.css -type f \( -name '*.js' -o -name '*.css' \) | while read -r f; do
   [ "$f.gz" -nt "$f" ] || gzip -9 -k -f "$f"
   [ "$f.br" -nt "$f" ] || brotli -q 11 -f -o "$f.br" "$f"
 done

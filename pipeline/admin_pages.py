@@ -228,37 +228,12 @@ def money(minor) -> str:
     return f"${int(minor or 0) / 100:,.0f}"
 
 
-def ad_card(ad: dict) -> str:
-    """Everything an advertiser typed is escaped, and only http(s) links are drawn."""
-    f = ad.get("fields") or {}
-    aid = e(str(ad.get("id", "")))
-    media = ""
-    if ad.get("mux_playback_id") and ad.get("token"):
-        stream = f"https://stream.mux.com/{quote(ad['mux_playback_id'])}.m3u8?token={quote(ad['token'])}"
-        media = f'<video controls playsinline preload="none" data-stream="{e(stream)}" style="width:100%;max-width:520px;border-radius:8px;background:#000"></video>'
-    elif ad.get("signedImage") and ad.get("kind") == "image":
-        media = f'<img src="{safe_link(ad["signedImage"])}" alt="" style="max-width:320px;border-radius:8px">'
-    links = " · ".join(f'<a href="{safe_link(f[k])}" rel="noopener noreferrer" target="_blank">{e(k)}</a>' for k in ("web", "social", "link") if f.get(k))
-    lines = "".join(f"<div><b>{e(label)}:</b> {e(str(f[k]))}</div>" for k, label in (("line", "Line"), ("about", "About"), ("thumb", "Thumbnail text"), ("who", "On screen"), ("email", "Email")) if f.get(k))
-    transcript = ""
-    if ad.get("kind") == "video":
-        status = ad.get("transcription_status", "pending")
-        if ad.get("transcript_english"):
-            transcript = f'<p><b>Transcript</b> (check names, quotes and claims against the video)</p><p class="hint">{e(ad["transcript_english"])}</p>'
-        else:
-            detail = f': {e(ad["transcription_error"])}' if ad.get("transcription_error") else ""
-            transcript = f'<p class="hint">Transcript: {e(status)}{detail}. It has to finish before this ad can be approved.</p>'
-            if ad.get("state") == "review":
-                transcript += f'<form method="post" action="/admin/ads/transcribe"><input type="hidden" name="ad" value="{aid}"><button class="b g">Ask Mux again</button></form>'
-    if ad.get("state") != "review":
-        actions = '<p class="hint">Waiting for Mux to finish the video.</p>'
-    else:
-        actions = f"""<div class="row"><form method="post" action="/admin/ads/review"><input type="hidden" name="ad" value="{aid}"><input type="hidden" name="approve" value="1"><button class="b">Approve</button></form>
-<form method="post" action="/admin/ads/review" class="row"><input type="hidden" name="ad" value="{aid}"><input type="hidden" name="approve" value="0"><input name="reason" maxlength="500" placeholder="What needs changing" aria-label="What needs changing" required><button class="b r">Send back</button></form></div>"""
-    return f"""<div class="card"><h2>{e(str(ad.get("advertiser") or "Advertiser"))} · {e(str(ad.get("spot", "")))}</h2><p class="sub">{e(str(ad.get("email") or ""))} · {e(str(ad.get("kind", "")))} {("· " + links) if links else ""}</p>{media}{lines}{transcript}{actions}</div>"""
+def points(minor) -> str:
+    n = int(minor or 0) // 100
+    return f"{n:,} point" + ("" if n == 1 else "s")
 
 
-def ads_page(running, status, queue, date, stage, settings, row, job, now, message, error) -> str:
+def ads_page(running, status, data, date, stage, settings, row, job, now, message, error) -> str:
     if not running:
         body = '<h1>Ads</h1><div class="note warn">The backend is not running. Run <code>npm install</code> in <code>backend/</code>, then restart the server.</div>'
         return shell("Ads", "ads", notes(message, error) + body, date)
@@ -267,20 +242,18 @@ def ads_page(running, status, queue, date, stage, settings, row, job, now, messa
         body = f"""<h1>Ads</h1><div class="note warn">Not connected yet, so the Advertise page is still running its simulation: nothing real can be bid, recorded or paid for.</div>
 <div class="card"><h2>Still needed in backend/.env</h2><ul>{missing}</ul><p class="hint">Payments are separate. Stripe: {"ready" if status.get("providers", {}).get("stripe") else "not set"}. Razorpay: {"ready" if status.get("providers", {}).get("razorpay") else "not set"}.</p></div>"""
         return shell("Ads", "ads", notes(message, error) + body, date)
-    ads = queue.get("ads") or []
-    cards = "".join(ad_card(a) for a in ads) or '<div class="card empty">Nothing is waiting for review.</div>'
-    sold = "".join(f'<tr><td>{day(str(s["issue"])[:10])}</td><td>{e(s["spot"])}</td><td>{money(s["price_minor"])}</td><td>{e(s["status"])}</td><td>{e(s["invoice"])}</td></tr>' for s in queue.get("sold") or [])
+    sold = "".join(f'<tr><td>{day(str(s["issue"])[:10])}</td><td>{e(s["spot"])}</td><td>{points(s["price_minor"])}</td><td>{e(s["status"])}</td><td>{e(s["invoice"])}</td></tr>' for s in data.get("sold") or [])
     sold = f'<div class="card"><h2>Sold</h2><table><tr><th>Issue</th><th>Spot</th><th>Price</th><th>Status</th><th>Invoice</th></tr>{sold}</table></div>' if sold else ""
-    money_out = "".join(f"""<tr><td>{money(w["amount_minor"])}</td><td>{e(str(w["requested_at"])[:16])}</td><td><form method="post" action="/admin/ads/withdrawal"><input type="hidden" name="id" value="{e(str(w["id"]))}"><button class="b g">Mark as paid</button></form></td></tr>""" for w in queue.get("withdrawals") or [])
+    money_out = "".join(f"""<tr><td>{points(w["amount_minor"])} = {money(w["amount_minor"])}</td><td>{e(str(w["requested_at"])[:16])}</td><td><form method="post" action="/admin/ads/withdrawal"><input type="hidden" name="id" value="{e(str(w["id"]))}"><button class="b g">Mark as paid</button></form></td></tr>""" for w in data.get("withdrawals") or [])
     money_out = f'<div class="card"><h2>Withdrawals to pay by hand</h2><table><tr><th>Amount</th><th>Asked</th><th></th></tr>{money_out}</table></div>' if money_out else ""
-    body = f"""{notes(message, error)}<h1>Ads</h1><p class="sub">{len(ads)} waiting. Every ad needs a person to approve it before 04:00 IST on its issue day. By 05:00 an unapproved ad loses its spot to the next bidder.</p>{cards}{money_out}{sold}<script type="module" src="/js/live/admin-player.js?v=11"></script>"""
+    body = f"""{notes(message, error)}<h1>Ads</h1><p class="sub">Bidding for an issue closes at 05:45 UTC (05:50 at the latest after late bids). The 10 minutes before it goes live at 06:00 UTC are yours. Winning ads go out with the issue when their video or picture is ready; a winner whose ad isn't ready gets its points back.</p>{money_out}{sold or '<div class="card empty">Nothing has sold yet.</div>'}"""
     return shell("Ads", "ads", body, date)
 
 
 def settings_page(date, stage, settings, row, job, now, message, error) -> str:
     zone = "".join(f'<option{" selected" if z == settings["publish_zone"] else ""}>{z}</option>' for z in dk.ZONES)
     body = f"""{notes(message, error)}<h1>Settings</h1><form method="post" action="/admin/settings" class="card"><input type="hidden" name="date" value="{date}">
-<label for="t">Publish time</label><div class="row"><input id="t" type="time" name="publish_time" value="{e(settings["publish_time"])}" required><select name="publish_zone" aria-label="Time zone">{zone}</select></div><p class="hint">Every issue goes live and is emailed at this time on its date. Advertiser bidding closes at 22:00 IST the night before (the auction is still simulated, so the clock doesn't check it yet).</p>
+<label for="t">Publish time</label><div class="row"><input id="t" type="time" name="publish_time" value="{e(settings["publish_time"])}" required><select name="publish_zone" aria-label="Time zone">{zone}</select></div><p class="hint">Every issue goes live and is emailed at this time on its date. Advertiser bidding closes 15 minutes before 06:00 UTC (05:50 at the latest), which the ad clock assumes: change the two together.</p>
 <label for="n">Stories per issue</label><input id="n" type="number" min="1" name="target_stories" value="{e(settings["target_stories"])}"><p class="hint">The count you aim for on the Review page. The rules' section sizes are in pipeline/brief.yaml.</p>
 <label for="rh">Reader hours after publishing</label><input id="rh" type="number" min="0" max="20" name="reader_hours" value="{e(settings["reader_hours"])}"><p class="hint">For this many hours after the paper goes out, the server keeps its power for readers: automatic fetching and translating wait, and start once it is quiet. Your own clicks (Fetch news now, Publish) still run at once, at low priority.</p>
 <label for="f">Fetch news every (minutes)</label><input id="f" type="number" min="0" name="auto_fetch_minutes" value="{e(settings["auto_fetch_minutes"])}"><p class="hint">0 is off: it only fetches when you click Fetch news now. At least 15 otherwise.</p>

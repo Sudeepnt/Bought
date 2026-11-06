@@ -4,7 +4,7 @@ A daily tech, AI and business newspaper made by a news funnel: it finds the stor
 
 - `public/`: the site, plain HTML, CSS and JavaScript with no build step. Today, Listen, Advertise and the build notes (`#spec`) are views of one page. UI notes: `UI_NOTES.md`.
 - `pipeline/`: the funnel, the admin desk, mail and the publish clock. From source to published issue: `pipeline/funnel/README.md`.
-- `backend/`: the ads (Mux, Supabase, Stripe, Razorpay, Upstash), with no pages of its own. Setup, keys and webhooks: `backend/README.md`. Ads are reviewed at `/admin/ads`.
+- `backend/`: the ads (Mux, Supabase, Stripe, Razorpay, Upstash), with no pages of its own. Setup, keys and webhooks: `backend/README.md`. Advertisers bid in points (100 free per new email, more at $1). There is no ad review: winning ads go out with the issue when ready. Withdrawals and sales are on the desk's Ads page.
 - `deploy/`: the production setup for a VPS.
 
 ## Run it locally

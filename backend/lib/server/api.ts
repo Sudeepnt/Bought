@@ -39,7 +39,6 @@ import {
   readBody,
   sameOrigin,
 } from './security';
-import { muxGeneratedSubtitles, requestTranscription } from './transcription';
 import { webhook } from './webhooks';
 
 const KINDS = ['video', 'image', 'classified'] as const;
@@ -151,17 +150,22 @@ type AdRow = {
   mux_playback_id: string | null;
   thumbnail_path: string | null;
   thumbnail_verified: boolean;
-  transcription_status: string;
-  transcript_english: string | null;
-  transcription_error: string | null;
-  review_reason: string | null;
+  problem: string | null;
   submitted_at: string | null;
   created_at: string;
 };
 
-function editable(ad: AdRow) {
-  if (!['draft', 'rejected', 'processing'].includes(ad.state))
-    throw new HttpError(409, 'This ad has already been submitted.');
+// An ad can change until it has won: from the close on, the issue's ads are fixed.
+async function editable(ad: AdRow) {
+  const { data, error } = await database()
+    .from('bought_ad_results')
+    .select('id')
+    .eq('ad_id', ad.id)
+    .in('status', ['won', 'live'])
+    .limit(1);
+  dbError(error);
+  if (data?.length)
+    throw new HttpError(409, 'This ad has won its spot, so it can no longer change.');
 }
 
 // Only plain text and links reach the paper; the page escapes on render as well.
@@ -264,7 +268,7 @@ async function expireUnusedRecordings() {
           mux_asset_id: null,
           mux_playback_id: null,
           media_state: 'none',
-          review_reason:
+          problem:
             'Unused recording expired after 14 days. Record a new take to continue.',
         })
         .eq('id', ad.id)
@@ -294,34 +298,8 @@ export async function tick() {
 // ---------- the desk: only the password-protected /admin server calls these ----------
 async function admin(request: Request, path: string[]) {
   const db = database();
-  if (exactPath(path, 'admin', 'queue') && request.method === 'GET') {
-    const { data, error } = await db
-      .from('bought_ads')
-      .select(
-        'id,spot,kind,title,fields,state,media_state,mux_playback_id,thumbnail_path,transcription_status,transcript_english,transcription_error,review_reason,submitted_at,user_id',
-      )
-      .in('state', ['review', 'processing'])
-      .order('submitted_at')
-      .limit(50);
-    dbError(error);
-    const ads = await Promise.all(
-      (data ?? []).map(async (ad) => ({
-        ...ad,
-        user_id: undefined,
-        signedImage: await signedImage(ad.thumbnail_path),
-        token: ad.mux_playback_id ? muxPlaybackToken(ad.mux_playback_id) : null,
-      })),
-    );
-    const accounts = await db
-      .from('bought_accounts')
-      .select('user_id,name,email')
-      .in('user_id', (data ?? []).map((ad) => ad.user_id));
-    dbError(accounts.error);
-    const named = new Map((accounts.data ?? []).map((a) => [a.user_id, a]));
-    ads.forEach((ad, i) => {
-      const owner = named.get(data?.[i].user_id);
-      Object.assign(ad, { advertiser: owner?.name, email: owner?.email });
-    });
+  // what the desk shows: withdrawals to pay by hand, and what sold
+  if (exactPath(path, 'admin', 'money') && request.method === 'GET') {
     const { data: withdrawals, error: withdrawalError } = await db
       .from('bought_withdrawals')
       .select('id,amount_minor,requested_at,user_id')
@@ -334,34 +312,7 @@ async function admin(request: Request, path: string[]) {
       .order('issue', { ascending: false })
       .limit(40);
     dbError(soldError);
-    return json({ ads, withdrawals, sold });
-  }
-  if (path[1] === 'ads' && path.length === 4 && request.method === 'POST') {
-    const body = await jsonBody(request);
-    if (!validUuid(path[2])) throw new HttpError(400, 'Invalid ad ID.');
-    if (path[3] === 'transcribe') {
-      const { data: ad, error } = await db
-        .from('bought_ads')
-        .select('id,title,mux_asset_id,mux_playback_id,media_state')
-        .eq('id', path[2])
-        .maybeSingle();
-      dbError(error);
-      if (!ad) throw new HttpError(404, 'Ad not found.');
-      if (ad.media_state !== 'ready')
-        throw new HttpError(409, 'The video is still processing.');
-      return json(await requestTranscription(ad));
-    }
-    if (path[3] === 'review' && typeof body.approve === 'boolean') {
-      const { error } = await db.rpc('bought_ad_review', {
-        p_ad_id: path[2],
-        p_approve: body.approve,
-        p_reason:
-          typeof body.reason === 'string' ? body.reason.slice(0, 500) : null,
-      });
-      dbError(error);
-      return json({ saved: true });
-    }
-    throw new HttpError(400, 'Choose a valid decision.');
+    return json({ withdrawals, sold });
   }
   if (exactPath(path, 'admin', 'live') && request.method === 'POST') {
     const body = await jsonBody(request);
@@ -426,20 +377,18 @@ async function advertiser(request: Request, path: string[]) {
       throw new HttpError(400, 'Choose your country.');
     if (gstin && !/^[0-9A-Z]{15}$/.test(gstin))
       throw new HttpError(400, 'A GSTIN has 15 letters and digits.');
-    // The email is the one the sign-in code proved, never the one typed into a form.
-    const { error } = await db.from('bought_accounts').upsert(
-      {
-        user_id: user.id,
-        name,
-        email: user.email,
-        country,
-        gstin: gstin || null,
-        method: body.method === 'card' ? 'card' : 'upi',
-      },
-      { onConflict: 'user_id' },
-    );
+    // The email is the one the sign-in proved, never the one typed into a form. Its first account gets 100 free points.
+    if (!user.email) throw new HttpError(400, 'Your sign-in has no email address.');
+    const { data, error } = await db.rpc('bought_ad_open_account', {
+      p_user: user.id,
+      p_email: user.email,
+      p_name: name,
+      p_country: country,
+      p_gstin: gstin || null,
+      p_method: body.method === 'card' ? 'card' : 'upi',
+    });
     dbError(error);
-    return json({ saved: true });
+    return json(data);
   }
 
   if (exactPath(path, 'ads', 'ads')) {
@@ -466,19 +415,12 @@ async function advertiser(request: Request, path: string[]) {
     const saved = await ownedAd(body.id, user.id);
     if (saved.spot !== body.spot || saved.kind !== body.kind)
       throw new HttpError(409, 'This ad ID already has different details.');
-    if (['draft', 'rejected', 'processing'].includes(saved.state)) {
+    if (sameFields(saved.fields, fields) === false) {
+      await editable(saved);
       const { error: updateError } = await db
         .from('bought_ads')
         .update({ title, fields })
         .eq('id', saved.id);
-      dbError(updateError);
-    } else if (sameFields(saved.fields, fields) === false) {
-      // A changed ad goes back through review. The same ad bid on another issue does not.
-      const { error: updateError } = await db
-        .from('bought_ads')
-        .update({ title, fields, state: 'review', reviewed_at: null })
-        .eq('id', saved.id)
-        .in('state', ['review', 'approved']);
       dbError(updateError);
     }
     return json({ adId: saved.id }, 201);
@@ -487,7 +429,7 @@ async function advertiser(request: Request, path: string[]) {
   if (path[1] === 'ads' && path.length === 4) {
     const ad = await ownedAd(path[2], user.id);
     if (path[3] === 'upload') {
-      editable(ad);
+      await editable(ad);
       const replacedAssetId = ad.mux_asset_id;
       const { data: claimed, error: claimError } = await db.rpc(
         'bought_ad_claim_upload',
@@ -508,7 +450,6 @@ async function advertiser(request: Request, path: string[]) {
                 max_resolution_tier: '1080p',
                 // Mux's lowest-cost encoding tier, as Bought uses for on-demand video.
                 video_quality: 'basic',
-                inputs: [{ generated_subtitles: muxGeneratedSubtitles(ad.id) }],
               },
             },
           );
@@ -529,14 +470,6 @@ async function advertiser(request: Request, path: string[]) {
               upload_quota_date: null,
               media_state: 'waiting',
               upload_claimed_at: null,
-              transcription_status: 'pending',
-              transcription_asset_id: null,
-              transcript_english: null,
-              captions_vtt: null,
-              transcription_error: null,
-              transcription_claimed_at: null,
-              transcribed_at: null,
-              transcription_attempts: 0,
             })
             .eq('id', ad.id);
           dbError(error);
@@ -570,7 +503,7 @@ async function advertiser(request: Request, path: string[]) {
       return json({ url: current.mux_upload_url, uploadId: current.mux_upload_id });
     }
     if (path[3] === 'image') {
-      editable(ad);
+      await editable(ad);
       if (
         !['image/jpeg', 'image/png', 'image/webp'].includes(
           String(body.contentType),
@@ -603,7 +536,7 @@ async function advertiser(request: Request, path: string[]) {
         const stagingPath = `${user.id}/${ad.id}/image-staging`;
         if (ad.thumbnail_path === stagingPath && !ad.thumbnail_verified) {
           // The bytes are checked and copied to a new immutable object, so a
-          // still-valid staging token can never replace an approved image.
+          // still-valid staging token can never replace a submitted image.
           const { data: file, error: fileError } = await db.storage
             .from(THUMBNAIL_BUCKET)
             .download(stagingPath);
@@ -658,15 +591,15 @@ async function advertiser(request: Request, path: string[]) {
   if (exactPath(path, 'ads', 'bid')) {
     if (!validDate(body.issue) || !SPOTS.includes(String(body.spot)))
       throw new HttpError(400, 'Check your bid and try again.');
-    const usd = Number(body.max);
-    if (!Number.isSafeInteger(usd) || usd <= 0)
-      throw new HttpError(400, 'Bids are whole dollars.');
+    const points = Number(body.max);
+    if (!Number.isSafeInteger(points) || points <= 0)
+      throw new HttpError(400, 'Bids are whole points.');
     const { data, error } = await db.rpc('bought_ad_bid', {
       p_user: user.id,
       p_issue: body.issue,
       p_spot: body.spot,
       p_mode: body.mode === 'auto' ? 'auto' : 'exact',
-      p_max_minor: usd * 100,
+      p_max_minor: points * 100,
       p_ad_id: validUuid(body.adId) ? body.adId : null,
     });
     dbError(error);
@@ -690,9 +623,18 @@ async function advertiser(request: Request, path: string[]) {
   }
 
   if (exactPath(path, 'ads', 'topup')) {
-    const usd = Number(body.amount);
-    if (!validUuid(body.id) || !Number.isSafeInteger(usd) || usd < 50 || usd > 100000)
-      throw new HttpError(400, 'The minimum top-up is $50.');
+    // points cost $1 each; GST (India) is added to the price, never to the points
+    const points = Number(body.amount);
+    if (!validUuid(body.id) || !Number.isSafeInteger(points) || points < 10 || points > 100000)
+      throw new HttpError(400, 'Buy at least 10 points at a time.');
+    const { data: acct, error: acctError } = await db
+      .from('bought_accounts')
+      .select('country')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    dbError(acctError);
+    if (!acct) throw new HttpError(400, 'Add your business details first.');
+    const gst = acct.country === 'India' ? 0.18 : 0;
     const method = body.method === 'card' ? 'card' : 'upi';
     const provider = method === 'card' ? 'stripe' : 'razorpay';
     if (!configuredProviders()[provider])
@@ -703,19 +645,20 @@ async function advertiser(request: Request, path: string[]) {
           : 'UPI payments are not available yet.',
       );
     // UPI only settles in rupees, so Razorpay charges INR at the rate you set. Stripe charges USD.
-    let charge = usd * 100;
+    let charge = Math.round(points * 100 * (1 + gst));
     let currency: 'USD' | 'INR' = 'USD';
     if (provider === 'razorpay') {
       const rate = Number(required('USD_INR_RATE'));
       if (!Number.isFinite(rate) || rate <= 0)
         throw new HttpError(503, 'UPI payments are not available yet.');
-      charge = Math.round(usd * rate * 100);
+      charge = Math.round(points * rate * 100 * (1 + gst));
       currency = 'INR';
     }
     const { error } = await db.from('bought_topups').insert({
       id: body.id,
       user_id: user.id,
-      credit_minor: usd * 100,
+      credit_minor: points * 100,
+      tax_minor: Math.round(points * 100 * gst),
       charge_minor: charge,
       charge_currency: currency,
       provider,
@@ -770,12 +713,12 @@ async function advertiser(request: Request, path: string[]) {
   }
 
   if (exactPath(path, 'ads', 'withdraw')) {
-    const usd = Number(body.amount);
-    if (!Number.isFinite(usd) || usd <= 0)
-      throw new HttpError(400, 'Choose an amount to withdraw.');
+    const points = Number(body.amount);
+    if (!Number.isFinite(points) || points <= 0)
+      throw new HttpError(400, 'Choose how many points to withdraw.');
     const { data, error } = await db.rpc('bought_ad_withdraw', {
       p_user: user.id,
-      p_amount: Math.round(usd * 100),
+      p_amount: Math.round(points * 100),
     });
     dbError(error);
     return json({ withdrawn: Number(data) / 100 });

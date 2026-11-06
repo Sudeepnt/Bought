@@ -22,7 +22,7 @@ Readers and the internet reach only: the site's files; `/api/subscribe`; `/confi
 
 ## 3. The browser runs only our code
 
-The page has a strict Content-Security-Policy: scripts only from the site itself (plus Razorpay's checkout), no `eval`, no inline scripts (share pages may run exactly their one-line redirect, by hash), no plugins, no framing by other sites. Connections are limited to the site, the Supabase project, Mux, and Razorpay. This also blocks MediaPipe's usage logging to Google. Other headers: HSTS (2 years, preload), nosniff, a strict Referrer-Policy, and a Permissions-Policy that allows the camera and microphone only for the site itself.
+The page has a strict Content-Security-Policy: scripts only from the site itself (plus Razorpay's checkout), no `eval`, no inline scripts (share pages may run exactly their one-line redirect, by hash), no plugins, no framing by other sites. Connections are limited to the site, the Supabase project, Mux, and Razorpay. Other headers: HSTS (2 years, preload), nosniff, a strict Referrer-Policy, and a Permissions-Policy that allows the camera and microphone only for the site itself.
 
 ## 4. The server
 

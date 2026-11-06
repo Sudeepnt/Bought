@@ -5,7 +5,7 @@ const msg=document.getElementById("auth-msg");
  try{
   const cfg=await (await fetch("/api/bought/config")).json();
   if(!cfg.live)throw new Error("off");
-  const lib=await import("./live/client.js?v=11");
+  const lib=await import("./live/client.js?v=12");
   const ok=await lib.finishSignIn(cfg.supabaseUrl,cfg.supabaseKey);
   if(!ok)throw new Error("no session");
   if(back){location.replace("/#advertise");return}

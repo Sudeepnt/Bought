@@ -2,7 +2,7 @@
    Until every key is set, /api/bought/config says live:false and auction.js keeps its local simulation.
    When live, the server owns every number: this file only mirrors its market into AU and sends the page's buttons to it. */
 const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bought-notice-seen",0),polls:0,
- client(){return Live.lib||(Live.lib=import("./live/client.js?v=11"))},
+ client(){return Live.lib||(Live.lib=import("./live/client.js?v=12"))},
  async boot(){
   let cfg=null;
   try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),2500);const r=await fetch("api/bought/config",{signal:c.signal,cache:"no-store"});clearTimeout(tm);if(r.ok)cfg=await r.json()}catch{}
@@ -21,7 +21,7 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
  },
  /* the market could not be read: show the next issues with nothing on them, never made-up bids */
  emptyDates(){
-  let d=addDays(TODAY,1);while(closeAt(d)<=now())d=addDays(d,1);
+  let d=TODAY;while(closeAt(d)<=now())d=addDays(d,1);
   for(let i=0;i<7;i++){const x=addDays(d,i);AU.dates.push(x);AU.cls[x]={list:[],close:closeAt(x),ext:0};
    SPOT_ORDER.filter(k=>k!=="cls").forEach(k=>{AU.s[K(x,k)]={high:0,n:0,hist:[],close:closeAt(x),ext:0,leader:null}})}
  },
@@ -31,7 +31,7 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
   if(force===true||VIEW==="advertise"||(Live.user&&Live.polls%3===0))Live.sync().then(()=>{Adv.refresh();Wallet.render()}).catch(()=>{});
  },
  async sync(){const lib=await Live.client();Live.user=await lib.signedIn();Live.apply(await lib.api("ads/market"))},
- /* one credit is $1 and the server counts in cents; the page counts in dollars */
+ /* the server counts points in hundredths; the page counts whole points */
  cre(raw,adv){
   if(!raw)return {adv};
   const c={...raw,adv:adv||raw.adv,adId:raw.id},local=Live.local[raw.id];
@@ -52,9 +52,9 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
   if(!me){AU.acct=null;AU.my={};AU.past=[];AU.inbox=[];AU.wallet={bal:0,tx:[]};return}
   AU.acct=me.acct?{...me.acct,gstin:me.acct.gstin||""}:null;
   const adv=AU.acct?.name;
-  AU.wallet={bal:me.balance/100,tx:me.tx.map(x=>({t:t(x.t),kind:x.kind,amt:x.amt/100,label:x.label,bal:x.bal/100}))};
+  AU.wallet={bal:me.balance/100,free:(me.free||0)/100,tx:me.tx.map(x=>({t:t(x.t),kind:x.kind,amt:x.amt/100,label:x.label,bal:x.bal/100}))};
   AU.my={};
-  me.my.forEach(b=>{const e={d:b.d,k:b.k,amt:b.amt/100,max:b.max/100,mode:b.mode,status:b.status,placed:t(b.placed),review:b.review,adState:b.adState,adReason:b.adReason,cre:Live.cre(b.cre,adv)};
+  me.my.forEach(b=>{const e={d:b.d,k:b.k,amt:b.amt/100,max:b.max/100,mode:b.mode,status:b.status,placed:t(b.placed),adState:b.adState,adReason:b.adReason,cre:Live.cre(b.cre,adv)};
    if(b.k==="cls"){e.ref=AU.cls[b.d]?.list.find(x=>x.me);e.rank=e.ref?clsRank(b.d,e.ref):0}
    AU.my[K(b.d,b.k)]=e});
   AU.past=me.past.map(p=>({...p,issue:issueNo(p.d),final:p.final/100,price:p.price/100,amt:p.amt/100,gst:p.gst/100,total:p.total/100,settledAt:t(p.settledAt),cre:Live.cre(p.cre,adv),
@@ -95,12 +95,12 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
    await lib.api("ads/ads",{id:adId,spot:st.k,kind,fields:Live.fields(cre)});
    if(adId!==my.cre.adId)await lib.api("ads/bid-ad",{issue:d,spot:st.k,adId});
    Live.keep(adId,st.cre);AU.cre[st.k]={...st.cre,adId};
-   Sheet.close();toast("Ad saved. It goes back through review, usually within minutes.");
+   Sheet.close();toast("Ad saved.");
    await Live.send(adId,st.k,kind,st.cre);
    await Live.sync();Adv.refresh(true);
   }catch(e){st.err=e.message;Bid.render()}
  },
- /* Bought's order: video to Mux in resumable chunks, then a still as the poster, then into review */
+ /* Bought's order: video to Mux in resumable chunks, then a still as the poster; it is ready once Mux has it */
  async send(adId,k,kind,c){
   const lib=await Live.client(),say=x=>{const el=$("b-up");if(el)el.textContent=x};
   const blob=c.blob;
@@ -113,7 +113,7 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
    }else if(kind==="image"&&blob)await lib.uploadImage(adId,blob);
    if(kind==="classified"||blob||c.mux||(kind==="image"&&c.img))await lib.api(`ads/ads/${adId}/submit`,{});
    Live.settled(adId,k);
-   say("Your ad is uploaded. A person reviews it next.");
+   say("Your ad is uploaded. It's ready as soon as the video finishes processing.");
    await Live.sync();Adv.refresh();
   }catch(e){
    const msg=e.message||"Your ad didn't finish uploading.";say(msg);
@@ -179,13 +179,13 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
   const reset=btn.textContent;
   try{
    const lib=await Live.client(),r=await lib.topup(amt,method);
-   if(r==="paid"){toast("Payment received. Your credits appear as soon as it's confirmed.");for(let i=0;i<6;i++){await new Promise(z=>setTimeout(z,2500));await Live.sync().catch(()=>{});Adv.refresh(true);if(Bid.st){Bid.st.err="";Bid.render()}else Wallet.render()}}
+   if(r==="paid"){toast("Payment received. Your points appear as soon as it's confirmed.");for(let i=0;i<6;i++){await new Promise(z=>setTimeout(z,2500));await Live.sync().catch(()=>{});Adv.refresh(true);if(Bid.st){Bid.st.err="";Bid.render()}else Wallet.render()}}
   }catch(e){toast(e.message)}
   btn.disabled=false;btn.textContent=reset;
  },
  async withdraw(){
-  try{const lib=await Live.client(),r=await lib.api("ads/withdraw",{amount:availCredits()});await Live.sync();Wallet.render();Adv.refresh(true);
-   toast(r.withdrawn?`${usd2(r.withdrawn)} is on its way to your bank. It usually arrives in 3–5 working days.`:"Nothing to withdraw right now.")}catch(e){toast(e.message)}
+  try{const lib=await Live.client(),r=await lib.api("ads/withdraw",{amount:withdrawable()});await Live.sync();Wallet.render();Adv.refresh(true);
+   toast(r.withdrawn?`${usd(r.withdrawn)} for ${pts(r.withdrawn)} is on its way to your bank. It usually arrives in 3–5 working days.`:"Nothing to withdraw right now. Free points stay in your wallet for bidding.")}catch(e){toast(e.message)}
  },
  /* ---------- readers: the ads that won this issue ---------- */
  async winners(date){

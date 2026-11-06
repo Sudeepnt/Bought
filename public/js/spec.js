@@ -10,10 +10,10 @@ const SPEC_MODEL=[
  ["Spot","id, name, zone, format (media: video or image · classified), shape, reserveBase, increment, seats (8 for classifieds)"],
  ["Auction","id, issueDate, spotId, opensAt, closesAt, hardCloseAt, extensions, highBid, bidCount, status (scheduled · open · extended · closed · settled)"],
  ["Bid","id, auctionId, advertiserId, mode (auto · exact), amount (current price), max, status (leading · outbid · in · out · won · lost · withdrawn), creativeId, createdAt"],
- ["Wallet · Ledger","wallet {advertiserId, balance, currency=credits (1 = $1)} · ledger entry {id, walletId, kind (topup · win · withdraw · refund), amount, bidId?, invoiceId?, providerRef?, createdAt}. Set-aside = Σ max × (1 + tax) of the advertiser's leading bids, computed under the auction lock"],
- ["Creative","id, advertiserId, kind (video · image), videoUrl or imageUrl, durationSeconds, trimStartSeconds (video runs trimStart → trimStart + min(duration, 60)), websiteUrl (required), socialUrl, contactEmail, thumbnailText, presenterLine, headline, line, link, brand {bg, fg}, checks[], review (pending · approved · changes_requested), reviewerNote"],
+ ["Wallet · Ledger","wallet {advertiserId, balance, free (points), currency=points} · ledger entry {id, walletId, kind (bonus · topup · win · withdraw · refund), amount, bidId?, receiptId?, providerRef?, createdAt}. 100 free points once per email; bought points cost $1 (+18% GST in India). Set-aside = Σ max of the advertiser's leading bids, computed under the auction lock"],
+ ["Creative","id, advertiserId, kind (video · image), videoUrl or imageUrl, durationSeconds, trimStartSeconds (video runs trimStart → trimStart + min(duration, 60)), websiteUrl (required), socialUrl, contactEmail, thumbnailText, presenterLine, headline, line, link, brand {bg, fg}, checks[], state (draft · processing · ready · rejected for a file Mux can't use), problem"],
  ["Advertiser","id, business, email, country, gstin, verifiedAt, status (active · suspended until)"],
- ["Invoice","id, bidId, amount, tax, total, currency, issuedAt"],
+ ["Receipt","id, bidId, points, free points used, issuedAt"],
  ["Report","auctionId, readers, plays, averageWatchSeconds, clicks"]
 ];
 const SPEC_API=[
@@ -25,36 +25,36 @@ const SPEC_API=[
  ["GET","/issues/:date","The issue: stories, polls, and the winning ad in every spot"],
  ["GET","/auctions?date=YYYY-MM-DD","Every spot for an issue: high bid, bid count, minimum, closesAt"],
  ["GET","/auctions/:id","One auction with anonymised history (handles, amounts, times)"],
- ["POST","/auctions/:id/bids","{mode, amount | max, creativeId} → 201 bid · 409 below minimum · 423 closed · 402 not enough free credits (body: shortfall)"],
+ ["POST","/auctions/:id/bids","{mode, amount | max, creativeId} → 201 bid · 409 below minimum · 423 closed · 402 not enough free points (body: shortfall)"],
  ["POST","/creatives","Multipart upload or in-browser recording → creative + automatic checks. Video over 60 s is accepted and cut to 60 s from trimStart (server-side transcode); images JPG/PNG/WebP up to 10 MB"],
- ["PATCH","/creatives/:id","Edit before 04:00 IST on issue day; returns to review"],
+ ["PATCH","/creatives/:id","Edit until bidding closes (11:15 IST on issue day); locked once it has won"],
  ["GET","/me/bids","My open bids and results"],
- ["GET · POST","/me/wallet · /me/wallet/topups","Balance, set-aside, free credits and ledger · start a UPI or card top-up; credits land on the provider's success webhook"],
- ["POST","/me/wallet/withdrawals","Withdraw free credits to the verified bank account (3–5 working days)"],
+ ["GET · POST","/me/wallet · /me/wallet/topups","Balance, free points, set-aside and ledger · buy points by UPI or card; points land on the provider's success webhook"],
+ ["POST","/me/wallet/withdrawals","Withdraw unused bought points ($1 each) to the verified bank account (3–5 working days); free points never"],
  ["GET","/me/invoices/:id · /me/reports/:auctionId","Invoice and delivery report"],
- ["WS","/live?date=…","Events: bid, auto_raise, outbid, extended, closed, settled, review"],
+ ["WS","/live?date=…","Events: bid, auto_raise, outbid, extended, closed, settled, live"],
  ["POST","/polls/:id/votes · /stories/:id/reactions","Reader engagement (rate-limited, one per reader)"]
 ];
 const SPEC_JOBS=[
- ["07:00 IST daily","Open auctions for the issue 7 days out (D−7)"],
- ["21:55 IST","Start close watch. Each spot closes at 22:00 unless a bid arrived in its last 5 minutes; then it closes 5 minutes after the latest bid, hard stop 22:30"],
- ["On each spot's close","Settle under a lock: rank bids, write a 'win' ledger entry deducting the winning price + tax from the winner's wallet, free every other set-aside, issue the invoice, notify everyone"],
- ["Every 15 min","Human review queue (SLA 2 hours). 04:00 IST final check; 05:00 IST swap in the runner-up if a winning ad is still not approved"],
- ["07:00 IST","Publish the issue"],
- ["09:00 IST, D+1","Delivery reports and invoice emails"]
+ ["11:30 IST daily","Open auctions for the issue 7 days out (D−7)"],
+ ["11:10 IST, D","Start close watch. Each spot closes at 11:15 unless a bid arrived in its last 5 minutes; then it closes 5 minutes after the latest bid, hard stop 11:20"],
+ ["On each spot's close","Settle under a lock: rank bids, write a 'win' ledger entry spending the winning price from the winner's points (free first), free every other set-aside, issue the receipt, notify everyone"],
+ ["11:20–11:30 IST","Ten minutes for the desk before the issue goes out"],
+ ["11:30 IST","Publish the issue (06:00 UTC). Winning ads that are ready go live; a winner whose ad isn't ready gets its points back"],
+ ["09:00 IST, D+1","Delivery reports and receipts"]
 ];
 const SPEC_EDGE=[
  "Comments: Best ranks by score with a gentle recency decay; your own new comment shows first to you for 30 minutes; pinned desk notes always lead.",
  "Comments: no ads inside discussions, ever. Threads lock at 23:59 IST the day after the issue; replies to you arrive as a notice with a link straight to the reply.",
  "Two bids at the same amount: the earlier one wins (bids are timestamped by the server under the auction lock).",
  "Auto-raise: the winner pays the second-highest maximum plus one increment, capped at their own maximum. Maximums are never shown.",
- "Bids can't be lowered or withdrawn. Withdrawals happen only when an ad fails review and isn't fixed by 05:00 IST, or the auction is cancelled.",
+ "Bids can't be lowered or withdrawn, unless the auction is cancelled.",
  "Soft close is per spot. A late bid on the top banner doesn't extend the half page.",
- "Credits: a bid is accepted only if free credits cover its maximum plus tax (minus what that same bid already sets aside). Outbid bids free their credits at once; withdrawals can only take free credits, so a live bid is always fully funded.",
+ "Points: a bid is accepted only if free points cover its maximum (minus what that same bid already sets aside). Outbid bids free their points at once; withdrawals can only take unused bought points, so a live bid is always fully funded and free points never become cash.",
  "Linked accounts (same payment instrument, device or GSTIN) bidding on the same spot are flagged and voided.",
  "Unsold spots and forfeits run house ads. Bought. never bids on its own spots.",
  "An ad is never placed beside a story about the advertiser; the section's stories are reordered instead.",
- "If the issue fails to publish or an ad doesn't render, the credits are refunded to the wallet automatically.",
+ "If the issue fails to publish or an ad isn't ready, the points go back to the wallet automatically.",
  "All times are stored in UTC and shown in IST. The prototype's clock can be fast-forwarded; production can't."
 ];
 function specHTML(){
@@ -70,15 +70,14 @@ function specHTML(){
   <tr><td>Today</td><td><code>#paper</code></td><td>The issue: masthead, one banner, lead, briefs, top stories, poll, numbers, six sections, clips, classifieds. Stories open in a reader panel.</td></tr>
   <tr><td>Listen</td><td><code>#radio</code></td><td>The issue as one audio episode; a mini player follows you back to the paper.</td></tr>
   <tr><td>Advertise</td><td><code>#advertise</code></td><td>Tabs: Spots (issue picker, template map, spot detail), My bids (status, credits set aside, results, invoices, reports), How it works (timeline, rules, questions).</td></tr>
-  <tr><td>Bid flow</td><td>sheet</td><td>Issues → Bid → Ad → Payment (first time only) → Review → Done. Raise: Bid → Review. Edit ad: Ad.</td></tr>
+  <tr><td>Bid flow</td><td>sheet</td><td>Issues → Bid → Ad → Sign in (Google or email code, first time) → Payment (first time only) → Review → Done. Raise: Bid → Review. Edit ad: Ad.</td></tr>
   <tr><td>For developers</td><td><code>#spec</code></td><td>This page.</td></tr></tbody></table></div></section>
 
  <section class="rv"><h2>The template</h2><p>Every issue uses the same blocks in the same order. Only the stories, the ads and the weekday theme change.</p><div class="tblw"><table><thead><tr><th>#</th><th>Block</th><th>Type</th><th>Ad spots</th><th>Notes</th></tr></thead><tbody>${TEMPLATE.map((b,i)=>`<tr><td>${i+1}</td><td>${esc(b.name)}</td><td>${b.kind}</td><td>${(b.spots||[]).map(s=>`<code>${s}</code>`).join(" ")||"—"}</td><td>${esc(b.note)}</td></tr>`).join("")}</tbody></table></div></section>
 
  <section class="rv"><h2>The fixed page template</h2><p>Every issue has the same eight pages in the same order; only the stories, the edition name and the accent change. The issue reads as one continuous paper: as you scroll into a section, the paper and desk fade to that section's colour (about 1 s). The page strip follows the section on screen and jumps with a smooth scroll. There are no page-turn animations anywhere.</p><div class="tblw"><table><thead><tr><th>Page</th><th>Contents</th><th>Ad spots</th></tr></thead><tbody>${PAGES.map((p,n)=>{const ks=Object.entries(SPOT_PAGE).filter(([k,v])=>v===n||(k==="cls"&&n===7)).map(([k])=>k);const c=CATS[n-1];return `<tr><td><b>${n+1} · ${esc(p.name)}</b></td><td>${n===0?"Masthead, lead story and video, Today in 30 seconds, top 3, The Pulse, the day in numbers, In this issue":n===7?"60-second clips, classifieds 9–12, subscribe, footer":`${LAYOUT[c.name].main.length} stories and in brief`}</td><td>${ks.length?ks.map(k=>`<code>${k}</code>`).join(" "):"—"}</td></tr>`}).join("")}</tbody></table></div><p class="spec-note">Deep links use <code>#paper/p3</code> in production and scroll to that section.</p></section>
 
- <section class="rv"><h2>Ad spots</h2><p>6 display spots and 8 classified lines per issue. Every display spot takes a video (recorded in the browser or uploaded; anything over 60 seconds is cut at 60 s, and the advertiser picks the start) or an image. Classifieds are text only. Reserve = base × weekday multiplier, rounded to $10.</p><div class="tblw"><table><thead><tr><th>Spot</th><th>Format</th><th>Where</th><th>Reserve (base)</th><th>Increment</th><th>Winners</th></tr></thead><tbody>${SPOT_ORDER.map(k=>{const s=SPOTS[k];return `<tr><td><code>${k}</code> ${esc(s.name)}</td><td>${FORMATS[s.fmt].name}${s.shape==="vert"?" (9:16)":s.shape==="wide"?" (21:9)":""}</td><td>${esc(s.zone)}</td><td>${usd(s.reserve)}</td><td>${usd(s.inc)}</td><td>${s.seats||1}</td></tr>`}).join("")}</tbody></table></div>
-  <p class="spec-note">Weekday multipliers: ${DAY_MULT.map((m,i)=>`${days[i]} ×${m}`).join(" · ")}</p></section>
+ <section class="rv"><h2>Ad spots</h2><p>6 display spots and 8 classified lines per issue. Every display spot takes a video (recorded in the browser or uploaded; anything over 60 seconds is cut at 60 s, and the advertiser picks the start) or an image. Classifieds are text only. Every spot starts at 1 point and goes up 1 point at a time.</p><div class="tblw"><table><thead><tr><th>Spot</th><th>Format</th><th>Where</th><th>Reserve</th><th>Increment</th><th>Winners</th></tr></thead><tbody>${SPOT_ORDER.map(k=>{const s=SPOTS[k];return `<tr><td><code>${k}</code> ${esc(s.name)}</td><td>${FORMATS[s.fmt].name}${s.shape==="vert"?" (9:16)":s.shape==="wide"?" (21:9)":""}</td><td>${esc(s.zone)}</td><td>${pts(s.reserve)}</td><td>${pts(s.inc)}</td><td>${s.seats||1}</td></tr>`}).join("")}</tbody></table></div></section>
 
  <section class="rv"><h2>Daily themes</h2><div class="themes">${THEMES.map((t,i)=>`<button type="button" class="theme-sw${EDITION===t?" on":""}" data-edition="${i}" style="--th:${t.hue}"><i></i><b>${t.day}</b><span>${esc(t.name)}</span><small>${esc(t.lede)}</small></button>`).join("")}</div><p class="spec-note">Tap a day to preview its theme on the paper. The theme tints the edition name and polls; the layout never changes.</p></section>
 
@@ -86,7 +85,7 @@ function specHTML(){
 
  <section class="rv"><h2>Lifecycle and states</h2>
   <ol class="life">${LIFECYCLE.map(([t,h,s,key])=>`<li class="${key||""}"><b>${t}</b><span>${h}</span>${s?`<small>${s}</small>`:""}</li>`).join("")}</ol>
-  <div class="states"><div><h4>Auction</h4><p><code>scheduled</code> → <code>open</code> → <code>extended</code>* → <code>closed</code> → <code>settled</code></p></div><div><h4>Bid</h4><p><code>leading</code> ⇄ <code>outbid</code> (display) · <code>in</code> ⇄ <code>out</code> (classifieds) → <code>won</code> | <code>lost</code></p></div><div><h4>Hold</h4><p><code>verified</code> → <code>authorised</code> → <code>captured</code> | <code>released</code> | <code>failed</code></p></div><div><h4>Ad</h4><p><code>pending</code> → <code>approved</code> | <code>changes_requested</code> → <code>pending</code></p></div></div></section>
+  <div class="states"><div><h4>Auction</h4><p><code>scheduled</code> → <code>open</code> → <code>extended</code>* → <code>closed</code> → <code>settled</code></p></div><div><h4>Bid</h4><p><code>leading</code> ⇄ <code>outbid</code> (display) · <code>in</code> ⇄ <code>out</code> (classifieds) → <code>won</code> | <code>lost</code></p></div><div><h4>Hold</h4><p><code>verified</code> → <code>authorised</code> → <code>captured</code> | <code>released</code> | <code>failed</code></p></div><div><h4>Ad</h4><p><code>draft</code> → <code>processing</code> → <code>ready</code> | <code>rejected</code> (a file Mux can't use) → <code>draft</code></p></div></div></section>
 
  <section class="rv"><h2>Scheduled jobs</h2><div class="tblw"><table><thead><tr><th>When</th><th>Job</th></tr></thead><tbody>${SPEC_JOBS.map(([a,b])=>`<tr><td>${a}</td><td>${esc(b)}</td></tr>`).join("")}</tbody></table></div></section>
 
@@ -108,7 +107,7 @@ function specHTML(){
   <tr><td>Video and audio</td><td>Simulated players with captions; illustrated presenters</td><td>Real streams, uploads, captions</td></tr>
   <tr><td>Bids and rivals</td><td>Rival bids every few seconds; state resets on reload</td><td>Auction service, accounts, websockets</td></tr>
   <tr><td>Time</td><td>"Prototype controls" fast-forward to close and publish</td><td>Scheduled jobs above</td></tr>
-  <tr><td>Money</td><td>Wallet top-ups, deductions, withdrawals, invoices and reports are mock</td><td>Payment provider, tax invoices, reporting</td></tr>
+  <tr><td>Money</td><td>Free points, buying points, spending, withdrawals, receipts and reports are mock</td><td>Payment provider, tax invoices, reporting</td></tr>
   <tr><td>Engagement</td><td>Votes and reactions saved in this browser</td><td>Server counts, one per reader</td></tr></tbody></table></div></section>
  </div>`;
 }

@@ -8,39 +8,37 @@ This is Bought's code with every page removed (the one exception is `public/auth
 
 | Bought | Here |
 | --- | --- |
-| `lib/server/providers.ts`, `security.ts`, `config.ts`, `webhooks.ts`, `transcription.ts` | Same files, adapted from one paid broadcast to one ad plus prepaid credits |
+| `lib/server/providers.ts`, `security.ts`, `config.ts`, `webhooks.ts` | Same files, adapted from one paid broadcast to one ad paid in points |
 | `lib/recording-capabilities.ts`, `local-recording.ts`, `recording-retention.ts`, `webhook-signatures.ts` | Same files. Limits follow the Advertise page: 500 MB, 10 minutes uploaded, 60 seconds run |
-| The recorder's face guide, sound check, wake lock, UpChunk upload | `client/index.ts`, with no UI. Built into `public/js/live/` by `npm run build:client` |
-| `/review` moderator page | `/admin/ads`, behind the admin password |
+| The recorder's sound check, wake lock, UpChunk upload (no face detection) | `client/index.ts`, with no UI. Built into `public/js/live/` by `npm run build:client` |
 | `bought_drops` and its SQL functions | `bought_ads` and `bought_ad_*` in `supabase/migrations/`, plus the per-spot auction and wallet |
 
-Left behind: all pages, components and CSS, the daily ladder and categories, screen recording (the page has no button for it), web push (it has no permission prompt), and the ten-language caption job (the reviewer needs only English).
+Left behind: all pages, components and CSS, the daily ladder and categories, screen recording (the page has no button for it), web push (it has no permission prompt), the caption and transcript jobs, human review, and face detection.
 
 ## Connect it
 
 1. Create a Supabase project and apply `supabase/migrations`. Turn on email sign-in with `{{ .Token }}` in the email template, so readers get a code rather than a link, and set up production SMTP in Supabase Auth.
-2. Create a Mux environment: an API token with Video access plus `robots:*`, a webhook secret and an RSA signing key.
+2. Create a Mux environment: an API token with Video access, a webhook secret and an RSA signing key.
 3. Create an Upstash Redis database. Writes are refused when the limiter is unavailable.
 4. Copy the values into `backend/.env` (see `.env.example`), set `APP_ORIGIN` to the exact address readers use, and set `CRON_SECRET` to a long random string. Restart `pipeline serve`. `/admin/ads` lists whatever is still missing, by name.
 5. Google sign-in (the "Continue with Google" button in the bid sheet): in Google Cloud, create an OAuth client (Web application) whose redirect URI is `https://<your-project>.supabase.co/auth/v1/callback`; in Supabase, Authentication > Providers > Google, paste its client ID and secret; in Authentication > URL Configuration, add `https://<your site>/auth/done.html` to the Redirect URLs. Self-hosted Supabase takes the same three values as `GOTRUE_EXTERNAL_GOOGLE_*` settings.
-6. For adding credits: Stripe for card (USD), Razorpay for UPI (INR, at the `USD_INR_RATE` you set). Razorpay must use automatic capture.
+6. For buying points ($1 each, plus 18% GST in India): Stripe for card (USD), Razorpay for UPI (INR, at the `USD_INR_RATE` you set). Razorpay must use automatic capture.
 
 Webhooks, on the public HTTPS address:
 
 | Provider | Endpoint | Events |
 | --- | --- | --- |
-| Mux | `/api/bought/webhooks/mux` | `video.upload.asset_created`, `video.upload.errored`, `video.asset.ready`, `video.asset.errored`, `video.asset.track.ready`, `robots.job.translate_captions.completed`, `robots.job.translate_captions.errored` |
+| Mux | `/api/bought/webhooks/mux` | `video.upload.asset_created`, `video.upload.errored`, `video.asset.ready`, `video.asset.errored` |
 | Stripe | `/api/bought/webhooks/stripe` | `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `charge.refunded`, `charge.dispute.created` |
 | Razorpay | `/api/bought/webhooks/razorpay` | `payment.captured`, `refund.processed` |
 
 ## How an ad moves
 
-1. **Bid.** `bought_ad_bid` enforces every rule on the page under a per-spot lock: open and close times, reserve, increment, auto-raise, soft close, credits. Bids go in before the upload, so a slow connection can't cost anyone the auction.
-2. **Upload.** The video goes straight from the browser to Mux in resumable chunks and never passes through this server. A copy stays on the device until it lands, and a refresh carries on by itself. A still from the video becomes the poster.
-3. **Review.** Mux reports the video ready and sends captions. A person reads the transcript and approves in `/admin/ads`, or sends the ad back with a reason.
-4. **Close.** The 30-second clock settles each issue once its spots have closed: winners' credits are deducted and an invoice number issued.
-5. **05:00 IST.** A winner whose ad still isn't approved is refunded, and the next bidder with an approved ad and enough credits takes the spot.
-6. **Go-live.** When the publish clock puts the issue live, its winning ads go public and readers play them from signed Mux links. Views, plays and clicks fill the advertiser's report.
+1. **Sign in.** Google or an emailed code. The first account an email opens gets 100 free points (`bought_ad_open_account`), once.
+2. **Bid.** `bought_ad_bid` enforces every rule on the page under a per-spot lock: open and close times, the 1-point reserve, 1-point steps, auto-raise, soft close, points. Bids go in before the upload, so a slow connection can't cost anyone the auction.
+3. **Upload.** The video goes straight from the browser to Mux in resumable chunks and never passes through this server. A copy stays on the device until it lands, and a refresh carries on by itself. A still from the video becomes the poster. When Mux has it, the ad is `ready`; a file Mux can't use comes back as `rejected` with the reason. Nobody reviews ads.
+4. **Close.** Bidding for an issue closes at 05:45 UTC on its day (05:50 at the latest after late bids). The 30-second clock settles each issue once its spots have closed: winners' points are spent, free ones first, and a receipt number issued.
+5. **Go-live.** At 06:00 UTC the publish clock puts the issue live: winning ads that are ready go public and readers play them from signed Mux links; a winner whose ad isn't ready gets every point back and the spot stays empty. Views, plays and clicks fill the advertiser's report.
 
 ## Tests
 

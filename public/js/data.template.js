@@ -13,7 +13,6 @@ const THEMES=[
  {day:"Saturday",name:"The Long Read",short:"Long Read",hue:"#7a5a3a",lede:"Fewer, longer stories"}
 ];
 /* Reserve prices scale by weekday (Sun → Sat). */
-const DAY_MULT=[0.9,1,1,1.1,1.1,1.25,0.8];
 
 /* The paper is read one page at a time, like a printed edition. */
 const PAGES=[
@@ -59,16 +58,17 @@ const FORMATS={
 
 /* 6 display spots (5 video + 1 image today; every display spot takes a video up to 60 s or an image) + 8 classified lines. */
 const SPOTS={
- top:{name:"Top banner",zone:"Page 1, under the masthead",fmt:"video",shape:"std",reserve:600,inc:10,view:"First screen on every device"},
- front:{name:"Front-page native",zone:"Page 1, after the day in numbers",fmt:"video",shape:"std",reserve:450,inc:10,view:"Front page, after the top stories"},
- "feed-a":{name:"In-feed, AI",zone:"Page 2, between the AI stories",fmt:"video",shape:"std",reserve:220,inc:10,view:"Between the AI stories"},
- half:{name:"Half page",zone:"Page 4, foot of the Business page",fmt:"video",shape:"wide",reserve:700,inc:10,view:"The largest ad in the paper"},
- "feed-e":{name:"In-feed, Launches",zone:"Page 6, between the Launches stories",fmt:"video",shape:"std",reserve:180,inc:10,view:"Between the Launches stories"},
- clip:{name:"Clip break",zone:"Page 8, in the 60-second clips",fmt:"video",shape:"vert",reserve:200,inc:10,view:"Fourth tile in the clip rail"},
- cls:{name:"Classifieds",zone:"Pages 3 and 8, four lines each",fmt:"classified",reserve:5,inc:1,seats:8,view:"Lines 1–4 on page 3, 5–8 on the back page"}
+ top:{name:"Top banner",zone:"Page 1, under the masthead",fmt:"video",shape:"std",reserve:1,inc:1,view:"First screen on every device"},
+ front:{name:"Front-page native",zone:"Page 1, after the day in numbers",fmt:"video",shape:"std",reserve:1,inc:1,view:"Front page, after the top stories"},
+ "feed-a":{name:"In-feed, AI",zone:"Page 2, between the AI stories",fmt:"video",shape:"std",reserve:1,inc:1,view:"Between the AI stories"},
+ half:{name:"Half page",zone:"Page 4, foot of the Business page",fmt:"video",shape:"wide",reserve:1,inc:1,view:"The largest ad in the paper"},
+ "feed-e":{name:"In-feed, Launches",zone:"Page 6, between the Launches stories",fmt:"video",shape:"std",reserve:1,inc:1,view:"Between the Launches stories"},
+ clip:{name:"Clip break",zone:"Page 8, in the 60-second clips",fmt:"video",shape:"vert",reserve:1,inc:1,view:"Fourth tile in the clip rail"},
+ cls:{name:"Classifieds",zone:"Pages 3 and 8, four lines each",fmt:"classified",reserve:1,inc:1,seats:8,view:"Lines 1–4 on page 3, 5–8 on the back page"}
 };
 const SPOT_ORDER=["top","front","feed-a","half","feed-e","clip","cls"];
-function reserveFor(k,iso){const b=SPOTS[k].reserve*DAY_MULT[wdOf(iso)];return k==="cls"?Math.max(5,Math.round(b)):Math.round(b/10)*10}
+/* every spot starts at 1 point, every day */
+function reserveFor(k,iso){return SPOTS[k].reserve}
 
 /* Mock presenters for broadcast ads (illustrated; real ads use the advertiser's upload). */
 const PEOPLE={
@@ -98,47 +98,46 @@ const TODAY_ADS={
    Same shape as TODAY_ADS (adv, line, sub, web, kind, img or the presenter fields); HOUSE_CLS like CLS_TODAY. */
 const HOUSE_ADS={};
 const HOUSE_CLS=[];
-const TODAY_PRICE={top:2150,front:1380,"feed-a":420,half:1480,"feed-e":310,clip:520};
+const TODAY_PRICE={top:46,front:31,"feed-a":12,half:38,"feed-e":9,clip:14};
 /* Today's 8 classified lines, in rank order: [price paid, line, advertiser]. */
 const CLS_TODAY=[
- [95,"Hiring a founding ML engineer, Bengaluru or remote. Equity-heavy.","Saltpan AI"],
- [88,"Two seats free at a Dublin founders' dinner on 14 Nov.","Harbour Club"],
- [72,"Office seats in Indiranagar from ₹9,000 a month.","Common Desk Co."],
- [64,"Looking for a co-founder who has shipped B2B payments.","Ankita R."],
- [58,"Fractional CFO for seed-stage startups. First month free.","Ledgerline"],
- [51,"Selling four used GPU servers. Bengaluru pickup.","Rackroom"],
- [39,"Kannada and Hindi product copy, fast turnaround.","Meena K."],
- [26,"Beta users wanted for an offline AI notes app.","Orbit Notes"]
+ [9,"Hiring a founding ML engineer, Bengaluru or remote. Equity-heavy.","Saltpan AI"],
+ [8,"Two seats free at a Dublin founders' dinner on 14 Nov.","Harbour Club"],
+ [7,"Office seats in Indiranagar from ₹9,000 a month.","Common Desk Co."],
+ [6,"Looking for a co-founder who has shipped B2B payments.","Ankita R."],
+ [5,"Fractional CFO for seed-stage startups. First month free.","Ledgerline"],
+ [4,"Selling four used GPU servers. Bengaluru pickup.","Rackroom"],
+ [3,"Kannada and Hindi product copy, fast turnaround.","Meena K."],
+ [2,"Beta users wanted for an offline AI notes app.","Orbit Notes"]
 ];
 
 /* Auction rules, shown to advertisers and used in the developer spec. */
 const RULES=[
  {h:"What you're buying",p:["Each issue has 6 display spots and 8 classified lines in fixed positions. The template never changes; the theme changes by weekday.","Every display spot takes a video of you on camera (record it here or upload it, up to 60 seconds; anything longer is cut at 60 s) or an image. Classifieds are text only."]},
- {h:"When bidding opens and closes",p:["Bidding for an issue opens 7 days ahead at 07:00 IST.","It closes at 22:00 IST the night before the issue.","A bid in the last 5 minutes extends that spot's close by 5 minutes, up to 22:30 IST. Other spots aren't affected."]},
- {h:"How you rank",p:["Display spots: the highest bid at close wins. Equal bids go to the earlier one.","Classifieds: the 8 highest bids run, ordered by bid. Lines 1–4 run on page 3, lines 5–8 on the back page.","Every bid must meet the reserve price and beat the highest bid by the increment: $10 for display spots, $1 for classifieds."]},
+ {h:"When bidding opens and closes",p:["Bidding for an issue opens 7 days ahead at 11:30 IST.","It closes at 11:15 IST on the issue day, 15 minutes before the issue goes live at 11:30 IST.","A bid in the last 5 minutes extends that spot's close by 5 minutes, up to 11:20 IST. Other spots aren't affected."]},
+ {h:"How you rank",p:["Display spots: the highest bid at close wins. Equal bids go to the earlier one.","Classifieds: the 8 highest bids run, ordered by bid. Lines 1–4 run on page 3, lines 5–8 on the back page.","Every spot starts at 1 point, and every bid must beat the highest bid by at least 1 point."]},
  {h:"Auto-raise",p:["Set a maximum and we bid for you, one increment at a time, only when someone outbids you.","You win at the lowest price that beats the next bidder, never above your maximum. Nobody sees your maximum.","Classifieds don't auto-raise: you pay the amount you bid."]},
- {h:"Credits and what you pay",p:["You bid from prepaid credits in your wallet (1 credit = $1). Add them by UPI or card before you bid.","Only winners pay, and they pay the winning price printed beside their ad.","A live bid sets aside its maximum plus tax from your credits. If you're outbid, those credits are free again at once. At close we deduct winners' credits; nothing else moves.","Unused credits never expire and can be withdrawn to your bank any time.","Indian advertisers pay 18% GST; advertisers outside India are invoiced without GST. Invoices are issued at close."]},
- {h:"Changing a bid",p:["You can raise a bid or your maximum any time before close.","Bids can't be lowered or withdrawn. The only exceptions: your ad fails review and isn't fixed in time, or we cancel the auction."]},
- {h:"Your ad",p:["You upload your ad when you bid. Uploading is free.","Automatic checks run immediately. A person reviews every ad within 2 hours, and always before 04:00 IST on issue day.","If your ad needs changes, you have until 05:00 IST to fix it. If it isn't fixed, the next-highest bidder's ad runs and your credits are freed."]},
- {h:"Why credits",p:["Every bid is backed by credits already in your wallet, so a winning bid can never fail to pay.","A bid that your free credits can't cover is refused, with the amount you'd need to add."]},
- {h:"Fair play",p:["Bidders stay anonymous until close; winners and winning prices are public after.","Every advertiser account is verified, one per business. Linked accounts bidding against each other are removed and charged nothing.","Bought. never bids on its own spots. Unsold spots run house ads."]},
+ {h:"Points and what you pay",p:["You bid in points. Every new advertiser gets 100 free points; more cost $1 each, by UPI or card.","Only winners pay, and they pay the winning price printed beside their ad.","A live bid sets aside its maximum from your points. If you're outbid, those points are free again at once. At close we spend winners' points, free ones first; nothing else moves.","Points never expire. Bought points you haven't used can be withdrawn to your bank; free points can't.","Buying points in India adds 18% GST to the price; outside India there's no GST. Bids and wins carry no tax."]},
+ {h:"Changing a bid",p:["You can raise a bid or your maximum any time before close.","Bids can't be lowered or withdrawn. The only exception: we cancel the auction."]},
+ {h:"Your ad",p:["You upload your ad when you bid. Uploading is free.","Your ad runs as you made it. You can change it until bidding closes at 11:15 IST on issue day.","If your video or picture isn't ready when the issue goes out, the spot stays empty and every point you spent comes back."]},
+ {h:"Why points",p:["Every bid is backed by points already in your wallet, so a winning bid can never fail to pay.","A bid that your free points can't cover is refused, with how many more you'd need."]},
+ {h:"Fair play",p:["Bidders stay anonymous until close; winners and winning prices are public after.","Every advertiser account is verified, one per business. Linked accounts bidding against each other are removed and charged nothing.","Bought. never bids on its own spots. Unsold spots stay empty or carry Bought.'s own ads."]},
  {h:"Editorial independence",p:["Ads never change what a story says or which stories run.","An ad never sits beside a story about the advertiser. If it would, the stories in that section are reordered."]},
- {h:"Delivery",p:["Your ad runs for one day, from 07:00 IST, in the issue you won.","If the issue doesn't publish or your ad doesn't show, you get a full refund.","A delivery report and your invoice arrive the next morning."]}
+ {h:"Delivery",p:["Your ad runs for one day, from 11:30 IST, in the issue you won.","If the issue doesn't publish or your ad doesn't show, every point comes back.","A delivery report and your receipt arrive the next morning."]}
 ];
 const LIFECYCLE=[
- ["D−7 · 07:00","Bidding opens",""],
+ ["D−7 · 11:30","Bidding opens",""],
  ["Until close","Bid, raise, upload your ad",""],
- ["D−1 · 22:00","Bidding closes","+5 min per late bid, until 22:30","key"],
- ["At close","Winners' credits deducted; the rest freed",""],
- ["D · 04:00","Final ad check",""],
- ["D · 07:00","Issue goes live","","key"],
- ["D+1 · 09:00","Report and invoice",""]
+ ["D · 11:15","Bidding closes","+5 min per late bid, until 11:20","key"],
+ ["At close","Winners' points spent; the rest freed",""],
+ ["D · 11:30","Issue goes live","","key"],
+ ["D+1 · 09:00","Report and receipt",""]
 ];
 const FAQ=[
  ["Can I book a whole week?","Yes. Pick several issues when you bid. Each issue is its own auction, so you only pay for the ones you win."],
  ["Why can't I see who I'm bidding against?","Bidders stay anonymous until close so nobody can target a rival. Winners and their prices are public once the auction ends."],
- ["When will I know if I won?","At 22:00 IST, or a few minutes later if a late bid extended your spot. You'll get a notification here and by email."],
- ["Can I change my ad after I win?","Yes, until 04:00 IST on issue day. Changes go through review again."],
- ["What happens to my credits if I lose?","Nothing is deducted. Credits set aside for a bid are free again the moment you're outbid, or at close. Spend them on another spot or withdraw them to your bank."],
- ["Do I need credits before I bid?","Yes. Add credits once by UPI or card, then every bid comes out of your wallet. If a bid needs more than you have free, we'll show exactly how much to add."]
+ ["When will I know if I won?","At 11:15 IST on the issue day, or a few minutes later if a late bid extended your spot. You'll get a notification here and by email."],
+ ["Can I change my ad after I win?","No. Your ad can change until bidding closes; once it has won, it runs as it is."],
+ ["What happens to my points if I lose?","Nothing is spent. Points set aside for a bid are free again the moment you're outbid, or at close. Use them on another spot."],
+ ["Do I need points before I bid?","You start with 100 free points. If a bid needs more than you have free, we'll show how many more to get: they cost $1 each by UPI or card."]
 ];

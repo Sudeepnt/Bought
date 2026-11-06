@@ -45,7 +45,7 @@ void test('mobile and low-power devices use a lighter recording profile', () => 
   });
   assert.equal(mobile.width, 960);
   assert.equal(mobile.frameRate, 24);
-  assert.equal(lowPower.faceSampleMs, 650);
+  assert.equal(lowPower.soundSampleMs, 650);
   assert.equal(desktop.width, 1280);
   assert.equal(desktop.frameRate, 30);
   assert.ok(mobile.cameraBitsPerSecond < desktop.cameraBitsPerSecond);

@@ -9,7 +9,7 @@ Bought is one project: a daily AI-made tech, AI and business newspaper, its news
 | 06:00 UTC | The publish clock puts the day's issue live and emails subscribers; the day's winning ads go public with it |
 | The next few hours (`reader_hours` in admin Settings, default 4) | Readers come first: automatic fetching and translating wait |
 | After that, when the machine is quiet | Fetch the sources, choose the stories (rules now; jev, the user's decision model, plugs into `funnel_evaluator_command`), make the videos and audio, translate; the user checks it all in the desk and clicks Publish |
-| Any time | Advertisers bid for the next 6 days' spots; ad deadlines are close D-1 22:00 IST and an unapproved winner is replaced at 05:00 IST |
+| Any time | Advertisers bid in points for the coming issues. Bidding for an issue closes at 05:45 UTC on its day (05:50 at the latest after late bids), leaving 10 minutes before it goes live |
 
 Funnel jobs run one at a time, at the lowest CPU and disk priority (nice 19, ionice idle), and automatic ones also wait while the 1-minute load is above 70% of the cores.
 
@@ -44,7 +44,7 @@ Without keys in `backend/.env` the Advertise page runs its local simulation. Com
 
 ## Ads backend in one paragraph
 
-Six display spots and eight classified lines per issue; bidding opens D-7 07:00 IST and closes D-1 22:00 IST (soft close up to 22:30); bids go in before the upload; a person approves each ad in `/admin/ads` after reading its Mux transcript; settled from prepaid credits (Stripe in USD, Razorpay UPI in INR at `USD_INR_RATE`); withdrawals are paid by hand. Schema: `backend/supabase/migrations/`.
+Six display spots and eight classified lines per issue. Bidding opens D-7 06:00 UTC and closes D 05:45 UTC (a 5-minute soft close up to 05:50), 10 minutes before the issue goes live at 06:00 UTC; the times are in `bought_ad_times` and assume that publish time. Bids are in points: every new email gets 100 free points once (`bought_ad_open_account`), more cost $1 each (Stripe in USD, Razorpay UPI in INR at `USD_INR_RATE`, plus 18% GST in India, charged at purchase). Every spot starts at 1 point, +1 point steps. Free points are spent first and can't be withdrawn; unused bought points can, paid by hand from the desk. No review: an ad is `ready` when its video or picture is in; at go-live ready winners run and a winner whose ad isn't ready gets every point back. No face detection (MediaPipe removed); the recorder keeps a microphone check. Schema: `backend/supabase/migrations/`.
 
 ## History
 
