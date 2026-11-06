@@ -1,0 +1,63 @@
+# Dependency licenses
+
+Fonts: `assets/fonts/font-0.ttf` is DM Sans (`assets/fonts/DM-Sans-LICENSE.txt`); `assets/newsreader.ttf` is Newsreader (`assets/Newsreader-OFL.txt`). The site itself loads its fonts from Google Fonts.
+
+All runtime dependencies are open source; none needs an API key or a paid service. Versions are those
+installed when this was written (license text taken from each package's own metadata).
+
+## Direct
+
+| Package | Version | License | Use |
+|---|---|---|---|
+| feedparser | 6.0.12 | BSD-2-Clause | RSS/Atom parsing |
+| httpx | 0.28.1 | BSD-3-Clause | HTTP client |
+| PyYAML | 6.0.3 | MIT | config files |
+| pytest (dev only) | 8.4.2 | MIT | tests |
+
+Everything else is the Python standard library (sqlite3, xml.etree, html.parser, urllib.robotparser).
+
+## Transitive (runtime)
+
+| Package | License |
+|---|---|
+| httpcore | BSD-3-Clause |
+| h11 | MIT |
+| anyio | MIT |
+| idna | BSD-3-Clause |
+| certifi | **MPL-2.0** (file-level copyleft; fine to use unmodified as a dependency) |
+| sgmllib3k (via feedparser) | BSD |
+| typing_extensions | PSF-2.0 (Python < 3.11 only) |
+| exceptiongroup | MIT (Python < 3.11 only) |
+| sniffio | MIT OR Apache-2.0 (per upstream; metadata was not installed here, re-check) |
+
+Dev-only transitives (pytest): iniconfig MIT, pluggy MIT, packaging Apache-2.0 OR BSD-2-Clause,
+pygments BSD-2-Clause, tomli MIT.
+
+Not verified: licenses of newer versions pulled by a fresh `pip install` on the VPS. Re-run
+`pip-licenses` (or read each package's metadata) after upgrading.
+
+## Phase 2a (optional, external programs; not in requirements.txt)
+
+| Tool | Licence | Notes |
+|---|---|---|
+| piper-tts 1.8.0 | **GPL-3.0-or-later** | installed in its own venv, run as a subprocess |
+| Piper voice en_US-lessac-medium | check model card | per-voice licence, not verified here |
+| ffmpeg / ffprobe | LGPL-2.1+ or GPL (build dependent) | used as a subprocess; use an LGPL build |
+| Pillow >=10 (avatar only) | HPND | requirements-media.txt |
+| numpy (avatar only) | BSD-3-Clause | requirements-media.txt |
+| libx264 (inside ffmpeg) | GPL-2.0+ | subprocess; needed for H.264 MP4 output |
+| Kokoro-82M + kokoro-onnx (voice, optional) | Apache-2.0 / MIT per upstream (package metadata was blank; re-check) | `tts_kokoro.py`, needs Python >= 3.10 |
+| rembg + u2net_human_seg (one-off cutout) | MIT (rembg); model licence not verified | only used to make `assets/presenter_cutout.png` |
+| rembg + isnet-anime (one-off cutout of the anime anchor) | MIT (rembg); model licence not verified | only used to make `assets/anime/cutout_raw.png` from the user's own character sheet |
+| Chatterbox Turbo (laughs, one-off, Mac only) | MIT; output carries an inaudible Perth watermark | the two WAVs in `assets/laughs/` are shipped; the model is not needed on the server |
+| Mascot host (`mascot.py`) | original, drawn in code | no third-party artwork |
+
+## backend/ (browser and server, npm)
+
+| Package | License | Used for |
+| --- | --- | --- |
+| `@supabase/supabase-js` | MIT | Sign-in, database, image storage |
+| `@mux/upchunk` | MIT | Resumable video upload |
+| `hls.js` | Apache-2.0 | Playing Mux streams outside Safari |
+| `@mediapipe/tasks-vision` | Apache-2.0 | Face guide while recording; `public/mediapipe/NOTICE.txt` |
+| `tsx` | MIT | Runs the TypeScript server |

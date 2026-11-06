@@ -1,0 +1,6 @@
+MediaPipe Tasks Vision 1.0.1 browser runtime, distributed under Apache-2.0.
+Source: https://github.com/google-ai-edge/mediapipe
+Package: https://www.npmjs.com/package/@mediapipe/tasks-vision/v/1.0.1
+Face detector model: blaze_face_short_range, float16, version 1.
+Source: https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite
+Only browser camera frames are passed to the on-device detector. No face images or biometric templates are sent to a detector service or stored by BOUGHT.

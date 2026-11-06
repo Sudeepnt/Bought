@@ -1,0 +1,73 @@
+# Pipeline settings. Slot sizes are NOT confirmed product numbers: change them here.
+user_agent: "BoughtNewsBot/0.1 (+https://github.com/Sudeepnt/Bt-Newspaper; contact: set-a-real-email@example.com)"
+http_timeout_seconds: 15
+fetch_attempts: 3
+max_items_per_source: 60
+
+max_age_hours: 48          # older items are never stored / become 'expired'
+filtered_size: 50          # top-N candidates all slots draw from
+slots:
+  prime: 25
+  cards: 25
+  glance: 10
+category_cap: 0.4          # max share of a single category in each slot
+category_balance_max_bonus: 2.0   # bonus (0..N) for categories under their even share
+dedupe_jaccard: 0.7
+
+og_fallback: true          # fetch og:image from the article page when the feed has none
+og_min_interval_seconds: 1.5      # per-host politeness delay
+og_max_per_source: 15      # article-page fetches per source per run
+
+# Phase 2a (audio). Off by default. Command gets the script on stdin and must write {wav}.
+# Example for Piper (MIT voices only; check each voice's licence):
+#   media_enabled: true
+#   tts_command: ["piper", "--model", "/opt/voices/en_US-lessac-medium.onnx", "--output_file", "{wav}"]
+# The newsroom voice (Kokoro, Apache-2.0, CPU). List one voice, or several and the stories take turns; "a+b" blends two voices.
+tts_command: ["/Users/sudeepnt/.cache/bought/tts/venv/bin/python", "pipeline/tts_kokoro.py", "/Users/sudeepnt/.cache/bought/tts/kokoro-v1.0.int8.onnx", "/Users/sudeepnt/.cache/bought/tts/voices-v1.0.bin", "{voice}", "{wav}", "{speed}"]
+tts_voices: [af_heart]               # candidates: af_river, af_jessica, "af_nova+af_kore"
+tts_speed: 1.0
+media_enabled: false
+audio_base_url: "/media"
+media_time_budget_seconds: 900
+media_max_attempts: 3
+script_max_chars: 600
+
+# Phase 2b: presenter video from the audio (2D mouth animation; needs media_enabled, Pillow, numpy, ffmpeg+x264).
+avatar_enabled: false
+avatar_image: "pipeline/assets/presenter_cutout.png"
+avatar_size: [1280, 720]   # 16:9 (720p)
+avatar_channel: "BOUGHT."
+avatar_name: "Nastya"                 # name strap under the presenter in every video; "" for none
+avatar_name_tag: "AI JOURNALIST"
+avatar_cutaway_chance: 0.6   # 0 = never go full screen
+
+# One look per category (host + set), so videos are told apart at a glance. Delete this block for the original look everywhere.
+# Categories not listed here rotate through these looks, picked by story id.
+avatar_looks:
+  Technology:          {character: photo,  style: studio}    # presenter photo, blue studio
+  AI:                  {character: mascot, style: funky}     # drawn mascot, sticker set with captions
+  Tech business:       {character: anime,  style: channel}   # anime anchor, TV news set with ticker
+  Founders & startups: {character: anime,  style: funky}
+  Product launches:    {character: mascot, style: studio}
+
+# The top stories of the feed all get one look (the first story's), so the page is consistent.
+avatar_first_look: {character: anime, style: channel}
+avatar_first_count: 25            # every prime story
+avatar_rank_looks:
+  1: {character: anime, style: editorial}      # the second story: dark newsroom, big serif headline (pipeline/editorial.py)
+avatar_lead_window_x: 432             # the first story's picture window starts here (others at 625), filling the space the smaller anchor leaves
+avatar_lead_presenter: {scale: 0.62, origin: [73, 138]}   # the first story's anchor is drawn smaller (the others use 0.95 at [8, 18])
+avatar_credit_on_video: false       # true writes the photo credit on the picture inside the video
+
+# Badges on stories (New, Exclusive, and Most viewed / read / glanced once the page's collector writes engagement_file).
+badges_enabled: true
+badges_exclusive_sources: []        # outlets we have an exclusive arrangement with; nothing is "Exclusive" otherwise
+badges_new_hours: 3
+badges_min_events: 30               # a "most" badge needs at least this many views/reads/glances
+engagement_file: ""                 # JSON {article_id: {views, reads, glances}}
+
+
+# Translations for the page's language picker (offline, CPU only; see translate_m2m.py: M2M100 via CTranslate2, both MIT; `pip install -r pipeline/requirements-translate.txt`).
+# Locales are the picker's; every language in the picker is listed (all within M2M100's 100 languages). Stories/headlines are translated; video and podcast audio stay English.
+translate_languages: [zh-CN, hi-IN, es-ES, ar, fr-FR, pt-BR, ru-RU, ja-JP, af, sq, am, hy, az, my, ca, cs, da, nl, fil, fi, ka, de, el, gu, he, hu, is, id, it, kn, ko, ms, ml, mr, ne, nb, or, fa, pl, pa, ro, sr, si, sk, sw, sv, ta, th, tr, uk, ur, uz, vi, cy, ast, be, bs, br, bg, hr, et, fy, gl, ga, lv, lt, lb, mk, oc, gd, sl]
+translate_command: ["/usr/bin/python3", "pipeline/translate_m2m.py", "{lang}", "/Users/sudeepnt/.cache/bought/m2m100_ct2"]
