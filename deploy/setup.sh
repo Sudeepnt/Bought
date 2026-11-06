@@ -75,6 +75,7 @@ chown caddy:caddy /var/log/caddy
 usermod -aG bought caddy
 chmod 750 "$ROOT"
 chmod 700 "$ROOT/pipeline/data" "$ROOT/backups"
+git config --global --get-all safe.directory | grep -qx "$ROOT" || git config --global --add safe.directory "$ROOT"   # root can still git pull
 
 as_bought() { sudo -u bought -H env BOUGHT_HOME="$MODELS" PLAYWRIGHT_BROWSERS_PATH="$MODELS/ms-playwright" "$@"; }
 
@@ -149,7 +150,7 @@ printf '[Service]\nEnvironment=BOUGHT_DOMAIN=%s\nEnvironment=BOUGHT_ROOT=%s\n' "
 systemctl daemon-reload
 systemctl enable --now bought.service bought-backup.timer caddy >/dev/null
 systemctl restart bought.service
-systemctl reload-or-restart caddy
+systemctl restart caddy            # a restart, not a reload: Caddy must pick up its new group to read public/
 
 say "check"
 for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1 && break; sleep 1; done

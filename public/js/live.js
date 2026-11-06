@@ -2,7 +2,7 @@
    Until every key is set, /api/bought/config says live:false and auction.js keeps its local simulation.
    When live, the server owns every number: this file only mirrors its market into AU and sends the page's buttons to it. */
 const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bought-notice-seen",0),polls:0,
- client(){return Live.lib||(Live.lib=import("./live/client.js?v=10"))},
+ client(){return Live.lib||(Live.lib=import("./live/client.js?v=11"))},
  async boot(){
   let cfg=null;
   try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),2500);const r=await fetch("api/bought/config",{signal:c.signal,cache:"no-store"});clearTimeout(tm);if(r.ok)cfg=await r.json()}catch{}
@@ -141,23 +141,38 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
   try{const lib=await Live.client(),take=await lib.loadLocal("draft-"+st.k);
    if(take&&Bid.st===st&&!st.cre.file){Object.assign(st.cre,meta,{blob:take.video,file:URL.createObjectURL(take.video),img:null,trimStart:0});Bid.render()}}catch{}
  },
- /* ---------- sign-in: Bought's email code, inside the page's own bid sheet ---------- */
- async accountStep(st){
-  const lib=await Live.client(),a=st.acct;
-  if(Live.user){await lib.api("ads/account",a);await Live.sync();return true}
-  await lib.sendCode(a.email);return true;
- },
+ /* ---------- sign-in, inside the page's own bid sheet: Google in a small window, or a code by email ---------- */
+ async signinStep(st){const lib=await Live.client();await lib.sendCode(st.acct.email);return true},
  async verifyStep(st){
   const lib=await Live.client(),code=($("b-code")?.value||"").trim();
   if(!/^\d{4,10}$/.test(code))throw new Error("Enter the code from your email.");
   await lib.verifyCode(st.acct.email,code);
   Live.user=true;await Live.sync();
-  /* a returning advertiser keeps the details already on file */
-  if(!AU.acct){await lib.api("ads/account",st.acct);await Live.sync()}
-  st.acct={...AU.acct};Live.resume();
  },
+ async google(){
+  const st=Bid.st;if(!st||st.waiting)return;
+  st.err="";st.waiting=true;Bid.render();
+  try{
+   const lib=await Live.client(),ok=await lib.googleSignIn();
+   st.waiting=false;
+   if(!ok){if(Bid.st===st)Bid.render();return}
+   Live.user=true;await Live.sync();await Live.afterSignIn(st);
+  }catch(e){st.waiting=false;st.err=e.message||"Please try again.";if(Bid.st===st)Bid.render()}
+ },
+ cancelGoogle(){Live.client().then(l=>l.cancelGoogle()).catch(()=>{})},
+ /* signed in: a returning advertiser keeps the details on file and skips that step; a new one starts from their email */
+ async afterSignIn(st){
+  const lib=await Live.client();Live.email=await lib.userEmail().catch(()=>null);
+  if(AU.acct)st.acct={...AU.acct};else if(Live.email&&!st.acct.email)st.acct.email=Live.email;
+  const at=st.steps.indexOf("signin");
+  st.steps=st.steps.filter(s=>s!=="signin"&&s!=="verify"&&!(s==="acct"&&AU.acct));st.i=Math.max(0,at);st.err="";
+  Live.resume();
+  if(st.gate&&st.i>=st.steps.length){const after=st.gate;Sheet.close();after();return}
+  if(Bid.st===st)Bid.render();
+ },
+ async accountStep(st){const lib=await Live.client();await lib.api("ads/account",st.acct);await Live.sync();return true},
  gate(after){
-  const steps=Live.user?["acct"]:["acct","verify"];
+  const steps=Live.user?["acct"]:["signin","verify","acct"];
   Bid.open({k:"top",steps,i:0,dates:new Set(),mode:"exact",same:true,one:null,per:{},cre:defCre("top"),acct:{name:"",email:"",country:"India",gstin:"",method:"upi"},gate:after,err:""});
  },
  async topup(btn,amt,method){

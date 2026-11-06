@@ -59,7 +59,7 @@ function mapHTML(d){
 }
 function previewFor(k){
  if(k==="cls")return `<ol class="cls-list one">${CLS_TODAY.slice(0,3).map(([p,t,w])=>`<li><b>${usd(p)}</b><span>${esc(t)} <em>${esc(w)}</em></span></li>`).join("")}</ol>`;
- if(k==="spon-a"||k==="spon-d")return `<div class="spp-spon"><span class="sec-mock">${k==="spon-a"?"Page 2 · AI":"Page 5 · Founders"}</span>${sponsorHTML(k).replace(/data-adv-spot="[^"]*"/,"disabled")}</div>`;
+ if(k==="spon-a"||k==="spon-d")return `<div class="spp-spon"><span class="sec-mock">${k==="spon-a"?"Page 2 · AI":"Page 5 · Founders"}</span>${sponsorHTML(k,true).replace(/data-adv-spot="[^"]*"/,"disabled")}</div>`;
  if(k==="clip")return `<div class="spp-clip">${bvHTML("pv-clip",TODAY_ADS.clip,"vert")}</div>`;
  return spotHTML(k,k==="top"?"banner":k==="half"?"half":"native",{preview:true}).replace(" rv"," in");
 }
@@ -175,8 +175,9 @@ VIEW_HOOKS.advertise={
    Raise: Bid → Review. Edit ad: Ad only.
    ========================================================= */
 const BANNED=/(guarantee[ds]?\s+(returns?|profits?)|risk[- ]free|100%\s*safe|\bcures?\b|get rich)/i;
-const STEP_T={dates:"Choose issues",bid:"Set your bid",ad:"Add your ad",acct:"Account and payment",verify:"Confirm your email",review:"Review and place",done:"Bids placed"};
-const STEP_S={dates:"Issues",bid:"Bid",ad:"Ad",acct:"Payment",verify:"Email",review:"Review"};
+const STEP_T={dates:"Choose issues",bid:"Set your bid",ad:"Add your ad",signin:"Sign in",acct:"Account and payment",verify:"Confirm your email",review:"Review and place",done:"Bids placed"};
+const STEP_S={dates:"Issues",bid:"Bid",ad:"Ad",signin:"Sign in",acct:"Payment",verify:"Email",review:"Review"};
+const GOOGLE_G=`<svg class="g-mark" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33Z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"/></svg>`;
 function defCre(k){const f=SPOTS[k].fmt;if(f==="video")return {p:"me",about:"",thumb:"",who:"",file:null,img:null,fname:"",len:30,web:"",social:"",email:""};if(f==="creative")return {line:"",sub:"",cta:"",mark:{bg:"#1f3b5c",fg:"#f4efe4"}};return {line:"",link:""}}
 function adChecks(k,c){
  const f=SPOTS[k].fmt, txt=[c.about,c.thumb,c.who,c.line,c.sub].filter(Boolean).join(" "), out=[];
@@ -204,7 +205,7 @@ const Bid={
  start(k,dates){
   if(dates&&dates.length===1&&myBid(dates[0],k)&&isOpenSpot(dates[0],k)){Bid.raise(dates[0],k);return}
   const ds=(dates&&dates.length?dates:[ADV.date]).filter(d=>AU.dates.includes(d)&&isOpenSpot(d,k)&&!myBid(d,k));
-  const steps=["dates","bid","ad"];if(!AU.acct)steps.push("acct");if(Live.on&&!Live.user)steps.push("verify");steps.push("review");
+  const steps=["dates","bid","ad"];if(Live.on&&!Live.user)steps.push("signin","verify");if(!AU.acct)steps.push("acct");steps.push("review");
   Bid.open({k,steps,i:0,dates:new Set(ds),mode:SPOTS[k].fmt==="classified"?"exact":"auto",same:true,one:null,per:{},cre:AU.cre[k]?{...AU.cre[k]}:defCre(k),acct:AU.acct?{...AU.acct}:{name:"",email:"",country:"India",gstin:"",method:"upi"},agree:false,err:""});
  },
  raise(d,k){
@@ -230,6 +231,7 @@ const Bid={
  collect(){
   const st=Bid.st, step=st.steps[st.i], q=id=>$(id)?.value??"";
   if(step==="bid"){if(st.same)st.one=q("b-one");else $$("[data-per]").forEach(i=>st.per[i.dataset.per]=i.value)}
+  if(step==="signin")st.acct.email=q("b-email").trim();
   if(step==="acct")Object.assign(st.acct,{name:q("b-biz").trim(),email:q("b-email").trim(),country:q("b-country"),gstin:q("b-gst").trim(),method:(document.querySelector('input[name="pm"]:checked')||{}).value||"upi"});
   if(step==="review")st.agree=!!$("b-agree")?.checked;
  },
@@ -238,6 +240,7 @@ const Bid={
   if(step==="dates"&&!ds.length)return "Choose at least one issue.";
   if(step==="bid"||step==="review"){for(const d of ds){const a=Bid.amt(d),m=Bid.minFor(d);if(!(a>=m))return `${dayShort(d)}: the minimum is now ${usd(m)}. Raise your amount and try again.`}}
   if(step==="ad"){const bad=adChecks(st.k,st.cre).find(c=>!c.ok);if(bad)return `Fix this before you continue: ${bad.l.toLowerCase()}.`}
+  if(step==="signin"&&!/^\S+@\S+\.\S+$/.test(st.acct.email))return "Add your work email, like you@company.com, or continue with Google.";
   if(step==="acct"){if(!st.acct.name)return "Add your business name.";if(!/^\S+@\S+\.\S+$/.test(st.acct.email))return "Add a work email, like you@company.com.";if(st.acct.country==="India"&&st.acct.gstin&&!/^[0-9A-Z]{15}$/.test(st.acct.gstin.toUpperCase()))return "A GSTIN has 15 letters and digits. Check it, or leave it blank.";}
   if(step==="review"&&!st.agree)return "Tick the box to confirm you understand bids are binding.";
   if(step==="review"){const sh=c2(Bid.need()-availCredits());if(sh>0)return `Add at least ${usd2(sh)} in credits to place ${ds.length>1?"these bids":"this bid"}.`}
@@ -246,9 +249,9 @@ const Bid={
  async next(){
   const st=Bid.st;Bid.collect();st.err=Bid.validate();if(st.err){Bid.render();return}
   const step=st.steps[st.i];
-  if(Live.on&&(step==="acct"||step==="verify")){
+  if(Live.on&&(step==="acct"||step==="verify"||step==="signin")){
    const btn=$("sheet").querySelector("[data-next]");if(btn)btn.disabled=true;
-   try{if(step==="acct")await Live.accountStep(st);else await Live.verifyStep(st)}catch(e){st.err=e.message||"Please try again.";Bid.render();return}
+   try{if(step==="signin")await Live.signinStep(st);else if(step==="acct")await Live.accountStep(st);else{await Live.verifyStep(st);await Live.afterSignIn(st);return}}catch(e){st.err=e.message||"Please try again.";Bid.render();return}
    if(st.gate&&st.i===st.steps.length-1){const after=st.gate;Sheet.close();after();return}
   }
   if(step==="review")return Bid.submit();
@@ -357,6 +360,14 @@ const Bid={
    <label class="chk agree"><input type="checkbox" id="b-agree"${st.agree?" checked":""}> I understand bids can be raised but not lowered or withdrawn, and credits are only deducted for bids I win.</label>`;
    acts=`${back}<button type="button" class="btn" data-next>${st.raise?"Confirm":"Place "+(ds.length>1?ds.length+" bids":"bid")} · up to ${usd(tot)}</button>`;
   }
+  if(step==="signin"){
+   body=st.waiting?`<p class="hint">Finish signing in with Google in the window that opened. This sheet carries on by itself.</p>`
+   :`<p class="hint">Only advertisers sign in. Readers never need an account.</p>
+   <button type="button" class="btn ghost g-btn" data-google>${GOOGLE_G}Continue with Google</button>
+   <p class="or-rule"><span>or get a code by email</span></p>
+   <label class="fld" for="b-email">Work email<input id="b-email" type="email" autocomplete="email" value="${esc(st.acct.email)}" placeholder="you@company.com"></label>`;
+   acts=st.waiting?`<button type="button" class="btn ghost" data-google-cancel>Cancel</button>`:`${back}<button type="button" class="btn" data-next>Email me a code</button>`;
+  }
   if(step==="verify"){
    body=`<p class="hint">We sent a code to <b>${esc(st.acct.email)}</b>. Enter it here to confirm it's you.</p><label class="fld" for="b-code">Code from your email<input id="b-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10"></label><p class="hint"><button type="button" class="linkbtn" data-resend>Send a new code</button></p>`;
    acts=`${back}<button type="button" class="btn" data-next>Continue</button>`;
@@ -406,6 +417,8 @@ const Bid={
  click(e){
   if(!Bid.st||!e.target.closest("#sheet"))return false;
   const t=e.target, st=Bid.st;
+  if(t.closest("[data-google]")){Live.google();return true}
+  if(t.closest("[data-google-cancel]")){Live.cancelGoogle();return true}
   if(t.closest("[data-resend]")){Live.client().then(l=>l.sendCode(st.acct.email)).then(()=>toast("A new code is on its way."),e=>toast(e.message));return true}
   if(t.closest("[data-rec]")){Rec.start();return true}
   if(t.closest("[data-rec-stop]")){Rec.stop();return true}

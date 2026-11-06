@@ -71,7 +71,7 @@ Each issue has 6 display spots and 8 classified lines, in fixed template positio
 
 ## What's simulated
 
-The auction, wallet, ad upload and delivery reports below stay simulated only until `backend/.env` has its keys (`backend/README.md`). Then `js/live.js` mirrors the server into `AU`, the prototype controls and rival bidders turn off, and the one addition to the UI appears: a step in the bid sheet for the emailed sign-in code. Comments, votes and unsold ad spots are sample data either way.
+The auction, wallet, ad upload and delivery reports below stay simulated only until `backend/.env` has its keys (`backend/README.md`). Then `js/live.js` mirrors the server into `AU`, the prototype controls and rival bidders turn off, and the bid sheet gains a Sign in step (Continue with Google, or a code by email; `auth/done.html` is where Google's window lands) and the code step. Live, an ad spot nobody won stays empty, or shows Bought's own ad if `HOUSE_ADS` in `js/data.template.js` has one for it; the sample advertisers appear only in the local simulation and as format examples on the Advertise page. Comments and votes are sample data either way.
 
 
 Rival bidders, the clock ("Prototype controls" fast-forward and close), payments, delivery reports, comments and their counts, and poll and reaction counts. Advertisers are fictional. Stories, videos, audio and translations are real.

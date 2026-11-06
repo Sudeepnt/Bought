@@ -15,8 +15,9 @@ let stall=false,got=0;
 async function ctx(b,name,opts={}){const c=await b.newContext({viewport:{width:1280,height:900},...opts});
  await c.route('https://fake.supabase.test/**',async r=>{const q=r.request();const u=new URL(q.url());const h={...q.headers()};delete h.host;
   if(q.method()==='OPTIONS')return r.fulfill({status:200,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}});
-  const res=await fetch(C+'/sb'+u.pathname+u.search,{method:q.method(),headers:h,body:q.postDataBuffer()||undefined});
-  r.fulfill({status:res.status,headers:{'content-type':res.headers.get('content-type')||'application/json','access-control-allow-origin':'*','access-control-expose-headers':'*'},body:Buffer.from(await res.arrayBuffer())})});
+  const res=await fetch(C+'/sb'+u.pathname+u.search,{method:q.method(),headers:h,body:q.postDataBuffer()||undefined,redirect:'manual'});
+  const loc=res.headers.get('location');
+  r.fulfill({status:res.status,headers:{'content-type':res.headers.get('content-type')||'application/json','access-control-allow-origin':'*','access-control-expose-headers':'*',...(loc?{location:loc}:{})},body:Buffer.from(await res.arrayBuffer())})});
  await c.route('https://storage.googleapis.com/fake-mux/**',async r=>{const q=r.request();if(q.method()==='OPTIONS')return r.fulfill({status:200,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}});
   if(stall)return r.abort();got+=(q.postDataBuffer()||Buffer.alloc(0)).length;r.fulfill({status:200,headers:{'access-control-allow-origin':'*'},body:''})});
  await c.route('https://checkout.razorpay.com/**',r=>r.fulfill({status:200,contentType:'text/javascript',body:'window.Razorpay=function(o){this.open=function(){setTimeout(function(){o.handler({})},50)}}'}));
@@ -32,9 +33,9 @@ async function pay(){const o=(await q("select payment_reference,charge_minor fro
  await fetch(C+'/shift?seconds=0');
  // ---- wallet chip, signed out: asks who you are first, then opens the wallet
  const P=await ctx(b,'P');
- await P.click('#adv [data-wallet]');await step(P,'Account and payment');
- await P.fill('#b-biz','Third Co');await P.fill('#b-email','third@example.com');await next(P);await step(P,'Confirm your email');
- await P.fill('#b-code','123456');await next(P);await P.waitForSelector('#sheet .wallet');log('1 wallet opens after sign-in:',await P.evaluate(()=>[Live.user,AU.acct.name,AU.wallet.bal]));
+ await P.click('#adv [data-wallet]');await step(P,'Sign in');
+ await P.fill('#b-email','third@example.com');await next(P);await step(P,'Confirm your email');
+ await P.fill('#b-code','123456');await next(P);await step(P,'Account and payment');await P.fill('#b-biz','Third Co');await next(P);await P.waitForSelector('#sheet .wallet');log('1 wallet opens after sign-in:',await P.evaluate(()=>[Live.user,AU.acct.name,AU.wallet.bal]));
  await P.screenshot({path:T+'/w-wallet.png'});
  await P.click('#sheet .wallet [data-topup="1000"]').catch(()=>P.locator('#sheet .wallet [data-topup]').last().click());await sleep(1000);await pay();
  await P.waitForFunction(()=>AU.wallet.bal>0,null,{timeout:20000});log('  credits:',await P.evaluate(()=>AU.wallet.bal));
@@ -73,8 +74,16 @@ async function pay(){const o=(await q("select payment_reference,charge_minor fro
  log('7 withdrew:',await P.evaluate(()=>[AU.wallet.bal,availCredits()]),(await q('select amount_minor::int a,state from public.bought_withdrawals'))[0]);
  await adm.goto(DESK+'/admin/ads');log('  admin:',await adm.locator('.card h2').allInnerTexts());
  // ---- a second device signs in: same account, no retyping kept over the record
- const D=await ctx(b,'D');await D.click('#adv [data-wallet]');await step(D,'Account and payment');await D.fill('#b-biz','SHOULD NOT REPLACE');await D.fill('#b-email','third@example.com');await next(D);await step(D,'Confirm your email');await D.fill('#b-code','123456');await next(D);await D.waitForSelector('#sheet .wallet');
+ const D=await ctx(b,'D');await D.click('#adv [data-wallet]');await step(D,'Sign in');await D.fill('#b-email','third@example.com');await next(D);await step(D,'Confirm your email');await D.fill('#b-code','123456');await next(D);await D.waitForSelector('#sheet .wallet');
  log('8 second device:',await D.evaluate(()=>[AU.acct.name,AU.wallet.bal,myOpen().length]));
+ // ---- Google: a small window signs in, the sheet carries on by itself (here "Google" signs in gita@googlemail.example)
+ const G=await ctx(b,'G');await G.click('#adv [data-wallet]');await step(G,'Sign in');
+ const [pop]=await Promise.all([G.waitForEvent('popup'),G.click('#sheet [data-google]')]);
+ log('  waiting text:',(await G.innerText('#sheet .hint')).slice(0,60));
+ await pop.waitForURL(/auth\/done\.html/,{timeout:15000}).catch(async e=>{log('  popup at:',pop.url(),'|',(await pop.content().catch(()=>'')).slice(0,300));throw e});log('  window came back to:',new URL(pop.url()).pathname);
+ await step(G,'Account and payment');log('11 google signed in:',await G.evaluate(()=>[Live.user,Live.email,document.getElementById('b-email').value]));
+ await G.fill('#b-biz','Gita Labs');await next(G);await G.waitForSelector('#sheet .wallet');log('  google account:',await G.evaluate(()=>[AU.acct.name,AU.acct.email]));
+ if(!pop.isClosed())await pop.waitForEvent('close',{timeout:5000}).catch(()=>{});log('  window closed itself:',pop.isClosed());
  // ---- phone width
  const M=await ctx(b,'M',{viewport:{width:390,height:844},isMobile:true,hasTouch:true});await M.evaluate(()=>Bid.start('feed-a',[AU.dates[1]]));await next(M);await step(M,'Set your bid');await next(M);await step(M,'Add your ad');await M.screenshot({path:T+'/w-phone-ad.png'});
  log('9 phone record button uses camera input:',await M.evaluate(()=>{let hit=false;document.getElementById('b-cap').click=()=>{hit=true};Rec.start();return hit}));

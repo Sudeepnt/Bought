@@ -273,7 +273,7 @@ def ads_page(running, status, queue, date, stage, settings, row, job, now, messa
     sold = f'<div class="card"><h2>Sold</h2><table><tr><th>Issue</th><th>Spot</th><th>Price</th><th>Status</th><th>Invoice</th></tr>{sold}</table></div>' if sold else ""
     money_out = "".join(f"""<tr><td>{money(w["amount_minor"])}</td><td>{e(str(w["requested_at"])[:16])}</td><td><form method="post" action="/admin/ads/withdrawal"><input type="hidden" name="id" value="{e(str(w["id"]))}"><button class="b g">Mark as paid</button></form></td></tr>""" for w in queue.get("withdrawals") or [])
     money_out = f'<div class="card"><h2>Withdrawals to pay by hand</h2><table><tr><th>Amount</th><th>Asked</th><th></th></tr>{money_out}</table></div>' if money_out else ""
-    body = f"""{notes(message, error)}<h1>Ads</h1><p class="sub">{len(ads)} waiting. Every ad needs a person to approve it before 04:00 IST on its issue day. By 05:00 an unapproved ad loses its spot to the next bidder.</p>{cards}{money_out}{sold}<script type="module" src="/js/live/admin-player.js?v=10"></script>"""
+    body = f"""{notes(message, error)}<h1>Ads</h1><p class="sub">{len(ads)} waiting. Every ad needs a person to approve it before 04:00 IST on its issue day. By 05:00 an unapproved ad loses its spot to the next bidder.</p>{cards}{money_out}{sold}<script type="module" src="/js/live/admin-player.js?v=11"></script>"""
     return shell("Ads", "ads", body, date)
 
 

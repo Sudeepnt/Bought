@@ -94,6 +94,10 @@ const TODAY_ADS={
  "feed-e":{web:"https://harbour.example",social:"https://www.instagram.com/harbourclub.example",email:"seats@harbour.example",adv:"Harbour Club",kind:"image",img:HARBOUR_POSTER,line:"Founder dinners in Dublin, Bengaluru and Dubai.",sub:"Twelve seats a table. Next one on 14 Nov.",cta:"harbour.example"},
  clip:{web:"https://tessellate.example",social:"https://www.youtube.com/@tessellate-example",email:"fleets@tessellate.example",adv:"Tessellate Maps",p:"sofia",who:"Sofia Reyes, founder of Tessellate",thumb:"Every street, mapped",line:"Street-level maps for delivery fleets.",cta:"tessellate.example",len:24,script:["Your drivers know the shortcuts. Your map doesn't.","Tessellate maps every lane, gate and loading bay.","Built for delivery fleets.","tessellate.example."]}
 };
+/* Bought's own ads for spots nobody bought, when the site is live. Empty: unsold spots stay empty.
+   Same shape as TODAY_ADS (adv, line, sub, web, kind, img or the presenter fields); HOUSE_CLS like CLS_TODAY. */
+const HOUSE_ADS={};
+const HOUSE_CLS=[];
 const TODAY_PRICE={top:2150,front:1380,"feed-a":420,half:1480,"feed-e":310,clip:520};
 /* Today's 8 classified lines, in rank order: [price paid, line, advertiser]. */
 const CLS_TODAY=[

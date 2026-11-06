@@ -53,14 +53,21 @@ function card(s,opt={}){
 }
 
 /* ---------- ad slots: same grid as the news, quiet tint, one small "Sponsored" mark ---------- */
-const adCre=k=>PREVIEW[k]?.cre||ISSUE_ADS[k]?.cre||TODAY_ADS[k];
-function spMeta(k){
+/* Live, a spot nobody won stays empty, or carries Bought's own ad if HOUSE_ADS has one for it. The sample ads
+   (TODAY_ADS) appear only in the local simulation and as format previews on the Advertise page. */
+const isHouse=k=>Live.on&&!PREVIEW[k]&&!ISSUE_ADS[k]&&!!HOUSE_ADS[k];
+const spotEmpty=k=>Live.on&&!PREVIEW[k]&&!ISSUE_ADS[k]&&!HOUSE_ADS[k];
+const adCre=(k,sample)=>PREVIEW[k]?.cre||ISSUE_ADS[k]?.cre||(Live.on&&!sample?HOUSE_ADS[k]:TODAY_ADS[k]);
+const emptySpot=(k,lay)=>`<span hidden data-spot="${k}" data-layout="${lay}"></span>`;
+function spMeta(k,sample){
  const pv=PREVIEW[k];
+ if(!sample&&isHouse(k))return {label:`<span class="sp-l"><i></i>From Bought.</span>`,price:""};
  return {label:`<span class="sp-l"><i></i>${pv?"Your ad · preview":"Sponsored"}</span>`,
   price:pv?`<span class="sp-p">You won at ${usd(pv.amt)} · ${dayShort(pv.date)}</span>`:`<span class="sp-p">Won at ${usd(ISSUE_ADS[k]?ISSUE_ADS[k].amt:TODAY_PRICE[k])}</span>`};
 }
 function spotHTML(k,layout,opt={}){
- const sp=SPOTS[k], cre=adCre(k), m=spMeta(k), pre=opt.preview?"-pv":"";
+ if(!opt.preview&&spotEmpty(k))return emptySpot(k,layout);
+ const sp=SPOTS[k], cre=adCre(k,opt.preview), m=spMeta(k,opt.preview), pre=opt.preview?"-pv":"";
  const bid=opt.preview?"":`<button type="button" class="sp-bid" data-adv-spot="${k}">Bid for this spot</button>`;
  const shape=layout==="half"?"wide":layout==="clip"?"vert":"std";
  const media=sp.fmt==="video"?bvHTML("ad-"+k+pre,cre,shape):creMark(cre);
@@ -69,18 +76,20 @@ function spotHTML(k,layout,opt={}){
  if(layout==="half")return `<aside class="spot half rv" data-spot="${k}" data-layout="half">${media}<div class="sp-row"><div class="sp-txt"><div class="sp-meta">${m.label}<span class="sp-adv">${esc(cre.adv)}</span></div><b class="sp-hl">${esc(cre.line)}</b>${cre.sub?`<span class="sp-line">${esc(cre.sub)}</span>`:""}${adLinks(cre)}</div><div class="sp-side">${m.price}${bid}</div></div></aside>`;
  return `<aside class="spot native rv f-${sp.fmt}" data-spot="${k}" data-layout="native"><div class="sp-media">${media}</div><div class="sp-txt"><div class="sp-meta">${m.label}</div><span class="sp-adv">${esc(cre.adv)}</span><b class="sp-hl">${esc(cre.line)}</b>${cre.sub?`<span class="sp-line">${esc(cre.sub)}</span>`:""}${adLinks(cre)||(cre.cta?`<span class="sp-cta">${esc(cre.cta)}</span>`:"")}<div class="sp-foot">${m.price}${bid}</div></div></aside>`;
 }
-function sponsorHTML(k){
- const cre=adCre(k);
+function sponsorHTML(k,sample){
+ if(!sample&&spotEmpty(k))return emptySpot(k,"sponsor");
+ const cre=adCre(k,sample);
  return `<span class="sec-spon" data-spot="${k}" data-layout="sponsor"><span class="sp-l"><i></i>Presented by</span><button type="button" class="spav" data-adplay="${k}" aria-label="Play ad from ${esc(cre.adv)}">${personSVG(PEOPLE[cre.p||"me"],"av")}</button><b>${esc(cre.adv)}</b><button type="button" class="sp-bid" data-adv-spot="${k}">Bid</button></span>`;
 }
 function clsBlock(n){
- const lines=(ISSUE_CLS.length?ISSUE_CLS:CLS_TODAY).slice(n*4,n*4+4), mine=PREVIEW.cls&&PREVIEW.cls.block===n?PREVIEW.cls:null;
+ const lines=(ISSUE_CLS.length?ISSUE_CLS:Live.on?HOUSE_CLS:CLS_TODAY).slice(n*4,n*4+4), mine=PREVIEW.cls&&PREVIEW.cls.block===n?PREVIEW.cls:null;
+ if(!lines.length&&!mine)return emptySpot("cls","cls-"+n);
  return `<aside class="cls-block rv" data-spot="cls" data-layout="cls-${n}">
   <div class="cls-h"><h4>Classifieds</h4><span class="sp-l"><i></i>Lines ${n*4+1}–${n*4+4} · ranked by bid</span></div>
   <ol class="cls-list">${mine?`<li class="mine"><b>${usd(mine.amt)}</b><span>${esc(mine.cre.line)} <em>${esc(mine.cre.adv)} · your line, ${dayShort(mine.date)}</em></span></li>`:""}${lines.map(([p,t,w])=>`<li><b>${usd(p)}</b><span>${esc(t)} <em>${esc(w)}</em></span></li>`).join("")}</ol>
   <button type="button" class="sp-bid" data-adv-spot="cls">Place a line in an upcoming issue</button></aside>`;
 }
-function clipAdHTML(){const cre=adCre("clip");return `<div class="clip-ad" data-spot="clip" data-layout="clip"><button type="button" class="clip-ad-btn" data-adplay="clip" aria-label="Play ad from ${esc(cre.adv)}">${bvHTML("ad-clip",cre,"vert")}</button><span class="sp-l"><i></i>Sponsored</span><button type="button" class="sp-bid" data-adv-spot="clip">Bid for this spot</button></div>`}
+function clipAdHTML(){if(spotEmpty("clip"))return emptySpot("clip","clip");const cre=adCre("clip");return `<div class="clip-ad" data-spot="clip" data-layout="clip"><button type="button" class="clip-ad-btn" data-adplay="clip" aria-label="Play ad from ${esc(cre.adv)}">${bvHTML("ad-clip",cre,"vert")}</button><span class="sp-l"><i></i>Sponsored</span><button type="button" class="sp-bid" data-adv-spot="clip">Bid for this spot</button></div>`}
 function afterHTML(a){if(!a)return "";const inner=a==="half"?spotHTML("half","half"):a.startsWith("cls-")?clsBlock(+a.slice(4)):"";return inner}
 
 /* ---------- render the issue ---------- */

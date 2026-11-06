@@ -1,6 +1,6 @@
 # The backend
 
-This is Bought's code with every page removed: Mux video, Supabase sign-in and database, Stripe and Razorpay payments, Upstash rate limits, and the browser's recording and upload logic. It has no interface of its own. The newspaper's Advertise page in `public/` calls it from its existing buttons.
+This is Bought's code with every page removed (the one exception is `public/auth/done.html`, where Google's sign-in window lands and closes): Mux video, Supabase sign-in and database, Stripe and Razorpay payments, Upstash rate limits, and the browser's recording and upload logic. It has no interface of its own. The newspaper's Advertise page in `public/` calls it from its existing buttons.
 
 `pipeline serve` starts it and forwards `/api/bought/*` to it, so the site, `/admin` and this API share one address. Until every core key in `.env` is set, `/api/bought/config` answers `live: false` and the Advertise page keeps its local simulation.
 
@@ -22,7 +22,8 @@ Left behind: all pages, components and CSS, the daily ladder and categories, scr
 2. Create a Mux environment: an API token with Video access plus `robots:*`, a webhook secret and an RSA signing key.
 3. Create an Upstash Redis database. Writes are refused when the limiter is unavailable.
 4. Copy the values into `backend/.env` (see `.env.example`), set `APP_ORIGIN` to the exact address readers use, and set `CRON_SECRET` to a long random string. Restart `pipeline serve`. `/admin/ads` lists whatever is still missing, by name.
-5. For adding credits: Stripe for card (USD), Razorpay for UPI (INR, at the `USD_INR_RATE` you set). Razorpay must use automatic capture.
+5. Google sign-in (the "Continue with Google" button in the bid sheet): in Google Cloud, create an OAuth client (Web application) whose redirect URI is `https://<your-project>.supabase.co/auth/v1/callback`; in Supabase, Authentication > Providers > Google, paste its client ID and secret; in Authentication > URL Configuration, add `https://<your site>/auth/done.html` to the Redirect URLs. Self-hosted Supabase takes the same three values as `GOTRUE_EXTERNAL_GOOGLE_*` settings.
+6. For adding credits: Stripe for card (USD), Razorpay for UPI (INR, at the `USD_INR_RATE` you set). Razorpay must use automatic capture.
 
 Webhooks, on the public HTTPS address:
 

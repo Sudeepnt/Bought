@@ -21,7 +21,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 PUB = ROOT / "public"
-SITE = os.environ.get("SITE_URL", "https://btnui.vercel.app").rstrip("/")
+SITE = (os.environ.get("SITE_URL") or "http://localhost:8000").rstrip("/")     # the server sets SITE_URL (deploy/setup.sh)
 W, H = 1200, 630
 NEWS = str(ROOT / "pipeline/assets/newsreader.ttf")
 DM = str(ROOT / "pipeline/assets/fonts/font-0.ttf")

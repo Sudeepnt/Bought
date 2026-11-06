@@ -1230,3 +1230,7 @@ body.no-issue .brief30,body.no-issue .tops,body.no-issue .pulse,body.no-issue .n
 .vid.playing:has(video):not(:hover) .tag,.vid.playing:has(video):not(:hover) .tc,.vid.playing:has(video):not(:hover) .ctl{opacity:0}
 .lead .hl.long{font-size:clamp(25px,2.6vw,32px);line-height:1.14}
 .clip b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
+/* advertiser sign-in (bid sheet): Google button and the "or" rule, in the sheet's own type and colours */
+.g-btn{width:100%}.g-mark{width:18px;height:18px;flex:none}
+.or-rule{display:flex;align-items:center;gap:10px;margin:0;font:12px var(--f-ui);color:var(--muted)}.or-rule::before,.or-rule::after{content:"";flex:1;border-top:1px solid var(--rule-2)}
+.auth-done{display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;background:var(--paper)}

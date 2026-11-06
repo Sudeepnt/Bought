@@ -17,7 +17,7 @@ const sql = await readFile(new URL('../../supabase/migrations/20261105090000_new
 await db.exec(sql.replaceAll('clock_timestamp()', 'public.test_now()'));
 
 const CODE = '123456';
-const state = { sessions: new Map(), objects: new Map(), uploads: new Map(), assets: new Map(), muxBodies: [], sentCodes: [] };
+const state = { sessions: new Map(), oauth: new Map(), objects: new Map(), uploads: new Map(), assets: new Map(), muxBodies: [], sentCodes: [] };
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...headers } });
 
 function coerce(v) { return v === 'null' ? null : v === 'true' ? true : v === 'false' ? false : v; }
@@ -91,6 +91,17 @@ async function rest(url, init) {
   return json({ message: 'unsupported' }, 500);
 }
 
+const GOOGLE_EMAIL = 'gita@googlemail.example';
+async function sessionFor(email) {
+  let row = (await db.query('select id from auth.users where email=$1', [email])).rows[0];
+  if (!row) { row = { id: randomUUID() }; await db.query('insert into auth.users(id,email) values ($1,$2)', [row.id, email]); }
+  const access = 'tok-' + randomUUID();
+  const user = { id: row.id, aud: 'authenticated', email, email_confirmed_at: new Date().toISOString(), is_anonymous: false, app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() };
+  state.sessions.set(access, user);
+  const payload = Buffer.from(JSON.stringify({ sub: row.id, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url');
+  return { access_token: `x.${payload}.${access}`, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r', user };
+}
+
 async function auth(url, init, headers) {
   const path = url.pathname.replace('/auth/v1/', '');
   const body = init.body ? JSON.parse(init.body) : {};
@@ -98,13 +109,22 @@ async function auth(url, init, headers) {
   if (path === 'otp') { state.sentCodes.push(body.email); return json({}, 200, cors); }
   if (path === 'verify') {
     if (body.token !== CODE) return json({ error_code: 'otp_expired', msg: 'Token has expired or is invalid', code: 403 }, 403, cors);
-    let row = (await db.query('select id from auth.users where email=$1', [body.email])).rows[0];
-    if (!row) { row = { id: randomUUID() }; await db.query('insert into auth.users(id,email) values ($1,$2)', [row.id, body.email]); }
-    const access = 'tok-' + randomUUID();
-    const user = { id: row.id, aud: 'authenticated', email: body.email, email_confirmed_at: new Date().toISOString(), is_anonymous: false, app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() };
-    state.sessions.set(access, user);
-    const payload = Buffer.from(JSON.stringify({ sub: row.id, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url');
-    return json({ access_token: `x.${payload}.${access}`, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r', user }, 200, cors);
+    return json(await sessionFor(body.email), 200, cors);
+  }
+  // Google, as Supabase runs it: /authorize sends the browser to Google and back to redirect_to with a one-time code,
+  // which the page trades for a session with its PKCE verifier. "Google" here signs in GOOGLE_EMAIL at once.
+  if (path === 'authorize' && url.searchParams.get('provider') === 'google') {
+    const code = 'gc-' + randomUUID(), back = url.searchParams.get('redirect_to');
+    state.oauth.set(code, { email: GOOGLE_EMAIL, challenge: url.searchParams.get('code_challenge') });
+    return new Response(null, { status: 302, headers: { location: back + (back.includes('?') ? '&' : '?') + 'code=' + code } });
+  }
+  if (path === 'token' && url.searchParams.get('grant_type') === 'pkce') {
+    const grant = state.oauth.get(body.auth_code);
+    state.oauth.delete(body.auth_code);
+    const { createHash } = await import('node:crypto');
+    const sent = createHash('sha256').update(body.code_verifier || '').digest('base64url');
+    if (!grant || grant.challenge !== sent) return json({ error_code: 'bad_code_verifier', msg: 'invalid flow state', code: 400 }, 400, cors);
+    return json(await sessionFor(grant.email), 200, cors);
   }
   if (path === 'user') {
     const token = (headers.get('authorization') || '').split('.').pop();
@@ -216,7 +236,7 @@ createServer(async (req, res) => {
       const chunks = []; for await (const c of req) chunks.push(c);
       const headers = { ...req.headers }; delete headers.host; delete headers['content-length'];
       const r = await globalThis.fetch('https://fake.supabase.test' + req.url.slice(3), { method: req.method, headers, body: chunks.length ? new Uint8Array(Buffer.concat(chunks)) : undefined });
-      res.writeHead(r.status, { 'content-type': r.headers.get('content-type') || 'application/json' });
+      res.writeHead(r.status, { 'content-type': r.headers.get('content-type') || 'application/json', ...(r.headers.get('location') ? { location: r.headers.get('location') } : {}) });
       res.end(Buffer.from(await r.arrayBuffer()));
       return;
     }

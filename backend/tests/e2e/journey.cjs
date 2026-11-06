@@ -19,8 +19,9 @@ async function ctx(b,name,opts={}){
  // the browser's Supabase client reaches the same fake the backend uses
  await c.route('https://fake.supabase.test/**',async r=>{const q=r.request();const u=new URL(q.url());const h={...q.headers()};delete h['host'];
   if(q.method()==='OPTIONS')return r.fulfill({status:200,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}});
-  const res=await fetch(C+'/sb'+u.pathname+u.search,{method:q.method(),headers:h,body:q.postDataBuffer()||undefined});
-  r.fulfill({status:res.status,headers:{'content-type':res.headers.get('content-type')||'application/json','access-control-allow-origin':'*','access-control-expose-headers':'*'},body:Buffer.from(await res.arrayBuffer())})});
+  const res=await fetch(C+'/sb'+u.pathname+u.search,{method:q.method(),headers:h,body:q.postDataBuffer()||undefined,redirect:'manual'});
+  const loc=res.headers.get('location');
+  r.fulfill({status:res.status,headers:{'content-type':res.headers.get('content-type')||'application/json','access-control-allow-origin':'*','access-control-expose-headers':'*',...(loc?{location:loc}:{})},body:Buffer.from(await res.arrayBuffer())})});
  // Mux's upload target and stream
  await c.route('https://storage.googleapis.com/fake-mux/**',async r=>{const q=r.request();
   if(q.method()==='OPTIONS')return r.fulfill({status:200,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}});
@@ -62,10 +63,11 @@ async function payWebhook(amountInr){
  log('  draft after refresh:',await A.evaluate(()=>({f:Bid.st.cre.fname,hasBlob:!!Bid.st.cre.blob})));
  await next(A);await waitStep(A,'Set your bid');await A.fill('#b-one','300');await next(A);await waitStep(A,'Add your ad');
  await A.fill('#b-about','We help clinics book patients in one tap');await A.fill('#b-thumb','Book in one tap');await A.fill('#b-who','Asha Rao, founder');await A.fill('#b-web','example.com');await next(A);
- await waitStep(A,'Account and payment');await A.fill('#b-biz','Clinic Co');await A.fill('#b-email','asha@example.com');await next(A);
+ await waitStep(A,'Sign in');log('  sign-in offers Google:',await A.locator('#sheet [data-google]').count());await A.fill('#b-email','asha@example.com');await next(A);
  await waitStep(A,'Confirm your email');await A.screenshot({path:T+'/3-code.png'});
  await A.fill('#b-code','000000');await next(A);await A.waitForSelector('#sheet .msg');log('3 wrong code:',await A.innerText('#sheet .msg'));
- await A.fill('#b-code','123456');await next(A);await waitStep(A,'Review and place');
+ await A.fill('#b-code','123456');await next(A);await waitStep(A,'Account and payment');
+ log('  email carried over:',await A.inputValue('#b-email'));await A.fill('#b-biz','Clinic Co');await next(A);await waitStep(A,'Review and place');
  log('  signed in:',await A.evaluate(()=>({user:Live.user,acct:AU.acct.name,bal:AU.wallet.bal})));
  await A.check('#b-agree');await next(A);await A.waitForSelector('#sheet .msg');log('4 no credits:',await A.innerText('#sheet .msg'));
  // ---- pay
@@ -104,9 +106,9 @@ async function payWebhook(amountInr){
  await B.setInputFiles('#b-file',T+'/upload.mp4');await B.waitForFunction(()=>Bid.st.cre.dur>0);
  log('9 upload file:',await B.evaluate(()=>({f:Bid.st.cre.fname,d:Bid.st.cre.dur,blob:Bid.st.cre.blob.size})));
  await B.fill('#b-about','Rival video');await B.fill('#b-thumb','Rival');await B.fill('#b-who','Ben');await B.fill('#b-web','rival.example');await next(B);
- await waitStep(B,'Account and payment');await B.fill('#b-biz','Rival Inc');await B.fill('#b-email','ben@example.com');
- await B.selectOption('#b-country',{label:'United States'}).catch(()=>{});await next(B);
- await waitStep(B,'Confirm your email');await B.fill('#b-code','123456');await next(B);await waitStep(B,'Review and place');
+ await waitStep(B,'Sign in');await B.fill('#b-email','ben@example.com');await next(B);
+ await waitStep(B,'Confirm your email');await B.fill('#b-code','123456');await next(B);
+ await waitStep(B,'Account and payment');await B.fill('#b-biz','Rival Inc');await B.selectOption('#b-country',{label:'United States'}).catch(()=>{});await next(B);await waitStep(B,'Review and place');
  await B.locator('#sheet [data-topup]').first().click();await sleep(1200);await payWebhook();await B.waitForFunction(()=>AU.wallet.bal>0,null,{timeout:20000});
  await B.waitForFunction(()=>Bid.st&&Bid.st.steps[Bid.st.i]==='review');await sleep(300);if(!await B.isChecked('#b-agree'))await B.check('#b-agree');await next(B);await waitStep(B,'Bids placed');
  log('  B result:',await B.innerText('#sheet .mb-rows'),'| wallet',await B.evaluate(()=>[AU.wallet.bal,heldTotal()]));await B.click('#sheet [data-x]');
@@ -139,6 +141,8 @@ async function payWebhook(amountInr){
  await R.goto(U+'/#paper');await R.waitForSelector('#v-paper [data-spot="feed-e"]',{timeout:15000});await R.waitForFunction(()=>ISSUE_ADS['feed-e'],null,{timeout:8000});await sleep(500);
  const el=R.locator('#v-paper [data-spot="feed-e"]').first();await el.scrollIntoViewIfNeeded();await sleep(800);
  log('15 reader sees:',(await el.innerText()).replace(/\n/g,' | ').slice(0,220));
+ log('  unsold spots:',await R.evaluate(()=>{const names=Object.values(TODAY_ADS).map(a=>a.adv);const txt=document.getElementById('v-paper').innerText;
+  return {empty:[...document.querySelectorAll('#v-paper [data-spot][hidden]')].map(e=>e.dataset.spot),sampleAdvertisersShown:names.filter(n=>txt.includes(n)),wonAtShown:(txt.match(/Won at/g)||[]).length}}));
  log('  classifieds:',(await R.locator('#v-paper .cls-list').first().innerText()).replace(/\n/g,' | ').slice(0,180));
  await el.screenshot({path:T+'/15-ad.png'});
  await el.locator('.bv').click();await sleep(2500);

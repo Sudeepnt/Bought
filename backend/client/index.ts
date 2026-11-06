@@ -25,7 +25,7 @@ let client: SupabaseClient | null = null;
 
 export async function connect(url: string, key: string) {
   const { createClient } = await import('@supabase/supabase-js');
-  client = createClient(url, key);
+  client = createClient(url, key, { auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true } });
   return client;
 }
 
@@ -50,6 +50,70 @@ export async function sendCode(email: string) {
     options: { shouldCreateUser: true },
   });
   if (error) throw error;
+}
+
+export async function userEmail() {
+  if (!client) return null;
+  const { data } = await client.auth.getSession();
+  return data.session?.user?.email ?? null;
+}
+
+const DONE_PAGE = '/auth/done.html';
+
+// Google sign-in in a small window, so the bid sheet keeps everything typed so far. The window comes back to
+// /auth/done.html, which stores the session (same origin, so this page reads it too) and says so on a
+// BroadcastChannel. Google's pages cut the window's link to this page, so `popup.closed` can't be trusted:
+// we wait for the message or the stored session, until cancelGoogle() or ten minutes.
+// If the browser blocks the window, the whole page goes to Google and comes back to the Advertise page.
+let cancelWait: (() => void) | null = null;
+
+export function cancelGoogle() {
+  cancelWait?.();
+}
+
+export async function googleSignIn(): Promise<boolean> {
+  const popup = window.open('', 'bought-google', 'popup,width=500,height=680');
+  const { data, error } = await supabase().auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${location.origin}${DONE_PAGE}${popup ? '' : '?back=1'}`,
+      skipBrowserRedirect: true,
+      queryParams: { prompt: 'select_account' },
+    },
+  });
+  if (error || !data?.url) {
+    popup?.close();
+    throw error ?? new Error('Google sign-in is not available right now.');
+  }
+  if (!popup) {
+    location.assign(data.url);
+    return false;
+  }
+  popup.location.href = data.url;
+  return new Promise((resolve) => {
+    const channel = new BroadcastChannel('bought-auth');
+    // the message only says "look now": the stored session is what counts
+    const finish = async () => {
+      clearInterval(timer);
+      clearTimeout(limit);
+      channel.close();
+      cancelWait = null;
+      resolve(await signedIn());
+    };
+    channel.onmessage = () => finish();
+    const timer = setInterval(async () => {
+      if (await signedIn()) finish();
+    }, 1000);
+    const limit = setTimeout(finish, 10 * 60_000);
+    cancelWait = finish;
+  });
+}
+
+// Runs on /auth/done.html: the client reads the sign-in from the address and stores it.
+export async function finishSignIn(url: string, key: string) {
+  await connect(url, key);
+  const { data } = await supabase().auth.getSession();
+  return !!data.session;
 }
 
 export async function verifyCode(email: string, code: string) {
