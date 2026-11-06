@@ -80,7 +80,7 @@ class Config:
     avatar_enabled: bool = False
     avatar_image: str = "pipeline/assets/presenter_cutout.png"   # transparent PNG, 1280x720 design space
     avatar_size: tuple = (1280, 720)           # 16:9 news frame, the native design size (no downscaling)
-    avatar_font: str = "public/assets/font-0.ttf"
+    avatar_font: str = "pipeline/assets/fonts/font-0.ttf"
     avatar_channel: str = "BOUGHT."
     avatar_name: str = ""                      # journalist name strap under the presenter ("" = none)
     avatar_name_tag: str = "AI JOURNALIST"     # small line after the name
@@ -95,21 +95,21 @@ class Config:
     avatar_lead_presenter: dict = field(default_factory=dict)   # {scale, origin: [x, y]} for the anime anchor on the first story only
     avatar_credit_on_video: bool = False       # photo credit written on the picture inside the video
     avatar_fallback_keywords: dict = field(default_factory=lambda: {   # stand-in picture -> words that pick it
-        "public/assets/swipe-data-center.jpg": ["chip", "chips", "chipmakers", "processors", "data", "cloud", "server",
+        "pipeline/assets/library/swipe-data-center.jpg": ["chip", "chips", "chipmakers", "processors", "data", "cloud", "server",
                                                 "servers", "capacity", "computing", "quantum", "semiconductor", "network", "operating",
                                                 "system", "systems", "linux"],
-        "public/assets/swipe-robotics.jpg": ["ai", "robot", "robots", "agent", "agents", "model", "models", "machine",
+        "pipeline/assets/library/swipe-robotics.jpg": ["ai", "robot", "robots", "agent", "agents", "model", "models", "machine",
                                              "automation", "autonomous", "humanoid", "software"],
-        "public/assets/swipe-founders.jpg": ["startup", "startups", "founder", "founders", "funding", "raises", "investors",
+        "pipeline/assets/library/swipe-founders.jpg": ["startup", "startups", "founder", "founders", "funding", "raises", "investors",
                                              "venture", "company", "launches", "product"],
-        "public/assets/swipe-battery.jpg": ["battery", "batteries", "charging", "energy", "electric", "ev", "power",
+        "pipeline/assets/library/swipe-battery.jpg": ["battery", "batteries", "charging", "energy", "electric", "ev", "power",
                                             "solar", "grid", "bus", "buses"],
-        "public/assets/swipe-rocket.jpg": ["satellite", "satellites", "space", "rocket", "orbit", "launch", "broadband",
+        "pipeline/assets/library/swipe-rocket.jpg": ["satellite", "satellites", "space", "rocket", "orbit", "launch", "broadband",
                                            "geopolitics", "defense", "security", "cybersecurity"],
     })
-    avatar_fallback_images: tuple = ("public/assets/swipe-data-center.jpg", "public/assets/swipe-robotics.jpg",
-                                     "public/assets/swipe-founders.jpg", "public/assets/swipe-battery.jpg",
-                                     "public/assets/swipe-rocket.jpg")
+    avatar_fallback_images: tuple = ("pipeline/assets/library/swipe-data-center.jpg", "pipeline/assets/library/swipe-robotics.jpg",
+                                     "pipeline/assets/library/swipe-founders.jpg", "pipeline/assets/library/swipe-battery.jpg",
+                                     "pipeline/assets/library/swipe-rocket.jpg")
     # The source -> video funnel (funnel/README.md).
     funnel_video_count: int = 20               # stories that get a video; the frame has 20 looks
     funnel_time_budget_seconds: float = 3000   # a build stops starting new stories after this; rerun to continue

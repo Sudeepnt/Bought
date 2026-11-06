@@ -1,10 +1,10 @@
-"""Link-preview pages: one static page per Prime story and Pulse clip, so a shared link shows that story's picture and video.
+"""Link-preview pages: one static page per story with a video, so a shared link shows that story's picture and video.
 
 Link-preview bots (WhatsApp, iMessage, Slack, Discord, Telegram, LinkedIn, Facebook, X) do not run JavaScript and never see the
 part of a link after '#'. So every story gets a real URL, /s/<id>/, whose HTML already carries the Open Graph and Twitter tags
 (title, description, image, video). People who open it are sent on to the story in the issue.
 
-  ~/.cache/bought/tts/venv/bin/python -m pipeline.share_pages            # SITE_URL=https://your-domain to change the address
+  python -m pipeline.share_pages            # SITE_URL=https://your-domain to change the address (the funnel's publish step does this too)
 
 Writes public/share/<id>.jpg (1200x630 preview image) and public/s/<id>/index.html. The tags need absolute https addresses,
 so SITE_URL must be the real public address of the site.
@@ -24,7 +24,7 @@ PUB = ROOT / "public"
 SITE = os.environ.get("SITE_URL", "https://btnui.vercel.app").rstrip("/")
 W, H = 1200, 630
 NEWS = str(ROOT / "pipeline/assets/newsreader.ttf")
-DM = str(PUB / "assets/font-0.ttf")
+DM = str(ROOT / "pipeline/assets/fonts/font-0.ttf")
 
 
 def nr(size, weight="ExtraBold"):
@@ -67,25 +67,9 @@ def card_wide(poster_path: Path, out: Path):
     img.save(out, quality=88)
 
 
-def card_tall(poster_path: Path, out: Path, category: str, headline: str):
-    p = Image.open(poster_path).convert("RGB")
-    img = backdrop(p)
-    ph = H - 70; fit = p.resize((int(p.width * ph / p.height), ph), Image.LANCZOS)
-    x0 = 70; img.paste(fit, (x0, 35))
-    play_badge(img, x0 + fit.width // 2, 35 + ph // 2, 44)
-    d = ImageDraw.Draw(img)
-    tx = x0 + fit.width + 60; maxw = W - tx - 60
-    d.text((tx, 120), category.upper(), font=ImageFont.truetype(DM, 26), fill=(255, 140, 130))
-    f = nr(58, "Bold"); y = 170
-    for ln in wrap(headline, f, maxw)[:5]:
-        d.text((tx, y), ln, font=f, fill=(255, 255, 255)); y += 68
-    d.text((tx, H - 95), "Bought.  ·  Pulse", font=nr(34), fill=(255, 255, 255))
-    img.save(out, quality=88)
-
-
-def page(slug, title, desc, image, video, vw, vh, redirect, category):
+def page_html(slug, title, desc, image, video, vw, vh, redirect, category):
     e = html.escape
-    url = f"{SITE}/s/{slug}/"
+    url = image.rsplit("/share/", 1)[0] + f"/s/{slug}/"
     tags = [("og:type", "video.other"), ("og:site_name", "Bought."), ("og:title", title), ("og:description", desc), ("og:url", url),
             ("og:image", image), ("og:image:secure_url", image), ("og:image:type", "image/jpeg"), ("og:image:width", str(W)), ("og:image:height", str(H)),
             ("og:image:alt", title), ("og:video", video), ("og:video:secure_url", video), ("og:video:type", "video/mp4"),
@@ -117,34 +101,34 @@ def page(slug, title, desc, image, video, vw, vh, redirect, category):
 '''
 
 
-def main():
-    (PUB / "share").mkdir(exist_ok=True)
-    made = 0
-    # the issue's own card, for plain links to the site
+def issue_pages(page: dict, media_dir: Path, public: Path = PUB, site: str = None) -> int:
+    """One preview page per story with a video, for one published issue. Plain links to the site get the issue's own card."""
+    base = (site or SITE).rstrip("/")
+    (public / "share").mkdir(parents=True, exist_ok=True)
     img = Image.new("RGB", (W, H), (239, 236, 229)); d = ImageDraw.Draw(img)
     d.text((90, 200), "Bought.", font=nr(190), fill=(22, 21, 15))
-    d.text((96, 430), "Today’s issue: the news, as short videos you can watch.", font=nr(40, "SemiBold"), fill=(98, 90, 81))
-    img.save(PUB / "share/site.jpg", quality=88)
-    # Prime stories (wide 16:9 videos)
-    feed = json.loads((ROOT / "pipeline/out/dry_run/feed.json").read_text())["prime"][:20]
-    for it in feed:
-        sid = it["id"]; poster = PUB / f"prime/{sid}.jpg"
-        if not poster.exists():
+    d.text((96, 430), "Today\u2019s issue: the news, as short videos you can watch.", font=nr(40, "SemiBold"), fill=(98, 90, 81))
+    img.save(public / "share/site.jpg", quality=88)
+    made = 0
+    for s in page["stories"]:
+        poster = Path(media_dir) / f"{s['uid']}.jpg"
+        if not s.get("share") or not s.get("video") or not poster.exists():
             continue
-        card_wide(poster, PUB / f"share/{sid}.jpg")
-        desc = f"{it['category']}. {it['summary']}"[:200]
-        out = PUB / f"s/{sid}"; out.mkdir(parents=True, exist_ok=True)
-        (out / "index.html").write_text(page(sid, it["headline"], desc, f"{SITE}/share/{sid}.jpg", f"{SITE}/prime/{sid}.mp4", 1280, 720, f"../../#s-{sid}", it["category"]))
+        sid = s["uid"]
+        card_wide(poster, public / f"share/{sid}.jpg")
+        desc = f"{s['cat']}. {s['dek']}"[:200]
+        out = public / f"s/{sid}"; out.mkdir(parents=True, exist_ok=True)
+        (out / "index.html").write_text(page_html(sid, s["t"], desc, f"{base}/share/{sid}.jpg", f"{base}/{s['video'].split('?')[0]}", 1280, 720, f"../../#s-{page['issue']}-{sid}", s["cat"]))
         made += 1
-    # Pulse clips (tall 9:16 videos): only the three the page shows
-    for c in json.loads((ROOT / "pipeline/pulse_clips.json").read_text())[:3]:
-        slug = "pulse-" + c["slug"]; poster = PUB / f"pulse/{c['slug']}.pulse.jpg"
-        card_tall(poster, PUB / f"share/{slug}.jpg", c["category"], c["headline"])
-        out = PUB / f"s/{slug}"; out.mkdir(parents=True, exist_ok=True)
-        (out / "index.html").write_text(page(slug, c["headline"], f"{c['happened']} {c['matters']}", f"{SITE}/share/{slug}.jpg",
-                                             f"{SITE}/pulse/{c['slug']}.pulse.mp4", 720, 1280, f"../../#{slug}", c["category"]))
-        made += 1
-    print(f"{made} preview pages, site address {SITE}")
+    return made
+
+
+def main():
+    """Rebuild the preview pages of the latest published issue, for example after SITE_URL changes."""
+    latest = json.loads((PUB / "issues/index.json").read_text())["latest"]
+    base = PUB / "issues" / latest
+    made = issue_pages(json.loads((base / "issue.json").read_text()), base / "media")
+    print(f"{made} preview pages for {latest}, site address {SITE}")
 
 
 if __name__ == "__main__":

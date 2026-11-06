@@ -5,7 +5,7 @@ name: satellite-schools-anime
 character: anime
 # (story 2 now uses satellite-schools-mascot.yaml)
 headline: "Satellite broadband reaches remote schools in pilot"
-image: public/assets/podcast-earth.jpg
+image: pipeline/assets/library/podcast-earth.jpg
 credit: "Example Photo Desk"
 speed: 1.05
 segments:

@@ -18,12 +18,12 @@
    "DeepSeek, fifteen billion, seventy five valuation. Watch it again."
   ],
   "images": [
-   "public/assets/swipe-robotics.jpg",
-   "public/assets/swipe-data-center.jpg",
-   "public/assets/grok-story-hero.png",
-   "public/assets/podcast-earth.jpg",
-   "public/assets/swipe-rocket.jpg",
-   "public/assets/swipe-battery.jpg"
+   "pipeline/assets/library/swipe-robotics.jpg",
+   "pipeline/assets/library/swipe-data-center.jpg",
+   "pipeline/assets/library/grok-story-hero.png",
+   "pipeline/assets/library/podcast-earth.jpg",
+   "pipeline/assets/library/swipe-rocket.jpg",
+   "pipeline/assets/library/swipe-battery.jpg"
   ],
   "stats": {
    "0": "$15B",
@@ -52,12 +52,12 @@
    "Apple's iPhone Duo. Watch again, then decide."
   ],
   "images": [
-   "public/assets/swipe-battery.jpg",
-   "public/assets/grok-story-hero.png",
-   "public/assets/swipe-robotics.jpg",
-   "public/assets/swipe-rocket.jpg",
-   "public/assets/podcast-earth.jpg",
-   "public/assets/swipe-data-center.jpg"
+   "pipeline/assets/library/swipe-battery.jpg",
+   "pipeline/assets/library/grok-story-hero.png",
+   "pipeline/assets/library/swipe-robotics.jpg",
+   "pipeline/assets/library/swipe-rocket.jpg",
+   "pipeline/assets/library/podcast-earth.jpg",
+   "pipeline/assets/library/swipe-data-center.jpg"
   ],
   "stats": {
    "1": "$1,999",
@@ -85,12 +85,12 @@
    "Kimi K3.1 Pro versus GPT-6 Astra. Watch it again."
   ],
   "images": [
-   "public/assets/swipe-robotics.jpg",
-   "public/assets/grok-story-hero.png",
-   "public/assets/swipe-data-center.jpg",
-   "public/assets/swipe-battery.jpg",
-   "public/assets/swipe-rocket.jpg",
-   "public/assets/podcast-earth.jpg"
+   "pipeline/assets/library/swipe-robotics.jpg",
+   "pipeline/assets/library/grok-story-hero.png",
+   "pipeline/assets/library/swipe-data-center.jpg",
+   "pipeline/assets/library/swipe-battery.jpg",
+   "pipeline/assets/library/swipe-rocket.jpg",
+   "pipeline/assets/library/podcast-earth.jpg"
   ],
   "stats": {
    "0": "BEATS GPT-6",
@@ -118,12 +118,12 @@
    "Amazon cloud, sold out through twenty twenty seven. Watch again."
   ],
   "images": [
-   "public/assets/swipe-data-center.jpg",
-   "public/assets/podcast-earth.jpg",
-   "public/assets/grok-story-hero.png",
-   "public/assets/swipe-battery.jpg",
-   "public/assets/swipe-robotics.jpg",
-   "public/assets/swipe-rocket.jpg"
+   "pipeline/assets/library/swipe-data-center.jpg",
+   "pipeline/assets/library/podcast-earth.jpg",
+   "pipeline/assets/library/grok-story-hero.png",
+   "pipeline/assets/library/swipe-battery.jpg",
+   "pipeline/assets/library/swipe-robotics.jpg",
+   "pipeline/assets/library/swipe-rocket.jpg"
   ],
   "stats": {
    "1": "2027",
@@ -151,12 +151,12 @@
    "Flapping Airplanes, one billion raised. Watch again."
   ],
   "images": [
-   "public/assets/swipe-rocket.jpg",
-   "public/assets/swipe-robotics.jpg",
-   "public/assets/grok-story-hero.png",
-   "public/assets/swipe-battery.jpg",
-   "public/assets/swipe-data-center.jpg",
-   "public/assets/podcast-earth.jpg"
+   "pipeline/assets/library/swipe-rocket.jpg",
+   "pipeline/assets/library/swipe-robotics.jpg",
+   "pipeline/assets/library/grok-story-hero.png",
+   "pipeline/assets/library/swipe-battery.jpg",
+   "pipeline/assets/library/swipe-data-center.jpg",
+   "pipeline/assets/library/podcast-earth.jpg"
   ],
   "stats": {
    "0": "$1B",
@@ -185,12 +185,12 @@
    "Two nanometer chips. Watch again."
   ],
   "images": [
-   "public/assets/swipe-data-center.jpg",
-   "public/assets/swipe-battery.jpg",
-   "public/assets/swipe-robotics.jpg",
-   "public/assets/grok-story-hero.png",
-   "public/assets/podcast-earth.jpg",
-   "public/assets/swipe-rocket.jpg"
+   "pipeline/assets/library/swipe-data-center.jpg",
+   "pipeline/assets/library/swipe-battery.jpg",
+   "pipeline/assets/library/swipe-robotics.jpg",
+   "pipeline/assets/library/grok-story-hero.png",
+   "pipeline/assets/library/podcast-earth.jpg",
+   "pipeline/assets/library/swipe-rocket.jpg"
   ],
   "stats": {
    "0": "2nm",
@@ -218,12 +218,12 @@
    "The new chip map. Watch it again."
   ],
   "images": [
-   "public/assets/podcast-earth.jpg",
-   "public/assets/swipe-data-center.jpg",
-   "public/assets/swipe-rocket.jpg",
-   "public/assets/grok-story-hero.png",
-   "public/assets/swipe-robotics.jpg",
-   "public/assets/swipe-battery.jpg"
+   "pipeline/assets/library/podcast-earth.jpg",
+   "pipeline/assets/library/swipe-data-center.jpg",
+   "pipeline/assets/library/swipe-rocket.jpg",
+   "pipeline/assets/library/grok-story-hero.png",
+   "pipeline/assets/library/swipe-robotics.jpg",
+   "pipeline/assets/library/swipe-battery.jpg"
   ],
   "stats": {
    "0": "CHIPS",

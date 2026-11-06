@@ -1,0 +1,26 @@
+{
+  "name": "bought-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --import tsx server.ts",
+    "build:client": "node build-client.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.0.1",
+    "@mux/upchunk": "3.5.0",
+    "@supabase/supabase-js": "2.116.0",
+    "hls.js": "^1.6.0",
+    "tsx": "4.20.6"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@types/node": "22.19.19",
+    "esbuild": "^0.27.0",
+    "typescript": "5.9.3"
+  }
+}

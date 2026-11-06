@@ -24,7 +24,7 @@ from .. import db
 from ..dedupe import dedupe
 from ..ingest import LiveFetcher, ingest_all, iso
 from ..media import synthesize
-from ..output import build_feed, write_feed
+from ..output import build_feed, story_item, write_feed
 from ..scoring import prefilter, select
 from ..text import short_summary
 from .contracts import ImageAsset
@@ -58,7 +58,7 @@ def issue_date(now=None) -> str:
 
 
 def issue_dir(date: str, out_root=None) -> Path:
-    return Path(out_root or PKG / "out") / "issues" / date
+    return Path(out_root or os.environ.get("BOUGHT_OUT") or PKG / "out") / "issues" / date
 
 
 def intake(conn, cfg, sources, now, fetcher=None, brief=None, past=False) -> dict:
@@ -78,12 +78,17 @@ def intake(conn, cfg, sources, now, fetcher=None, brief=None, past=False) -> dic
     return {"ingest": stats, "duplicates_rejected": dupes, "selection": selection, "described": described}
 
 
-def describe_selected(conn, fetcher) -> int:
-    """For the stories that made it, open the article page once: its share picture (usually the largest) and, if we have none, its summary."""
+def describe_selected(conn, fetcher, ids=None) -> int:
+    """For the stories that made it, open the article page once: its share picture (usually the largest) and, if we have none, its summary.
+    ids: these stories instead of the rules' selection (the list an editor finalized)."""
     conn.execute("CREATE TABLE IF NOT EXISTS described (article_id TEXT PRIMARY KEY)")
     done = 0
-    rows = conn.execute("SELECT DISTINCT a.id, a.canonical_url, a.summary FROM selections s JOIN articles a ON a.id=s.article_id"
-                        " WHERE a.id NOT IN (SELECT article_id FROM described)").fetchall()
+    if ids is None:
+        rows = conn.execute("SELECT DISTINCT a.id, a.canonical_url, a.summary FROM selections s JOIN articles a ON a.id=s.article_id"
+                            " WHERE a.id NOT IN (SELECT article_id FROM described)").fetchall()
+    else:
+        known = {r[0] for r in conn.execute("SELECT article_id FROM described")}
+        rows = [r for i in ids if i not in known for r in conn.execute("SELECT id, canonical_url, summary FROM articles WHERE id=?", (i,))]
     for r in rows:
         text, image = fetcher.page_meta(r["canonical_url"])
         with db.transaction(conn):
@@ -109,6 +114,26 @@ def cut_issue(conn, cfg, date, now, sources, out_root=None, recut=False) -> dict
                 item["image_url"], item["image_credit"] = None, None
     issue["issue"] = date
     write_feed(issue, path)
+    return issue
+
+
+def cut_list(conn, cfg, date, ids, now, sources, out_root=None) -> dict:
+    """Freeze exactly the list the editor finalized, in its order. Replaces any earlier cut of this date, and any audio or languages made from it."""
+    refused = {s.name for s in sources if s.image_rights == "link_only"}
+    rows = {r["id"]: r for r in conn.execute("SELECT * FROM articles")}
+    items = [dict(story_item(rows[i], cfg, n < cfg.slots["prime"])) for n, i in enumerate(ids) if i in rows]
+    for item in items:
+        if not cfg.funnel_publisher_images or item["source"] in refused:
+            item["image_url"], item["image_credit"] = None, None
+    prime = cfg.slots["prime"]
+    issue = {"generated_at": iso(now), "slots": dict(cfg.slots), "prime": items[:prime], "cards": items[prime:], "glance": items[:cfg.slots["glance"]], "issue": date}
+    base = issue_dir(date, out_root)
+    for stale in (base / "media" / "podcast.mp3", base / "media" / "podcast.json", base / "feed.json"):
+        stale.unlink(missing_ok=True)
+    if (base / "translations").exists():
+        for f in (base / "translations").glob("*.json"):
+            f.unlink()
+    write_feed(issue, base / "issue.json")
     return issue
 
 
@@ -179,7 +204,7 @@ def gate(mp4, poster, duration, assets, cfg) -> None:
         raise ValueError("still frame is blank")
 
 
-def build_issue(conn, cfg, date, issue, out_root=None, sourcer=None, synth=synthesize, renderer=render, limit=None) -> dict:
+def build_issue(conn, cfg, date, issue, out_root=None, sourcer=None, synth=synthesize, renderer=render, limit=None, clock="06:30 IST") -> dict:
     """Images -> voice -> video -> gate for the top stories, then write the feed. Returns counts per outcome."""
     conn.executescript(SCHEMA)
     base = issue_dir(date, out_root)
@@ -222,7 +247,7 @@ def build_issue(conn, cfg, date, issue, out_root=None, sourcer=None, synth=synth
         spec = {"theme": rank % THEMES + 1, "cat": item["category"], "n": rank + 1, "src": item["source"], "h": item["headline"].rstrip("."), "s": item["summary"],
                 "next": [prime[(rank + k) % len(prime)]["headline"] for k in (1, 2, 3)], "images": [a.path for a in shown], "credits": [a.credit for a in shown],
                 "positions": ["50% 18%" if a.height > a.width else "50% 50%" for a in shown], "frames": [a.frames for a in shown],
-                "shot": max(2.6, min(6.0, duration / max(1, len(shown)))), "wav": str(wav), "dur": duration, "out": str(mp4), "poster": str(poster)}
+                "shot": max(2.6, min(6.0, duration / max(1, len(shown)))), "wav": str(wav), "dur": duration, "out": str(mp4), "poster": str(poster), "clock": clock}
 
         def do_video():
             spec_path = work / f"{item['id']}.json"

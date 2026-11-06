@@ -38,7 +38,7 @@ const ticker = spec.next.join('   |   ') + '   |   ';
 const html = `<!doctype html><meta charset="utf-8"><style>${fontsCss}\n${themeCss}</style>
 <div class="f v${spec.theme}">
   <div class="mon">${spec.images.map((p, k) => { const n = (spec.frames || [])[k] || 0; return `<img class="art" ${n ? `data-dir="file://${p}" data-n="${n}" src="file://${p}/0001.jpg"` : `src="file://${p}"`} style="object-position:${(spec.positions || [])[k] || '50% 50%'}">`; }).join('')}${(spec.credits || []).some(Boolean) ? '<span class="cred" style="position:absolute;right:.5cqw;bottom:.5cqw;z-index:5;padding:.25cqw .6cqw;background:rgba(0,0,0,.6);color:#fff;font:400 max(6px,.95cqw)/1.2 var(--sans);border-radius:2px;white-space:nowrap"></span>' : ''}</div>
-  <span class="cnt">${spec.n} / 50</span><span class="live">LIVE</span><span class="logo">BOUGHT.</span><span class="clk">06:30 IST</span>
+  <span class="cnt">${spec.n} / 50</span><span class="live">LIVE</span><span class="logo">BOUGHT.</span><span class="clk">${spec.clock || '06:30 IST'}</span>
   <div class="brk"><b>BREAKING NEWS</b><span>${esc(spec.h)}</span></div>
   <div class="lt"><b class="tag">${esc(spec.cat)}</b><div class="head">${esc(spec.h)}</div><div class="sub">${esc(spec.s)}</div></div>
   <div class="up"><b>UP NEXT</b><div><span>${esc(spec.next[0])}</span><span>${esc(spec.next[1])}</span></div></div>

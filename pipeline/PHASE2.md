@@ -6,9 +6,9 @@
   laptop (about 1 s per story); not yet timed on the 2 vCPU VPS.
 - **Voice:** Kokoro (`tts_kokoro.py`) sounds far more natural than Piper; use it as `tts_command`.
 - **2b avatar video: built as the cheap option 1, now a 16:9 news frame** (presenter, zooming story monitor, headline bar, badge) (`avatar.py`, `avatar_enabled`). The presenter photo
-  (`public/assets/ai-presenter.jpg`) gets a 2D mouth-flap driven by speech loudness, muxed with the audio into an
+  (`pipeline/assets/library/ai-presenter.jpg`) gets a 2D mouth-flap driven by speech loudness, muxed with the audio into an
   MP4 (1100x500, H.264/AAC). ~0.5 s per story on CPU. It is stylised, **not true lip-sync**; real lip-sync
-  (Wav2Lip etc.) still needs a GPU and a licence check. Demo page: `public/live.html`.
+  (Wav2Lip etc.) still needs a GPU and a licence check.
 - Engine is any command set as `tts_command` in `config.yaml` (script on stdin, writes `{wav}`), so Piper or
   Kokoro can be swapped without code changes. Audio is rebuilt only when the script text changes; failures are
   retried up to `media_max_attempts`, and the feed stays valid without audio.
@@ -65,6 +65,6 @@ Kokoro setup for the voice: install `kokoro-onnx` + `soundfile` in a Python >= 3
 for the current feed.json. Every story (prime, then cards: 50) is read as "Story N. Now, <category>. <headline>. <summary>.
 From <source>." with an intro and outro, one TTS call each, cached per script. When all pieces exist they are joined with
 0.7 s gaps into `media/podcast.mp3` (mono 80 kbps) and `media/podcast.json`; the feed gets `podcast.{audio_url,duration_s,chapters}`.
-`podcast.html` plays it (nothing downloads until Play) and each headline seeks to its chapter. Measured on a Mac with Kokoro:
+The Listen view plays it (nothing downloads until Play) and each headline seeks to its chapter. Measured on a Mac with Kokoro:
 52 pieces in ~5 min, 15.5 min of audio, 9 MB. A story that changes is the only one re-read.
 

@@ -244,7 +244,7 @@ def draw_caption(base: Image.Image, text: str, t_in: float, accent, y_frac: floa
     base.alpha_composite(layer, (W // 2 - layer.width // 2, cy - layer.height // 2))
 
 
-DM = str(ROOT / "public/assets/font-0.ttf")   # DM Sans Regular, the site's body face
+DM = str(ROOT / "pipeline/assets/fonts/font-0.ttf")   # DM Sans Regular, the site's body face
 _dm: dict[int, ImageFont.FreeTypeFont] = {}
 
 

@@ -5,7 +5,7 @@ name: satellite-schools-mascot
 character: mascot
 attach_to: ec0d5009476c4c94          # prime story #2 in the dry-run feed
 headline: "Satellite broadband reaches remote schools in pilot"
-image: public/assets/podcast-earth.jpg
+image: pipeline/assets/library/podcast-earth.jpg
 credit: "Example Photo Desk"
 speed: 1.05
 segments:

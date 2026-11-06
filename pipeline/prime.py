@@ -3,7 +3,7 @@
 Run with the Kokoro venv python (it has kokoro-onnx):
   ~/.cache/bought/tts/venv/bin/python -m pipeline.prime            # all 20 prime stories, story i gets theme i+1
   ~/.cache/bought/tts/venv/bin/python -m pipeline.prime --only 3 5 # just those themes
-Output: public/prime/<story id>.mp4 + .jpg
+Output: pipeline/out/prime/<story id>.mp4 + .jpg
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ VOICES = ["af_heart", "am_michael", "bf_emma", "af_nova", "am_adam", "bf_isabell
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--feed", default=str(ROOT / "pipeline/out/dry_run/feed.json"))
-    ap.add_argument("--out", default=str(ROOT / "public/prime"))
+    ap.add_argument("--out", default=str(ROOT / "pipeline/out/prime"))
     ap.add_argument("--only", nargs="*", type=int, help="theme numbers (1-20) to render")
     ap.add_argument("--reuse-audio", action="store_true", help="take the voice from the existing .mp4 instead of speaking it again (for a re-colour)")
     a = ap.parse_args()
@@ -65,7 +65,7 @@ def main():
         photos = [PHOTOS[(i * 2 + k) % len(PHOTOS)] for k in range(4)]
         spec = {"theme": theme, "cat": it["category"], "n": i + 1, "src": it["source"], "h": it["headline"].rstrip("."),
                 "s": it["summary"], "next": [items[(i + k) % len(items)]["headline"] for k in (1, 2, 3)],
-                "images": [str(ROOT / f"public/assets/{p}.{EXT.get(p, 'jpg')}") for p in photos],
+                "images": [str(ROOT / f"pipeline/assets/library/{p}.{EXT.get(p, 'jpg')}") for p in photos],
                 "wav": str(wav), "dur": dur, "out": str(out / f"{it['id']}.mp4"), "poster": str(out / f"{it['id']}.jpg")}
         sp = tmp / f"{it['id']}.json"; sp.write_text(json.dumps(spec))
         print(f"theme {theme:02d} {it['headline'][:50]} ({spec['dur']:.1f}s)", flush=True)

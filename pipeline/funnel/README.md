@@ -23,6 +23,11 @@ and the same input gives the same result. The voice engine (Kokoro) is a neural 
    |  gate         streams, 1280x720, video length matches voice, still frame not blank
    v
  feed.json + media/   only stories that passed the gate have a video
+   |  publish      publish.py: clean text, lay out the paper, copy media to public/issues/<date>/, list the date in issues/index.json
+   |  podcast      every story read aloud as one episode with chapters (Listen)
+   |  translate    headlines and summaries for the language picker
+   v
+ the site          the issue is live after the first publish; audio and languages join it as they finish
 ```
 
 Run from the project root, with the Python that has `requirements.txt` and `requirements-media.txt`:
@@ -32,17 +37,20 @@ python -m pipeline funnel run              # intake, freeze today's issue (IST),
 python -m pipeline funnel run --issue 2026-11-03   # a past date: TLDR pages for that day, feeds cut off at that day
 python -m pipeline funnel intake           # intake only: safe every 30 minutes
 python -m pipeline funnel build --limit 3  # just the first 3 videos
+python -m pipeline funnel publish          # put the built issue on the site (safe to rerun)
+python -m pipeline funnel podcast          # build the episode only, then publish
+python -m pipeline funnel translate --langs hi-IN,kn   # these languages only, then publish
 python -m pipeline funnel status           # where the stories went
 python -m pipeline funnel schema           # the JSON a model must answer in
 ```
 
-Output: `pipeline/out/issues/<date>/`. Nothing here changes what the site shows until those files are copied to `public/`.
+Working files: `pipeline/out/issues/<date>/`. `funnel run` does every step and publishes; `build` alone changes nothing on the site until `publish` runs.
 Stop a build at any time and rerun it: finished stages are skipped, and a failed one is retried up to `media_max_attempts`.
 
 ## Pictures
 
 Each picture carries its source and credit. Licensing is being handled separately: every issue writes `rights_review.json`,
-listing each publisher picture used and its article. That list is the input for the legal work. To stop one publisher's
+listing each publisher picture used and its article, in videos (`pictures`) and on cards (`card_pictures`). That list is the input for the legal work. To stop one publisher's
 pictures add `image_rights: link_only` to its source; `funnel_publisher_images: false` stops them all.
 
 1. **Publisher:** the article's own share picture, read from its page. Credited on screen as "Photo: <credit or site>".
@@ -53,6 +61,26 @@ pictures add `image_rights: link_only` to its source; `funnel_publisher_images: 
 4. **House library** (`avatar_fallback_images`), only when nothing above was found.
 
 If the Commons service is down the stage fails and is retried, so an outage cannot freeze a video full of stand-ins.
+
+## The desk (admin page)
+
+`python -m pipeline serve` runs the site and `/admin`. Code: `pipeline/desk.py` (choices and stages), `pipeline/server.py` (web and clock), `pipeline/admin_pages.py`, `pipeline/mailer.py`. The editor's choices live in `data/desk.db`, so an intake can't undo them.
+
+```
+ review      the rules' ~50 are chosen; everything else on brief is left over. Ignore, Use today, Use tomorrow
+ finalized   the list is fixed and shown for a last look. Back to review is still possible
+ building    Publish clicked: `funnel prepare` makes videos and audio from exactly that list, then languages
+ ready       waits for the publish time in Settings. Hold, or Publish now
+ live        on the site; the email goes to confirmed subscribers, each logged so nobody gets it twice
+```
+
+Stories that ran are marked `used`, so a later issue can't run them again. A story held for tomorrow runs tomorrow even if it has aged out of the window.
+The auction is still simulated, so going live depends only on the clock, not on bidding having closed.
+
+## Languages
+
+A language reaches the picker only if at least 90% of its headlines keep their numbers and are not just the English again. This
+stopped Kannada on 2026-11-05: the offline translator (M2M100) wrote about unrelated events. It catches invented and copied text, not rough wording.
 
 ## Plugging in jev
 

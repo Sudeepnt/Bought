@@ -2,6 +2,10 @@
 
 Written 2026-10-20 from a one-time read of both repos. Re-check the code only for details not covered here.
 
+## The merge (2026-11-05)
+
+Bought and the newspaper are one product now. The newspaper's UI in `public/` is final and never changes. Bought's non-UI code lives in `backend/` (read `backend/README.md`): Mux, Supabase, Stripe, Razorpay, Upstash and the recording logic, with every page, component and CSS file left behind. The Advertise page's existing buttons call it through `public/js/live.js`. With no keys in `backend/.env` the page keeps its simulation. The old `./Bought` repo was not changed; it is a reference only, and sections below that describe its pages and routes are history.
+
 ## The big picture
 
 | | **Bought** (main product) | **Bt-Newspaper** (design prototype) |
@@ -11,36 +15,20 @@ Written 2026-10-20 from a one-time read of both repos. Re-check the code only fo
 | Stack | React 19 + Vinext (App Router-compatible, **not** Next.js) + Vite, Nitro → Vercel | Plain static HTML/CSS/JS, no build, no deps |
 | Purpose | Video "broadcast" marketplace/auction + magazine archive | Mobile newspaper + podcast UI, designed *before* merging into Bought |
 
-**Strategy:** the daily newspaper is the hook that brings readers to the site; the broadcast (video upload) side is the product. Bt-Newspaper is where the newspaper UX gets designed and polished; once final, it gets ported into Bought. Brand name inside the prototype: "Bought. Spotlight".
-
-**Bought → Bt-Newspaper link:** the prototype contains "Bought Spotlight" placements (a presenter image + quote, `assets/bought-spotlight-placement.webp`) that preview how a Bought broadcast would be promoted inside the newspaper feed.
+**Strategy:** the daily newspaper is the hook that brings readers to the site; the broadcast (video upload) side is the product. Bt-Newspaper is where the newspaper UX gets designed and polished; once final, it gets ported into Bought.
 
 ---
 
-## 1. Bt-Newspaper (root of this folder)
+## 1. Bought. Daily (root of this folder)
 
-Run: `python3 -m http.server 8000 --directory public` → http://localhost:8000/. Deploy: Vercel serves `public/` (`vercel.json`: framework null, no build, outputDirectory `public`).
+Run: `~/.cache/bought/funnel-venv/bin/python -m pipeline serve --port 8000` -> http://localhost:8000/. No build. `vercel.json` serves `public/`, but issues are generated and git-ignored, so a host must run the funnel (or receive `public/issues/`).
 
-Pages
-- `/` (`public/index.html`) — Newspaper edition, dated "Tuesday, October 13, 2026". Sticky masthead ("Bought." wordmark, date, language picker), a Newspaper/Podcast view switch, a story list, then an end-of-issue completion section.
-- Podcast edition of the same issue: a section inside `index.html` (`#podcast-view`), opened with `/#podcast`. `views.js` switches the two sections and only requests `podcast.css`, `podcast.js` and the episode audio the first time it is opened. `podcast.html` just redirects to `index.html#podcast`.
+The final UI (from the co-founder, replaced the earlier UI on 2026-11-05) is one page with four views: Today, Listen, Advertise, `#spec`. `UI_NOTES.md` describes it.
 
-Files
-- `stories.js` (755 lines, the core): hardcoded `sampleStories` array (`category, title, deck, happened, matters, image, imageAlt, imagePosition`). Renders:
-  - story cards (`renderStory`), image-swipe carousel (`renderImageCarousel`, drag/touch/pointer handlers), "glances" list (`renderGlances`)
-  - `renderSpotlightPlacement(n)` — Bought Spotlight ad-like blocks, inserted after story index 4 and 9 and at the end
-  - full-story overlay (`openFullStory` / `closeFullStory`, Esc to close)
-  - Save (localStorage key `bought-spotlight-saved-2026-10-13`), copy, and share (Web Share API) per story, with `#action-feedback` toast
-- `language.js` — language picker: 10 popular languages first (English, Mandarin, Hindi, Spanish, Arabic, French, Bengali, Portuguese, Russian, Japanese), then ~48 others alphabetically. UI only so far; **no real translation is wired**.
-- `completion.js` — "You are up to date" ending: canvas-drawn layered mountains with drifting fog (3 canvases `mountain-far/mid/near`), animated per-category counts (`data-final-count`), respects `prefers-reduced-motion`. Issue totals shown: 50 stories — Technology 8, AI 8, Tech Business 12, Founders & Startups 10, Product Launches 8, Tech Geopolitics 4.
-- `podcast.js` — `headlineData` `[category, title, startSecond]` list, play/pause, speed button, progress bar, elapsed time. Audio is simulated/prototype.
-- `styles.css` (497 lines), `podcast.css`; assets in `public/assets/` (swipe-*.jpg images, fonts: Newsreader + DM Sans, ai-presenter.jpg, podcast-earth.jpg).
-
-Design language: warm paper background `#efece5`, Newsreader serif editorial look, newspaper rules, mobile-first (viewport-fit=cover).
-
-Content shape per story: **deck** (summary) + **What happened** + **Why it matters**.
-
-Recent git history: "Add bottom rule to Spotlight placements", "Add Spotlight preview placements to newspaper", "Deploy BOUGHT Spotlight as static Vercel site".
+Real, from the funnel: stories, sections, videos, pictures, the audio episode, translated headlines and summaries, the archive, link-preview pages (`public/s/<id>/`), "How this issue was made".
+Admin at `/admin` (password): `pipeline/server.py`, `desk.py`, `admin_pages.py`, `mailer.py`; see `pipeline/funnel/README.md`. Run: `~/.cache/bought/funnel-venv/bin/python -m pipeline serve --port 8000`. Subscribing and email are real but need SMTP settings to send.
+Still sample data in the browser (no server yet): comments, poll and reaction counts, advertisers, the auction and wallet. The footer says so.
+`public/js/issue.js` loads `issues/index.json` and `issues/<date>/issue.json`; `pipeline/funnel/publish.py` writes them.
 
 ---
 
@@ -80,10 +68,10 @@ Run: `npm ci && cp .env.example .env && npm run dev`. Scripts: `build`, `test` (
 ---
 
 ## Integration notes / likely next steps
-- Bt-Newspaper is framework-free; porting into Bought means converting `stories.js` rendering into React components (new route, e.g. `/` or `/news`) and moving `sampleStories`/`headlineData` to real data (Supabase table or API route).
-- Styling: prototype uses its own `styles.css` (paper `#efece5`, Newsreader/DM Sans); check Bought's `app/globals.css` for conflicts before porting.
+- Bt-Newspaper is framework-free; porting into Bought means converting the `public/js` rendering into React components (new route, e.g. `/` or `/news`). The data is already real (`issues/<date>/issue.json`).
+- Styling: the site uses its own `styles.css`; check Bought's `app/globals.css` for conflicts before porting.
 - Bought's CSP (`vercel.json`) is strict (`default-src 'self'`) — remote images/fonts need allowlisting.
-- Language picker and podcast audio in the prototype are placeholders; Bought already has Mux captions/translation infra and a language list (`lib/caption-languages.ts`) that could be reused.
+- Bought already has Mux captions/translation infra and a language list (`lib/caption-languages.ts`) that could be reused.
 - `Bought/` is a nested git repo inside the Bt-Newspaper repo working tree; don't `git add` it from the parent.
 
 ---

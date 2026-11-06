@@ -3,5 +3,9 @@ pipeline/data/
 pipeline/out/
 __pycache__/
 .pytest_cache/
-public/live
+public/issues/
+public/s/
+public/share/
 .DS_Store
+backend/node_modules/
+backend/.env

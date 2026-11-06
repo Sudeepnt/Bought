@@ -1,0 +1,1 @@
+for(let e of document.querySelectorAll("video[data-stream]")){let t=e.dataset.stream;e.canPlayType("application/vnd.apple.mpegurl")?e.src=t:import("./c-YL55G6O3.js").then(({default:o})=>{let a=new o;a.loadSource(t),a.attachMedia(e)})}

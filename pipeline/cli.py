@@ -120,8 +120,15 @@ def cmd_podcast(args) -> int:
     return 0 if res["complete"] else 1
 
 
+def cmd_serve(args) -> int:
+    """The site, the admin page at /admin, subscribing and the publish clock, in one process."""
+    from .server import serve
+    return serve(args.host, args.port, config=args.config, sources=args.sources)
+
+
 def cmd_funnel(args) -> int:
     """Source -> video. See pipeline/funnel/README.md."""
+    import dataclasses
     import json
     from .funnel.contracts import assessment_schema
     if args.step == "schema":
@@ -135,17 +142,62 @@ def cmd_funnel(args) -> int:
     past = date < today
     if past:                                   # read the sources as they stood at the end of that day, in a database of its own
         now = datetime.strptime(date + " 23:59:59", "%Y-%m-%d %H:%M:%S").replace(tzinfo=fi.ZoneInfo("Asia/Kolkata")).astimezone(timezone.utc)
-    conn = db.connect(ROOT / "data" / (f"news-{date}.db" if past else "news.db"))
+    from . import desk as dk
+    conn = db.connect(dk.data_dir() / (f"news-{date}.db" if past else "news.db"))
     conn.executescript(fi.SCHEMA)
     if args.step in ("intake", "run"):
         res = fi.intake(conn, cfg, sources, now, past=past)
         for name, st in res["ingest"].items():
             print(f"  {name:<28} seen {st['seen']:>3} new {st['new']:>3}" + (f"  ERROR {st['error']}" if st["error"] else ""))
         print(f"duplicates rejected {res['duplicates_rejected']} | {res['selection']} | descriptions fetched {res['described']}")
+        dk.record_run(dk.connect(), res["ingest"], now)
     if args.step in ("build", "run"):
         issue = fi.cut_issue(conn, cfg, date, now, sources, recut=args.recut)
         print(f"issue {date}: " + ", ".join(f"{k} {v}" for k, v in fi.build_issue(conn, cfg, date, issue, limit=args.limit).items()))
         print(f"feed: {fi.issue_dir(date) / 'feed.json'}")
+    if args.step == "prepare":                     # Publish was clicked in admin: make this list's videos and audio; the admin server puts it live at the set time
+        from .funnel import publish as fp
+        from .ingest import LiveFetcher
+        desk = dk.connect()
+        ids = dk.final_list(desk, date)
+        if not ids:
+            raise ConfigError(f"no finalized list for {date}")
+        fetcher = LiveFetcher(cfg)
+        try:
+            print("descriptions fetched", fi.describe_selected(conn, fetcher, ids=ids), flush=True)
+        finally:
+            fetcher.close()
+        issue = fi.cut_list(conn, cfg, date, ids, now, sources)
+        clock = dk.publish_label(dk.get_settings(desk))
+        for _ in range(3):                         # a time budget can defer stories: go again, finished stages are skipped
+            res = fi.build_issue(conn, cfg, date, issue, limit=args.limit, clock=clock)
+            print(f"issue {date}: " + ", ".join(f"{k} {v}" for k, v in res.items()), flush=True)
+            if not res["deferred"]:
+                break
+        dk.set_issue(desk, date, stats=json.dumps(res))
+        if not res["passed"] and not args.limit:
+            print("no video passed the gate", flush=True)
+            return 1
+        if cfg.tts_command and not args.no_audio:
+            print("podcast: " + ", ".join(f"{k} {v}" for k, v in fp.build_audio(cfg, date).items()), flush=True)
+        return 0
+    if args.step == "languages":                   # no publish here: the admin server adds them to the issue
+        from .funnel import publish as fp
+        langs = cfg if not args.langs else dataclasses.replace(cfg, translate_languages=tuple(args.langs.split(",")))
+        print("translations: " + ", ".join(f"{k} {v}" for k, v in fp.build_languages(langs, date).items()), flush=True)
+        return 0
+    if args.step in ("publish", "podcast", "translate", "run"):
+        from .funnel import publish as fp
+        put = lambda: print("published: " + ", ".join(f"{k} {v}" for k, v in fp.publish(cfg, date, conn, len(sources)).items()))
+        if args.step in ("publish", "run"):            # readers get the issue first; audio and languages join it when ready
+            put()
+        if args.step in ("podcast", "run") and cfg.tts_command:
+            print("podcast: " + ", ".join(f"{k} {v}" for k, v in fp.build_audio(cfg, date).items()))
+            put()
+        if args.step in ("translate", "run") and cfg.translate_languages:
+            langs = cfg if not args.langs else dataclasses.replace(cfg, translate_languages=tuple(args.langs.split(",")))
+            print("translations: " + ", ".join(f"{k} {v}" for k, v in fp.build_languages(langs, date).items()))
+            put()
     for label, n in fi.status(conn, date):
         print(f"{label:<44}{n:>5}")
     return 0
@@ -164,16 +216,22 @@ def main(argv=None) -> int:
     pc.add_argument("spec")
     _add_common(pc)
     pf = sub.add_parser("funnel", help="source -> video: intake, freeze an issue, images, voice, render, gate")
-    pf.add_argument("step", choices=["run", "intake", "build", "status", "schema"])
+    pf.add_argument("step", choices=["run", "intake", "build", "prepare", "publish", "podcast", "translate", "languages", "status", "schema"])
     pf.add_argument("--issue", help="issue date YYYY-MM-DD (default: today in IST)")
     pf.add_argument("--limit", type=int, help="only build the first N videos")
     pf.add_argument("--recut", action="store_true", help="replace this date's frozen issue with the current selection")
+    pf.add_argument("--langs", help="translate only these picker locales, comma separated, e.g. hi-IN,kn")
+    pf.add_argument("--no-audio", action="store_true", help="prepare: skip the audio episode")
     _add_common(pf)
+    ps = sub.add_parser("serve", help="the site, /admin, subscribing and the publish clock")
+    ps.add_argument("--host", default="127.0.0.1")
+    ps.add_argument("--port", type=int, default=8000)
+    _add_common(ps)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
-        return {"run": cmd_run, "show": cmd_show, "clip": cmd_clip, "podcast": cmd_podcast, "badges": cmd_badges, "translate": cmd_translate, "funnel": cmd_funnel}[args.cmd](args)
+        return {"run": cmd_run, "show": cmd_show, "clip": cmd_clip, "podcast": cmd_podcast, "badges": cmd_badges, "translate": cmd_translate, "funnel": cmd_funnel, "serve": cmd_serve}[args.cmd](args)
     except ConfigError as e:
         print(f"config error: {e}", file=sys.stderr)
         return 2

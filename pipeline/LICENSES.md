@@ -1,5 +1,7 @@
 # Dependency licenses
 
+Fonts: `assets/fonts/font-0.ttf` is DM Sans (`assets/fonts/DM-Sans-LICENSE.txt`); `assets/newsreader.ttf` is Newsreader (`assets/Newsreader-OFL.txt`). The site itself loads its fonts from Google Fonts.
+
 All runtime dependencies are open source; none needs an API key or a paid service. Versions are those
 installed when this was written (license text taken from each package's own metadata).
 
@@ -49,3 +51,13 @@ Not verified: licenses of newer versions pulled by a fresh `pip install` on the 
 | rembg + isnet-anime (one-off cutout of the anime anchor) | MIT (rembg); model licence not verified | only used to make `assets/anime/cutout_raw.png` from the user's own character sheet |
 | Chatterbox Turbo (laughs, one-off, Mac only) | MIT; output carries an inaudible Perth watermark | the two WAVs in `assets/laughs/` are shipped; the model is not needed on the server |
 | Mascot host (`mascot.py`) | original, drawn in code | no third-party artwork |
+
+## backend/ (browser and server, npm)
+
+| Package | License | Used for |
+| --- | --- | --- |
+| `@supabase/supabase-js` | MIT | Sign-in, database, image storage |
+| `@mux/upchunk` | MIT | Resumable video upload |
+| `hls.js` | Apache-2.0 | Playing Mux streams outside Safari |
+| `@mediapipe/tasks-vision` | Apache-2.0 | Face guide while recording; `public/mediapipe/NOTICE.txt` |
+| `tsx` | MIT | Runs the TypeScript server |

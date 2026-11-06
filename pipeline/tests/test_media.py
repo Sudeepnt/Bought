@@ -83,7 +83,7 @@ def test_anime_clip_with_laugh_and_cutaway(tmp_path):
     cfg = replace(cfg_with([sys.executable, "-c", STUB, "{wav}"]), avatar_size=(320, 180))
     spec = tmp_path / "s.yaml"
     spec.write_text(yaml.safe_dump({
-        "name": "t", "character": "anime", "headline": "Hello there", "image": "public/assets/podcast-earth.jpg",
+        "name": "t", "character": "anime", "headline": "Hello there", "image": "pipeline/assets/library/podcast-earth.jpg",
         "segments": [{"text": "Hi.", "mood": "happy"}, {"laugh": 0.5},
                      {"text": "Bye.", "cutaway": True}]}))
     feed = tmp_path / "feed.json"
