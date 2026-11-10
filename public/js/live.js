@@ -1,8 +1,8 @@
-/* Bought. Daily: connects the Advertise page to the backend (backend/, Bought's Mux, Supabase and payments code).
+/* Bought. Daily: connects the Advertise page to the backend (backend/: ad video on Cloudflare R2, Supabase and payments).
    Until every key is set, /api/bought/config says live:false and auction.js keeps its local simulation.
    When live, the server owns every number: this file only mirrors its market into AU and sends the page's buttons to it. */
 const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bought-notice-seen",0),polls:0,
- client(){return Live.lib||(Live.lib=import("./live/client.js?v=12"))},
+ client(){return Live.lib||(Live.lib=import("./live/client.js?v=13"))},
  async boot(){
   let cfg=null;
   try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),2500);const r=await fetch("api/bought/config",{signal:c.signal,cache:"no-store"});clearTimeout(tm);if(r.ok)cfg=await r.json()}catch{}
@@ -37,7 +37,7 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
   const c={...raw,adv:adv||raw.adv,adId:raw.id},local=Live.local[raw.id];
   if(raw.kind==="image"&&raw.signedImage)c.img=raw.signedImage;
   if(raw.kind==="video"&&raw.signedImage)c.poster=raw.signedImage;
-  if(!c.mux)delete c.mux;
+  if(!c.hosted)delete c.hosted;
   return local?{...c,...local}:c;
  },
  apply(m){
@@ -100,7 +100,7 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
    await Live.sync();Adv.refresh(true);
   }catch(e){st.err=e.message;Bid.render()}
  },
- /* Bought's order: video to Mux in resumable chunks, then a still as the poster; it is ready once Mux has it */
+ /* Bought's order: video straight to R2 on a signed link, then a still as the poster; it is ready once the server has checked the file */
  async send(adId,k,kind,c){
   const lib=await Live.client(),say=x=>{const el=$("b-up");if(el)el.textContent=x};
   const blob=c.blob;
@@ -111,12 +111,14 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
     say("Video uploaded. Finishing up…");
     await lib.posterFrom(blob).then(f=>lib.uploadImage(adId,f)).catch(()=>{});
    }else if(kind==="image"&&blob)await lib.uploadImage(adId,blob);
-   if(kind==="classified"||blob||c.mux||(kind==="image"&&c.img))await lib.api(`ads/ads/${adId}/submit`,{});
+   if(kind==="classified"||blob||c.hosted||(kind==="image"&&c.img))await lib.api(`ads/ads/${adId}/submit`,{});
    Live.settled(adId,k);
    say("Your ad is uploaded. It's ready as soon as the video finishes processing.");
    await Live.sync();Adv.refresh();
   }catch(e){
    const msg=e.message||"Your ad didn't finish uploading.";say(msg);
+   /* a file the server refused can't pass by sending it again: no retry, and the saved copy goes */
+   if(e.name==="VideoRejected"){Live.settled(adId,k);toast(msg);Live.sync().then(()=>Adv.refresh()).catch(()=>{});return}
    toast(msg,{label:"Try again",run:()=>Live.send(adId,k,kind,c)});
   }
  },
@@ -198,7 +200,7 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
     if(w.spot==="cls"){ISSUE_CLS.push([amt,f.line||"",w.adv]);return}
     const cre={...f,adv:w.adv,cta:f.cta||hostOf(f.web||"")};
     if(w.kind==="image"&&w.signedImage)cre.img=w.signedImage;
-    if(w.kind==="video"){if(w.mux)cre.mux=w.ad;if(w.signedImage)cre.poster=w.signedImage;
+    if(w.kind==="video"){if(w.hosted)cre.hosted=w.ad;if(w.signedImage)cre.poster=w.signedImage;
      if(w.script){const lines=w.script.split(/(?<=[.!?])\s+/).filter(Boolean);if(lines.length)cre.script=lines}}
     ISSUE_ADS[w.spot]={cre,amt,date};
    });

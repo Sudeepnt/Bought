@@ -117,21 +117,3 @@ export function thumbnailMetadata(bytes: Uint8Array): ThumbnailMetadata | null {
 export function thumbnailMime(bytes: Uint8Array): string | null {
   return thumbnailMetadata(bytes)?.mime ?? null;
 }
-
-export function validMedia(asset: {
-  duration?: number;
-  tracks?: { type: string; max_width?: number; max_height?: number }[];
-}) {
-  return (
-    Number.isFinite(asset.duration) &&
-    asset.duration! >= 1 &&
-    asset.duration! <= MAX_VIDEO_SECONDS + 1 &&
-    !!asset.tracks?.some(
-      (t) =>
-        t.type === 'video' &&
-        (t.max_width ?? 0) >= 240 &&
-        (t.max_height ?? 0) >= 240,
-    ) &&
-    !!asset.tracks?.some((t) => t.type === 'audio')
-  );
-}

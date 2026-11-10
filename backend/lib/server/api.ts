@@ -1,7 +1,9 @@
 // The Advertise page's API. Same shape as Bought's: one handler, typed errors, rate-limited writes,
-// the database owns the rules, Mux and the payment providers talk back through signed webhooks.
+// the database owns the rules, the payment providers talk back through signed webhooks. Ad videos go from
+// the browser straight to Cloudflare R2 on a signed link; this server checks each file before it can run.
 import {
   MAX_THUMBNAIL_BYTES,
+  MAX_VIDEO_BYTES,
   MAX_VIDEO_SECONDS,
   THUMBNAIL_BUCKET,
   thumbnailMetadata,
@@ -22,14 +24,24 @@ import {
 } from './config';
 import {
   createCheckout,
-  deleteMuxAsset,
-  mux,
-  muxPlaybackToken,
   trustedStripeCheckoutUrl,
-  validMuxUploadTarget,
   validProviderReference,
   type Topup,
 } from './providers';
+import {
+  deleteVideo,
+  headVideo,
+  judgeProbe,
+  newVideoKey,
+  NOT_PLAYABLE,
+  PLAY_SECONDS,
+  presign,
+  probeVideo,
+  storedType,
+  typeOfKey,
+  UPLOAD_SECONDS,
+  validVideoKey,
+} from './r2';
 import {
   constantEqual,
   database,
@@ -143,11 +155,8 @@ type AdRow = {
   fields: Record<string, unknown>;
   state: string;
   media_state: string;
-  mux_upload_id: string | null;
-  mux_upload_url: string | null;
-  mux_upload_expires_at: string | null;
-  mux_asset_id: string | null;
-  mux_playback_id: string | null;
+  video_key: string | null;
+  upload_expires_at: string | null;
   thumbnail_path: string | null;
   thumbnail_verified: boolean;
   problem: string | null;
@@ -238,41 +247,39 @@ async function market(userId: string | null) {
   return data;
 }
 
+// Takes nobody used: after 14 days the file leaves R2 and the ad asks for a new one.
 async function expireUnusedRecordings() {
-  if (!setting('MUX_TOKEN_ID') || !setting('MUX_TOKEN_SECRET')) return 0;
+  if (!setting('R2_ACCESS_KEY_ID') || !setting('R2_SECRET_ACCESS_KEY')) return 0;
   const db = database();
   const { data, error } = await db
     .from('bought_ads')
-    .select('id,state,mux_asset_id,mux_upload_expires_at,created_at')
+    .select('id,state,video_key,upload_expires_at,created_at')
     .in('state', ['draft', 'rejected'])
-    .in('media_state', ['ready', 'errored'])
-    .not('mux_asset_id', 'is', null)
+    .in('media_state', ['waiting', 'ready', 'errored'])
+    .not('video_key', 'is', null)
     .order('created_at', { ascending: true })
     .limit(50);
   dbError(error);
   let expired = 0;
   for (const ad of data ?? []) {
     const savedAt = recordingSavedAt({
-      uploadExpiresAt: ad.mux_upload_expires_at,
+      uploadExpiresAt: ad.upload_expires_at,
       createdAt: ad.created_at,
     });
     if (savedAt + RECORDING_RETENTION_MS > Date.now()) continue;
     try {
-      await deleteMuxAsset(ad.mux_asset_id);
+      if (validVideoKey(ad.video_key)) await deleteVideo(ad.video_key);
       const { error: updateError } = await db
         .from('bought_ads')
         .update({
-          mux_upload_id: null,
-          mux_upload_url: null,
-          mux_upload_expires_at: null,
-          mux_asset_id: null,
-          mux_playback_id: null,
+          video_key: null,
+          upload_expires_at: null,
           media_state: 'none',
           problem:
             'Unused recording expired after 14 days. Record a new take to continue.',
         })
         .eq('id', ad.id)
-        .eq('mux_asset_id', ad.mux_asset_id)
+        .eq('video_key', ad.video_key)
         .in('state', ['draft', 'rejected']);
       dbError(updateError);
       expired += 1;
@@ -369,6 +376,8 @@ async function advertiser(request: Request, path: string[]) {
         ? [10, 600]
         : action === 'ads:upload'
           ? [20, 3600]
+          : action === 'ads:uploaded'
+            ? [30, 3600]
           : action === 'withdraw'
             ? [10, 3600]
             : [60, 600];
@@ -439,77 +448,85 @@ async function advertiser(request: Request, path: string[]) {
     const ad = await ownedAd(path[2], user.id);
     if (path[3] === 'upload') {
       await editable(ad);
-      const replacedAssetId = ad.mux_asset_id;
+      const stored = storedType(body.type);
+      if (!stored) throw new HttpError(400, 'Upload an MP4, MOV or WebM video.');
+      const size = Number(body.size);
+      if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_VIDEO_BYTES)
+        throw new HttpError(400, 'That video is over 500 MB. Export it at a lower quality and try again.');
+      const replacedKey = ad.video_key;
+      // A waiting take can be reused only for a file of the same kind; anything else starts a new take.
+      const replace =
+        body.replace === true || (!!replacedKey && typeOfKey(replacedKey) !== stored.type);
       const { data: claimed, error: claimError } = await db.rpc(
         'bought_ad_claim_upload',
-        { p_ad_id: ad.id, p_replace: body.replace === true },
+        { p_ad_id: ad.id, p_replace: replace },
       );
       dbError(claimError);
       if (claimed) {
-        let muxUploadCreated = false;
-        try {
-          const { data: upload } = await mux<{ id: string; url: string }>(
-            'uploads',
-            {
-              cors_origin: origin(),
-              timeout: 7200,
-              new_asset_settings: {
-                playback_policies: ['signed'],
-                passthrough: ad.id,
-                max_resolution_tier: '1080p',
-                // Mux's lowest-cost encoding tier, as Bought uses for on-demand video.
-                video_quality: 'basic',
-              },
-            },
+        const { error } = await db
+          .from('bought_ads')
+          .update({
+            video_key: newVideoKey(ad.id, stored.ext),
+            upload_expires_at: new Date(Date.now() + UPLOAD_SECONDS * 1000).toISOString(),
+            upload_quota_date: null,
+            media_state: 'waiting',
+            upload_claimed_at: null,
+          })
+          .eq('id', ad.id);
+        if (error) {
+          const { error: releaseError } = await db.rpc(
+            'bought_ad_release_upload_quota',
+            { p_ad_id: ad.id },
           );
-          muxUploadCreated = true;
-          if (!validMuxUploadTarget(upload.id, upload.url))
-            throw new HttpError(
-              502,
-              'The video provider returned an invalid upload target.',
-            );
-          const { error } = await db
-            .from('bought_ads')
-            .update({
-              mux_upload_id: upload.id,
-              mux_upload_url: upload.url,
-              mux_upload_expires_at: new Date(
-                Date.now() + 7200000,
-              ).toISOString(),
-              upload_quota_date: null,
-              media_state: 'waiting',
-              upload_claimed_at: null,
-            })
-            .eq('id', ad.id);
+          if (releaseError) console.error('BOUGHT upload quota release is pending.');
           dbError(error);
-          if (replacedAssetId)
-            await deleteMuxAsset(replacedAssetId).catch(() =>
-              console.error('BOUGHT replaced recording cleanup is pending.'),
-            );
-        } catch (error) {
-          if (muxUploadCreated) {
-            await db
-              .from('bought_ads')
-              .update({ upload_claimed_at: null, upload_quota_date: null })
-              .eq('id', ad.id);
-          } else {
-            const { error: releaseError } = await db.rpc(
-              'bought_ad_release_upload_quota',
-              { p_ad_id: ad.id },
-            );
-            if (releaseError)
-              console.error('BOUGHT upload quota release is pending.');
-          }
-          throw error;
         }
+        if (replacedKey && validVideoKey(replacedKey))
+          await deleteVideo(replacedKey).catch(() =>
+            console.error('BOUGHT replaced recording cleanup is pending.'),
+          );
       }
       const current = await ownedAd(ad.id, user.id);
-      if (!validMuxUploadTarget(current.mux_upload_id, current.mux_upload_url))
-        throw new HttpError(
-          503,
-          'The upload target is unavailable. Try again shortly.',
-        );
-      return json({ url: current.mux_upload_url, uploadId: current.mux_upload_id });
+      const left = current.upload_expires_at
+        ? Math.floor((new Date(current.upload_expires_at).getTime() - Date.now()) / 1000)
+        : 0;
+      if (!validVideoKey(current.video_key) || current.media_state !== 'waiting' || left < 60)
+        throw new HttpError(503, 'The upload target is unavailable. Try again shortly.');
+      const contentType = typeOfKey(current.video_key);
+      return json({
+        url: presign('PUT', current.video_key, left, { 'content-type': contentType }),
+        key: current.video_key,
+        contentType,
+      });
+    }
+    // The browser says its PUT finished. Nothing is taken on its word: the file in R2 is checked here.
+    if (path[3] === 'uploaded') {
+      if (!validVideoKey(ad.video_key) || body.key !== ad.video_key)
+        throw new HttpError(409, 'This upload was replaced. Upload the video again.');
+      if (ad.media_state === 'waiting') {
+        const head = await headVideo(ad.video_key);
+        if (!head) throw new HttpError(409, 'The video has not arrived yet. Try the upload again.');
+        const reason =
+          head.type !== typeOfKey(ad.video_key)
+            ? NOT_PLAYABLE
+            : head.size <= 0 || head.size > MAX_VIDEO_BYTES
+              ? judgeProbe(null, head.size)
+              : judgeProbe(await probeVideo(ad.video_key), head.size);
+        const { error } = await db.rpc('bought_ad_media_checked', {
+          p_ad_id: ad.id,
+          p_key: ad.video_key,
+          p_valid: !reason,
+          p_reason: reason,
+        });
+        dbError(error);
+        // A file that can't run is not kept.
+        if (reason)
+          await deleteVideo(ad.video_key).catch(() =>
+            console.error('BOUGHT rejected recording cleanup is pending.'),
+          );
+      }
+      const after = await ownedAd(ad.id, user.id);
+      return json({ state: after.state, media: after.media_state, reason: after.problem });
     }
     if (path[3] === 'image') {
       await editable(ad);
@@ -819,7 +836,7 @@ export async function handleApi(request: Request) {
       const db = database();
       const { data: ad, error } = await db
         .from('bought_ads')
-        .select('id,user_id,mux_playback_id,thumbnail_path')
+        .select('id,user_id,video_key,media_state,thumbnail_path')
         .eq('id', path[1])
         .maybeSingle();
       dbError(error);
@@ -833,11 +850,11 @@ export async function handleApi(request: Request) {
         const user = await identity(request);
         if (ad.user_id !== user.id) throw new HttpError(404, 'Ad not found.');
       }
-      if (!ad.mux_playback_id)
+      if (ad.media_state !== 'ready' || !validVideoKey(ad.video_key))
         throw new HttpError(409, 'This video is still processing.');
+      // A link to this one file that stops working after ten minutes.
       return json({
-        playbackId: ad.mux_playback_id,
-        token: muxPlaybackToken(ad.mux_playback_id),
+        url: presign('GET', ad.video_key, PLAY_SECONDS),
         poster: await signedImage(ad.thumbnail_path),
       });
     }

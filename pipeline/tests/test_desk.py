@@ -417,8 +417,8 @@ def test_ads_page_shows_money_out_and_what_sold_escaped():
 def test_ads_page_names_what_is_missing_and_never_values():
     from pipeline import admin_pages as pages
     common = dict(date="2026-11-06", stage="review", settings={}, row=None, job=None, now=None, message="", error="")
-    html = pages.ads_page(running=True, status={"live": False, "missing": ["MUX_TOKEN_ID"], "providers": {}}, data={}, **common)
-    assert "MUX_TOKEN_ID" in html and "simulation" in html
+    html = pages.ads_page(running=True, status={"live": False, "missing": ["R2_ACCESS_KEY_ID"], "providers": {}}, data={}, **common)
+    assert "R2_ACCESS_KEY_ID" in html and "simulation" in html
     assert "not running" in pages.ads_page(running=False, status={}, data={}, **common)
 
 

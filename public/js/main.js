@@ -49,6 +49,7 @@ $("lang").addEventListener("change",e=>Data.setLang(e.target.value));
 /* boot: the newest published issue, or the one a shared link names (#s-<date>-<story id>) */
 (async()=>{
  const h=location.hash.slice(1), link=h.match(/^s-(\d{4}-\d{2}-\d{2})-(\w+)$/);
+ try{
  Theme.paint();
  if(!await Live.boot())initAuction();ADV.date=AU.dates[0];
  await Data.boot(link&&link[1]);
@@ -56,6 +57,7 @@ $("lang").addEventListener("change",e=>Data.setLang(e.target.value));
  Paper.render();Radio.init();Spec.render();
  Motion.init();Shell.init();Pager.init();
  go(link?"paper":VIEWS.includes(h)?h:h==="listen"?"radio":store.get("bought-view","paper"));
+ }finally{document.body.classList.remove("booting")}   /* the page appears once, drawn: no empty frame first */
  BOOTED=true;Stats.visit(VIEW);
  if(link){const s=S.find(x=>x.uid===link[2]);if(s)Reader.open(s.id)}
  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>Paper.balance());

@@ -8,7 +8,7 @@ function statusPill(e){
  const m=({leading:()=>["ok",e.mode==="auto"?`Leading · auto to ${pts(e.max)}`:"Leading"],outbid:()=>["out","Outbid"],in:()=>["ok",`In · line ${e.ref&&AU.cls[e.d]?clsRank(e.d,e.ref):e.rank} of ${SPOTS.cls.seats}`],out:()=>["out",`Below line ${SPOTS.cls.seats}`],won:()=>["ink",`Won · ${pts(e.total)} spent`],live:()=>["ink","Live · report ready"],lost:()=>["muted","Not won · hold released"]})[e.status]();
  return `<span class="pill ${m[0]}">${m[1]}</span>`;
 }
-/* no review: an ad is ready once its video or picture is in; a file Mux can't use comes back with the reason */
+/* no review: an ad is ready once its video or picture is in; a file that can't play comes back with the reason */
 const reviewPill=e=>e.adState==="rejected"?`<span class="pill sub out">Ad needs a new file</span>`:e.adState==="processing"?`<span class="pill sub">Video processing</span>`:e.adState==="draft"?`<span class="pill sub">Ad not uploaded yet</span>`:`<span class="pill sub ok">Ad ready</span>`;
 const needsRaise=e=>e.status==="outbid"||e.status==="out";
 function demoHTML(){
@@ -401,7 +401,7 @@ const Bid={
     if(!isV&&!isI){st.err="That file isn't a video or an image. Choose an MP4, MOV, WebM, JPG, PNG or WebP file.";Bid.render();return}
     if(isI&&f.size>10*1024*1024){st.err="That image is over 10 MB. Export it smaller and try again.";Bid.render();return}
     if(isV&&f.size>500*1024*1024){st.err="That video is over 500 MB. Export it at a lower quality and try again.";Bid.render();return}
-    [c.file,c.img].forEach(u=>u&&URL.revokeObjectURL(u));const u=URL.createObjectURL(f);c.fname=f.name;c.trimStart=0;c.blob=f;delete c.adId;delete c.mux;st.err="";
+    [c.file,c.img].forEach(u=>u&&URL.revokeObjectURL(u));const u=URL.createObjectURL(f);c.fname=f.name;c.trimStart=0;c.blob=f;delete c.adId;delete c.hosted;st.err="";
     if(isI){c.img=u;c.file=null;c.dur=0;c.len=0;Bid.render();return}
     c.file=u;c.img=null;const v=document.createElement("video");v.preload="metadata";
     v.onloadedmetadata=async()=>{const d=isFinite(v.duration)?v.duration:0;c.dur=Math.round(d);c.len=Math.max(1,Math.min(60,c.dur||30));
@@ -512,7 +512,7 @@ const Rec={stream:null,mr:null,t0:0,timer:0,chunks:[],cancelled:false,
    const c=Bid.st.cre;[c.file,c.img].forEach(u=>u&&URL.revokeObjectURL(u));
    const blob=new Blob(Rec.chunks,{type});
    if(lib&&!lib.validRecordedTake(blob.size,elapsed)){Bid.st.err="That take was too short to use. Record again.";Bid.render();return}
-   c.file=URL.createObjectURL(blob);c.blob=blob;delete c.adId;delete c.mux;c.img=null;c.dur=secs;c.len=secs;c.trimStart=0;c.fname=`Recording · ${fmt(secs)}`;Bid.st.err="";Bid.render();Live.saveDraft(Bid.st.k,c,blob)};
+   c.file=URL.createObjectURL(blob);c.blob=blob;delete c.adId;delete c.hosted;c.img=null;c.dur=secs;c.len=secs;c.trimStart=0;c.fname=`Recording · ${fmt(secs)}`;Bid.st.err="";Bid.render();Live.saveDraft(Bid.st.k,c,blob)};
   Rec.t0=Date.now();Rec.mr.start(250);
   Rec.timer=setInterval(()=>{const s=(Date.now()-Rec.t0)/1000,t=$("rec-t"),m=$("rec-m");if(t)t.textContent=fmt(Math.min(60,Math.floor(s)));if(m)m.style.width=Math.min(100,s/60*100)+"%";if(s>=60)Rec.stop()},200); /* recording stops itself at 60 s */
  },

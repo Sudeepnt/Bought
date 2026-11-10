@@ -13,9 +13,7 @@
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "@mux/upchunk": "3.5.0",
     "@supabase/supabase-js": "2.116.0",
-    "hls.js": "^1.6.0",
     "tsx": "4.20.6"
   },
   "devDependencies": {

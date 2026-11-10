@@ -101,6 +101,12 @@ def page_html(slug, title, desc, image, video, vw, vh, redirect, category):
 '''
 
 
+def video_address(base: str, video: str) -> str:
+    """og:video wants a full address: an R2 link already is one; a site path gets the site in front."""
+    video = video.split("?")[0]
+    return video if video.startswith(("https://", "http://")) else f"{base}/{video}"
+
+
 def issue_pages(page: dict, media_dir: Path, public: Path = PUB, site: str = None) -> int:
     """One preview page per story with a video, for one published issue. Plain links to the site get the issue's own card."""
     base = (site or SITE).rstrip("/")
@@ -118,7 +124,7 @@ def issue_pages(page: dict, media_dir: Path, public: Path = PUB, site: str = Non
         card_wide(poster, public / f"share/{sid}.jpg")
         desc = f"{s['cat']}. {s['dek']}"[:200]
         out = public / f"s/{sid}"; out.mkdir(parents=True, exist_ok=True)
-        (out / "index.html").write_text(page_html(sid, s["t"], desc, f"{base}/share/{sid}.jpg", f"{base}/{s['video'].split('?')[0]}", 1280, 720, f"../../#s-{page['issue']}-{sid}", s["cat"]))
+        (out / "index.html").write_text(page_html(sid, s["t"], desc, f"{base}/share/{sid}.jpg", video_address(base, s["video"]), 1280, 720, f"../../#s-{page['issue']}-{sid}", s["cat"]))
         made += 1
     return made
 
@@ -127,7 +133,8 @@ def main():
     """Rebuild the preview pages of the latest published issue, for example after SITE_URL changes."""
     latest = json.loads((PUB / "issues/index.json").read_text())["latest"]
     base = PUB / "issues" / latest
-    made = issue_pages(json.loads((base / "issue.json").read_text()), base / "media")
+    out = Path(os.environ.get("BOUGHT_OUT") or Path(__file__).resolve().parent / "out") / "issues" / latest / "media"
+    made = issue_pages(json.loads((base / "issue.json").read_text()), out if out.is_dir() else base / "media")   # posters may live on R2 only
     print(f"{made} preview pages for {latest}, site address {SITE}")
 
 

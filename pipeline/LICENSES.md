@@ -57,8 +57,6 @@ Not verified: licenses of newer versions pulled by a fresh `pip install` on the 
 | Package | License | Used for |
 | --- | --- | --- |
 | `@supabase/supabase-js` | MIT | Sign-in, database, image storage |
-| `@mux/upchunk` | MIT | Resumable video upload |
-| `hls.js` | Apache-2.0 | Playing Mux streams outside Safari |
 | `tsx` | MIT | Runs the TypeScript server |
 
 ## Site fonts and production tools

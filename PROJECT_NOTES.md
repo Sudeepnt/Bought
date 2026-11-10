@@ -24,7 +24,7 @@ Coming, planned by the user: a business-development module that brings readers b
 | `public/fonts/` | Self-hosted Google Fonts files (OFL), the same files Google served |
 | `public/js/live.js`, `public/js/live/` | The Advertise page talking to `backend/`; `js/live/` is built from `backend/client/` (`npm run build:client`), never edited by hand |
 | `pipeline/` | Python: sources, funnel, videos, audio, translations, the admin desk, mail, the publish clock, and `server.py` that ties them together. `pipeline/funnel/README.md` |
-| `backend/` | Node: Bought's Mux, Supabase, Stripe, Razorpay and Upstash code with no pages: the ad auction, wallet and ad delivery. `backend/README.md` |
+| `backend/` | Node: Bought's Supabase, Stripe, Razorpay and Upstash code with no pages, plus ad videos on Cloudflare R2: the ad auction, wallet and ad delivery. `backend/README.md` |
 | `deploy/` | Caddy, systemd, backups, `setup.sh` for the VPS |
 
 ## Run it
@@ -34,6 +34,8 @@ Coming, planned by the user: a business-development module that brings readers b
 PYTHON=~/.cache/bought/funnel-venv/bin/python npm test                   # every test: Python, backend, typecheck
 ```
 
+Keys on this Mac live in `backend/.env` (git-ignored); the pipeline reads it too (`pipeline/r2.py`). On the VPS everything is in `/etc/bought/bought.env`.
+
 `pipeline/.venv` is broken; use `~/.cache/bought/funnel-venv`. Voice (Kokoro) and translation (M2M100) run from `~/.cache/bought/tts/venv`; config.yaml names them as `$BOUGHT_HOME/...` (default `~/.cache/bought`). The video renderer uses `playwright-core` from the root `package.json`.
 
 Without keys in `backend/.env` the Advertise page runs its local simulation. Comments, poll and reaction counts, and unsold ad spots are sample data either way.
@@ -41,6 +43,10 @@ Without keys in `backend/.env` the Advertise page runs its local simulation. Com
 ## Production
 
 `deploy/setup.sh` on Ubuntu 24.04 (see README). Caddy serves `public/` itself (HTTPS, HTTP/2 and 3, zstd/gzip, the cache rules) and passes HTML pages, `/api/*`, `/confirm`, `/unsubscribe`, `/healthz` to the Python server on 127.0.0.1:8000. The desk (admin) is a second listener on 127.0.0.1:8100, never public: SSH tunnel or Tailscale, password plus authenticator code. Security model: `SECURITY.md`. Cache rules (`cache_policy` in `pipeline/server.py`, mirrored in `deploy/Caddyfile`): `?v=` files, hashed bundle chunks and fonts for a year; issue media an hour; HTML and JSON always revalidated. Bump `?v=` on any CSS or JS you change. Daily backups of `pipeline/data` at 03:30, 14 kept.
+
+## Media on Cloudflare R2
+
+With the `R2_*` keys set, publishing uploads each story's video, its poster and the podcast to the R2 bucket (`issues/<date>/media/<file>`, a year's immutable cache, `?v=` versioned) and `issue.json` points readers at `R2_PUBLIC_URL`; unchanged files are skipped (MD5 against R2's ETag) and the site's own copies are removed. Card pictures, share cards and JSON stay on the site. Without the keys the site serves the media itself, as before. Ad videos go from the browser straight to R2 on a signed PUT link (one key, one content type, two hours) under `ads/<ad>/<take>.mp4|webm`; the backend then checks the file itself (size, type, ffprobe: picture of at least 240 px, sound, 1 s to 10 min, codecs every browser plays) and readers play it from a 10-minute signed link. No transcoding: HEVC/ProRes uploads are refused with a reason. The S3 keys can only read and write objects; bucket settings (CORS: the site's origin, PUT/GET/HEAD, header content-type) are set in the Cloudflare dashboard.
 
 ## The dashboard and reader counts
 

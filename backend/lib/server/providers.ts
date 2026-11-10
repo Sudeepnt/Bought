@@ -1,5 +1,3 @@
-import { createPrivateKey, sign } from 'node:crypto';
-
 export type Topup = {
   id: string;
   provider: 'stripe' | 'razorpay';
@@ -9,9 +7,6 @@ export type Topup = {
   checkout_state: 'new' | 'creating' | 'ready';
 };
 import { HttpError, origin, required } from './config';
-
-let cachedMuxPrivateKey: ReturnType<typeof createPrivateKey> | null = null;
-let cachedMuxPrivateKeySource = '';
 
 export async function providerRequest<T>(
   url: string,
@@ -78,23 +73,6 @@ export function trustedStripeCheckoutUrl(value: unknown) {
       !url.username &&
       !url.password &&
       (!url.port || url.port === '443')
-    );
-  } catch {
-    return false;
-  }
-}
-
-export function validMuxUploadTarget(id: unknown, value: unknown) {
-  if (!validProviderReference(id) || typeof value !== 'string') return false;
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === 'https:' &&
-      !url.username &&
-      !url.password &&
-      (!url.port || url.port === '443') &&
-      (url.hostname === 'storage.googleapis.com' ||
-        url.hostname.endsWith('.mux.com'))
     );
   } catch {
     return false;
@@ -224,81 +202,4 @@ export async function createCheckout(topup: Topup) {
 
 export function basic(idKey: string, secretKey: string) {
   return `Basic ${btoa(`${required(idKey)}:${required(secretKey)}`)}`;
-}
-
-export type MuxAsset = {
-  id: string;
-  upload_id?: string;
-  passthrough?: string;
-  status: string;
-  duration?: number;
-  playback_ids?: { id: string; policy: string }[];
-  tracks?: {
-    id?: string;
-    type: string;
-    status?: string;
-    language_code?: string;
-    text_source?: string;
-    max_width?: number;
-    max_height?: number;
-  }[];
-};
-
-export async function mux<T>(path: string, body?: unknown) {
-  return providerRequest<{ data: T }>(`https://api.mux.com/video/v1/${path}`, {
-    method: body ? 'POST' : 'GET',
-    headers: {
-      Authorization: basic('MUX_TOKEN_ID', 'MUX_TOKEN_SECRET'),
-      'Content-Type': 'application/json',
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-}
-
-export async function deleteMuxAsset(assetId: string) {
-  if (!validProviderReference(assetId))
-    throw new HttpError(400, 'Invalid video asset ID.');
-  const response = await fetch(
-    `https://api.mux.com/video/v1/assets/${encodeURIComponent(assetId)}`,
-    {
-      method: 'DELETE',
-      headers: { Authorization: basic('MUX_TOKEN_ID', 'MUX_TOKEN_SECRET') },
-      signal: AbortSignal.timeout(20000),
-    },
-  );
-  if (response.ok || response.status === 404) return;
-  throw new HttpError(
-    502,
-    'The video provider could not remove an expired recording.',
-  );
-}
-
-export function muxPlaybackToken(
-  playbackId: string,
-  expiresAt?: string | null,
-) {
-  const expiry = Math.min(
-    Math.floor(Date.now() / 1000) + 600,
-    expiresAt ? Math.floor(new Date(expiresAt).getTime() / 1000) : Infinity,
-  );
-  if (expiry <= Date.now() / 1000)
-    throw new HttpError(404, 'This exposure has ended.');
-  const encode = (value: unknown) =>
-    Buffer.from(JSON.stringify(value)).toString('base64url');
-  const keyId = required('MUX_SIGNING_KEY_ID');
-  const message = `${encode({ alg: 'RS256', typ: 'JWT', kid: keyId })}.${encode({ sub: playbackId, aud: 'v', exp: expiry, kid: keyId, default_subtitles_lang: 'en' })}`;
-  const configured = required('MUX_SIGNING_PRIVATE_KEY').replace(/\\n/g, '\n');
-  const pem = configured.includes('BEGIN')
-    ? configured
-    : Buffer.from(configured, 'base64').toString('utf8');
-  if (!cachedMuxPrivateKey || cachedMuxPrivateKeySource !== pem) {
-    cachedMuxPrivateKey = createPrivateKey(pem);
-    cachedMuxPrivateKeySource = pem;
-  }
-  const signature = sign(
-    'RSA-SHA256',
-    Buffer.from(message),
-    cachedMuxPrivateKey,
-  ).toString('base64url');
-  return `${message}.${signature}`;
 }

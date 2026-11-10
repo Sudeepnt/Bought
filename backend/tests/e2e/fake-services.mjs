@@ -1,8 +1,9 @@
 // Test rig only, never imported by the app. Loaded with `node --import` in front of the real backend:
-// answers Supabase (backed by PGlite running the REAL migration), Mux and Upstash at their real URLs,
-// so everything in lib/server runs unchanged. Also serves control endpoints the browser test drives.
+// answers Supabase (backed by PGlite running the REAL migration) and Upstash at their real URLs, so everything
+// in lib/server runs unchanged. Cloudflare R2 is NOT faked: uploads, checks (ffprobe) and playback hit the real bucket.
+// Also serves control endpoints the browser test drives.
 import { readFile } from 'node:fs/promises';
-import { randomUUID, createHmac } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { PGlite } from '@electric-sql/pglite';
 
@@ -17,7 +18,7 @@ const sql = await readFile(new URL('../../supabase/migrations/20261105090000_new
 await db.exec(sql.replaceAll('clock_timestamp()', 'public.test_now()'));
 
 const CODE = '123456';
-const state = { sessions: new Map(), oauth: new Map(), objects: new Map(), uploads: new Map(), assets: new Map(), muxBodies: [], sentCodes: [] };
+const state = { sessions: new Map(), oauth: new Map(), objects: new Map(), sentCodes: [] };
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...headers } });
 
 function coerce(v) { return v === 'null' ? null : v === 'true' ? true : v === 'false' ? false : v; }
@@ -171,24 +172,6 @@ async function bytesOf(body, type) {
   return Buffer.from(String(body ?? ''));
 }
 
-function muxApi(url, init) {
-  const path = url.pathname.replace('/video/v1/', '');
-  const method = (init.method || 'GET').toUpperCase();
-  if (path === 'uploads' && method === 'POST') {
-    const id = 'up' + randomUUID().replaceAll('-', '');
-    const settings = JSON.parse(init.body);
-    state.muxBodies.push(settings);
-    state.uploads.set(id, settings);
-    return json({ data: { id, url: `https://storage.googleapis.com/fake-mux/${id}` } }, 201);
-  }
-  if (path.startsWith('assets/') && method === 'GET') {
-    const a = state.assets.get(decodeURIComponent(path.split('/')[1]));
-    return a ? json({ data: a }) : json({}, 404);
-  }
-  if (path.startsWith('assets/') && method === 'DELETE') return new Response(null, { status: 204 });
-  return json({ data: {} });
-}
-
 const real = globalThis.fetch;
 globalThis.fetch = async (input, init = {}) => {
   const req = input instanceof Request ? input : null;
@@ -202,10 +185,6 @@ globalThis.fetch = async (input, init = {}) => {
     if (url.pathname.startsWith('/storage/v1/')) return storage(url, merged);
   }
   if (url.host === 'fake.upstash.test') return json({ result: 1 });
-  if (url.host === 'api.mux.com') return muxApi(url, merged);
-  if (url.host === 'stream.mux.com' && /\/text\//.test(url.pathname)) {
-    return new Response(url.pathname.endsWith('.vtt') ? 'WEBVTT\n\n00:00.000 --> 00:02.000\nWe help clinics book patients in one tap.\n' : 'We help clinics book patients in one tap.');
-  }
   if (url.host === 'api.razorpay.com' && url.pathname === '/v1/orders') {
     if ((merged.method || 'GET') === 'GET') return json({ items: [] });
     const b = JSON.parse(merged.body);
@@ -218,15 +197,7 @@ globalThis.fetch = async (input, init = {}) => {
   return real(input, init);
 };
 
-// ---------- what the real Mux and clock would do, on command from the browser test ----------
-const secret = process.env.MUX_WEBHOOK_SECRET;
-async function deliver(event) {
-  const raw = JSON.stringify(event);
-  const t = Math.floor(Date.now() / 1000);
-  const sig = createHmac('sha256', secret).update(`${t}.${raw}`).digest('hex');
-  const port = process.env.BOUGHT_BACKEND_PORT;
-  return real(`http://127.0.0.1:${port}/api/bought/webhooks/mux`, { method: 'POST', headers: { 'mux-signature': `t=${t},v1=${sig}`, 'content-type': 'application/json' }, body: raw });
-}
+// ---------- control endpoints for the browser test ----------
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   let out = {};
@@ -240,27 +211,13 @@ createServer(async (req, res) => {
       res.end(Buffer.from(await r.arrayBuffer()));
       return;
     }
-    if (url.pathname === '/mux-ready') {
-      // Everything real Mux would do after the browser's upload finishes.
-      const { rows } = await db.query("select id,mux_upload_id from public.bought_ads where mux_upload_id is not null and media_state in ('waiting','processing')");
-      for (const ad of rows) {
-        const assetId = 'asset' + randomUUID().replaceAll('-', '');
-        const playback = 'play' + randomUUID().replaceAll('-', '');
-        const seconds = Number(url.searchParams.get('duration') || 8);
-        const asset = { id: assetId, upload_id: ad.mux_upload_id, passthrough: ad.id, status: 'ready', duration: seconds, playback_ids: [{ id: playback, policy: 'signed' }],
-          tracks: [{ id: 'v1', type: 'video', max_width: 1280, max_height: 720 }, { id: 'a1', type: 'audio' }, { id: 'tx1', type: 'text', status: 'ready', language_code: 'en', text_source: 'generated_vod' }] };
-        state.assets.set(assetId, asset);
-        const a = await deliver({ id: randomUUID(), type: 'video.asset.ready', data: { id: assetId } });
-        const b = await deliver({ id: randomUUID(), type: 'video.asset.track.ready', data: { id: 'tx1', type: 'text', asset_id: assetId } });
-        out[ad.id] = [a.status, b.status];
-      }
-    } else if (url.pathname === '/query') {
+    if (url.pathname === '/query') {
       const q = await new Promise((r) => { let s = ''; req.on('data', (c) => (s += c)); req.on('end', () => r(s)); });
       out = (await db.query(q)).rows;
     } else if (url.pathname === '/shift') {
       await db.exec(`set test.shift='${Number(url.searchParams.get('seconds'))} seconds'`);
     } else if (url.pathname === '/state') {
-      out = { codes: state.sentCodes, mux: state.muxBodies, objects: [...state.objects.keys()] };
+      out = { codes: state.sentCodes, objects: [...state.objects.keys()] };
     }
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(out));
   } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }

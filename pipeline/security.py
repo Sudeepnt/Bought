@@ -17,8 +17,9 @@ import threading
 import time
 
 # ---------- Content Security Policy ----------
-# The site runs only its own scripts. Outside it talks to: Supabase (advertiser sign-in, pictures), Mux (ad video, uploads
-# go straight to Google Cloud Storage), Razorpay (UPI checkout window). Stripe is a full-page redirect, which CSP leaves alone.
+# The site runs only its own scripts. Outside it talks to: Supabase (advertiser sign-in, pictures), Cloudflare R2 (the issue's
+# videos, posters and podcast from the public bucket address; ad videos uploaded to and played from short-lived signed links on
+# the account's storage address), Razorpay (UPI checkout window). Stripe is a full-page redirect, which CSP leaves alone.
 SHARE_REDIRECT = re.compile(r'^location\.replace\("[^"<>\\]*"\);$')
 INLINE_SCRIPT = re.compile(r"<script>(.*?)</script>", re.S)
 
@@ -33,18 +34,32 @@ def allowed_inline(html: str) -> list[str]:
     return [script_hash(s) for s in INLINE_SCRIPT.findall(html) if SHARE_REDIRECT.match(s)]
 
 
-def site_csp(supabase_url: str | None, https: bool, inline=()) -> str:
+def r2_origins(env=None) -> tuple[list[str], list[str]]:
+    """(public, storage): the bucket's public address that readers load the issue's media from, and the account's storage
+    address that signed ad uploads and plays go to. Anything that is not a plain https origin is left out."""
+    env = os.environ if env is None else env
+    public = (env.get("R2_PUBLIC_URL") or "").strip().rstrip("/")
+    account = (env.get("R2_ACCOUNT_ID") or "").strip()
+    pub = [public] if re.fullmatch(r"https://[A-Za-z0-9.-]+", public) else []
+    store = [f"https://{account}.r2.cloudflarestorage.com"] if re.fullmatch(r"[a-f0-9]{32}", account) else []
+    return pub, store
+
+
+def site_csp(supabase_url: str | None, https: bool, inline=(), r2=None) -> str:
     sb = []
     if supabase_url and re.fullmatch(r"https://[A-Za-z0-9.-]+(:\d+)?", supabase_url.rstrip("/")):
         sb = [supabase_url.rstrip("/"), "wss://" + supabase_url.rstrip("/")[8:]]
+    pub, store = r2 if r2 is not None else r2_origins()
+    if not sb:
+        store = []          # the storage address (it names the account) is only for signed ad uploads and plays: no ads, no need
     rules = {
         "default-src": ["'self'"],
         "script-src": ["'self'", "https://checkout.razorpay.com", *inline],
         "style-src": ["'self'", "'unsafe-inline'"],             # the page sets colours in style attributes; no script can run from CSS
-        "img-src": ["'self'", "data:", "blob:", *sb[:1], "https://image.mux.com"],
-        "media-src": ["'self'", "blob:", "https://stream.mux.com"],
+        "img-src": ["'self'", "data:", "blob:", *sb[:1], *pub],
+        "media-src": ["'self'", "blob:", *pub, *store],
         "font-src": ["'self'"],
-        "connect-src": ["'self'", *sb, "https://stream.mux.com", "https://storage.googleapis.com",
+        "connect-src": ["'self'", *sb, *store,
                         "https://api.razorpay.com", "https://lumberjack.razorpay.com"],
         "worker-src": ["'self'", "blob:"],
         "frame-src": ["https://api.razorpay.com", "https://checkout.razorpay.com"],

@@ -27,7 +27,7 @@ Deep links: `#paper`, `#radio`, `#advertise`, `#spec`. In production add `#paper
 | `js/advertise.js` | Advertise view: issue picker, template map, spot detail, bid flow, My bids, rules, invoice, report |
 | `js/spec.js` | The `#spec` page: template, spots, rules, states, jobs, edge cases, data model, API, tokens, stack |
 | `js/live.js` | Connects Advertise to `backend/` when it has keys: market, sign-in, bids, upload, wallet, winning ads |
-| `js/live/` | Built browser bundle from `backend/client/` (Mux upload and playback, Supabase sign-in, recording aids). Do not edit by hand |
+| `js/live/` | Built browser bundle from `backend/client/` (ad video upload to R2 and playback, Supabase sign-in, recording aids). Do not edit by hand |
 | `js/main.js` | Boot and global events |
 
 ## Today: one continuous paper

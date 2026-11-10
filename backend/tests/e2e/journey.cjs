@@ -13,7 +13,13 @@ async function deskLogin(adm){
 const q=async s=>(await fetch(C+'/query',{method:'POST',body:s})).json();
 const log=(...a)=>console.log(...a);const errs=[];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-let uploaded=0;
+const puts=[];   // every browser PUT to the real R2 bucket, by status
+const R2HOST=/\.r2\.cloudflarestorage\.com$/;
+// ---- leave the bucket as it was: delete every file this journey uploaded (ads/<its ad ids>/)
+async function cleanR2(){const ids=(await q('select id from public.bought_ads')).map(r=>r.id);if(!ids.length)return 0;
+ const py=require('path').resolve(__dirname,'../../..');const out=require('child_process').execFileSync(process.env.HOME+'/.cache/bought/funnel-venv/bin/python',['-c',
+  'import sys\nfrom pipeline import r2\nr2.load_local_env()\nc=r2.R2()\nn=0\nfor i in sys.argv[1:]:\n for o in c.list("ads/"+i+"/"):\n  c.delete(o["key"]);n+=1\nprint(n)',...ids],{cwd:py}).toString().trim();return Number(out)}
+
 async function ctx(b,name,opts={}){
  const c=await b.newContext({viewport:{width:1280,height:900},...opts});
  // the browser's Supabase client reaches the same fake the backend uses
@@ -22,12 +28,8 @@ async function ctx(b,name,opts={}){
   const res=await fetch(C+'/sb'+u.pathname+u.search,{method:q.method(),headers:h,body:q.postDataBuffer()||undefined,redirect:'manual'});
   const loc=res.headers.get('location');
   r.fulfill({status:res.status,headers:{'content-type':res.headers.get('content-type')||'application/json','access-control-allow-origin':'*','access-control-expose-headers':'*',...(loc?{location:loc}:{})},body:Buffer.from(await res.arrayBuffer())})});
- // Mux's upload target and stream
- await c.route('https://storage.googleapis.com/fake-mux/**',async r=>{const q=r.request();
-  if(q.method()==='OPTIONS')return r.fulfill({status:200,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}});
-  uploaded+=(q.postDataBuffer()||Buffer.alloc(0)).length;r.fulfill({status:200,headers:{'access-control-allow-origin':'*'},body:''})});
- await c.route('https://stream.mux.com/**',async r=>{const u=new URL(r.request().url());const n=u.pathname.endsWith('.m3u8')?'index.m3u8':u.pathname.split('/').pop();
-  r.fulfill({status:200,headers:{'access-control-allow-origin':'*','content-type':n.endsWith('m3u8')?'application/vnd.apple.mpegurl':'video/mp2t'},body:fs.readFileSync(T+'/hls/'+n)})});
+ // ad videos go to the real R2 bucket: nothing is routed, the page talks to Cloudflare itself
+ c.on('response',r=>{const q=r.request();if(q.method()==='PUT'&&R2HOST.test(new URL(q.url()).host))puts.push(r.status())});
  // Razorpay's checkout window: a stand-in that reports a completed payment
  await c.route('https://checkout.razorpay.com/**',r=>r.fulfill({status:200,contentType:'text/javascript',body:'window.Razorpay=function(o){window.__rzp=o;this.open=function(){setTimeout(function(){o.handler({})},50)}}'}));
  const p=await c.newPage();
@@ -46,6 +48,7 @@ async function payWebhook(amountInr){
  return [r.status,o];
 }
 (async()=>{
+ await fetch(C+'/shift?seconds=0');
  const b=await pw.chromium.launch({args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
  const A=await ctx(b,'A');
  log('1 live:',await A.evaluate(()=>Live.on),'| dates',await A.evaluate(()=>AU.dates.length),'| prototype controls:',await A.locator('.demo').count(),'| bids seen:',await A.evaluate(()=>Object.values(AU.s).reduce((a,s)=>a+s.n,0)));
@@ -83,13 +86,11 @@ async function payWebhook(amountInr){
  if(!await A.isChecked('#b-agree'))await A.check('#b-agree');await next(A);
  await waitStep(A,'Bids placed');log('6 placed:',await A.innerText('#sheet .done-h'),'|',await A.innerText('#sheet .mb-rows'));
  await A.waitForFunction(()=>/uploaded\./.test(document.getElementById('b-up')?.textContent||''),null,{timeout:30000}).catch(()=>{});
- log('  upload status:',await A.innerText('#b-up'),'| bytes at mux:',uploaded);
+ log('  upload status:',await A.innerText('#b-up'),'| R2 PUTs:',puts);
  await A.screenshot({path:T+'/6-done.png'});await A.click('#sheet [data-x]');
  log('  ad row:',(await q("select state,media_state,kind,thumbnail_verified,fields->>'about' a from public.bought_ads"))[0]);
- const st2=await (await fetch(C+'/state')).json();log('  mux request:',JSON.stringify(st2.mux[0]).slice(0,200));
- // ---- Mux finishes: the ad is ready, with nobody reviewing it
- log('7 mux events:',await (await fetch(C+'/mux-ready')).json());
- log('  ad row:',(await q("select state,media_state from public.bought_ads"))[0]);
+ // ---- the server checked the file in R2 (size, type, ffprobe): ready at once, with nobody reviewing it
+ log('7 checked in R2:',(await q("select state,media_state,video_key ~ '^ads/[0-9a-f-]{36}/[0-9a-f-]{36}\\.(mp4|webm)$' as key_ok from public.bought_ads"))[0]);
  const adm=await (await b.newContext({viewport:{width:1100,height:900}})).newPage();
  adm.on('pageerror',e=>errs.push('desk: '+e.message));
  await deskLogin(adm);await adm.goto(DESK+'/admin/ads');
@@ -114,7 +115,7 @@ async function payWebhook(amountInr){
  await B.evaluate(()=>Bid.start('cls',[AU.dates[1]]));await next(B);await waitStep(B,'Set your bid');await next(B);await waitStep(B,'Add your ad');
  await B.fill('#b-line','Hiring backend engineers in Bengaluru');await next(B);await waitStep(B,'Review and place');await B.check('#b-agree');await next(B);await waitStep(B,'Bids placed');await B.click('#sheet [data-x]');
  log('11 classified:',await B.evaluate(()=>{const e=myBid(AU.dates[1],'cls');return e&&{status:e.status,amt:e.amt,rank:clsRank(e.d,e.ref)}}));
- await fetch(C+'/mux-ready');await sleep(300);
+ await sleep(300);
  log('12 ads:',await q("select fields->>'about' a,fields->>'line' l,state from public.bought_ads order by created_at"));
  const issue=await A.evaluate(()=>AU.dates[1]);
  // ---- the clock passes close
@@ -130,7 +131,6 @@ async function payWebhook(amountInr){
  const cron=await fetch(U+'/api/bought/cron');log('14 cron from outside:',cron.status);
  const r=await q(`select public.bought_ad_mark_live('${onDay}') n`);log('  live:',r[0].n);
  const R=await (await ctx(b,'reader')).context().newPage();
- await R.context().route('https://stream.mux.com/**',async x=>{const u=new URL(x.request().url());const n=u.pathname.endsWith('.m3u8')?'index.m3u8':u.pathname.split('/').pop();x.fulfill({status:200,headers:{'access-control-allow-origin':'*','content-type':n.endsWith('m3u8')?'application/vnd.apple.mpegurl':'video/mp2t'},body:fs.readFileSync(T+'/hls/'+n)})});
  R.on('pageerror',e=>errs.push('reader: '+e.message));
  await R.goto(U+'/#paper');await R.waitForSelector('#v-paper [data-spot="feed-e"]',{timeout:15000});await R.waitForFunction(()=>ISSUE_ADS['feed-e'],null,{timeout:8000});await sleep(500);
  const el=R.locator('#v-paper [data-spot="feed-e"]').first();await el.scrollIntoViewIfNeeded();await sleep(800);
@@ -140,7 +140,7 @@ async function payWebhook(amountInr){
  log('  classifieds:',(await R.locator('#v-paper .cls-list').first().innerText()).replace(/\n/g,' | ').slice(0,180));
  await el.screenshot({path:T+'/15-ad.png'});
  await el.locator('.bv').click();await sleep(2500);
- log('  ad plays (Mux HLS):',await el.evaluate(n=>{const v=n.querySelector('video');return {t:v.currentTime,w:v.videoWidth,paused:v.paused,cap:n.querySelector('.bv-cc span').textContent}}));
+ log('  ad plays (R2 signed link):',await el.evaluate(n=>{const v=n.querySelector('video');const u=new URL(v.currentSrc);return {host:u.host.replace(/^[a-f0-9]{32}/,'<account>'),signed:u.searchParams.has('X-Amz-Signature'),expires:u.searchParams.get('X-Amz-Expires'),secretInLink:/secret/i.test(v.currentSrc),t:v.currentTime,w:v.videoWidth,paused:v.paused,cap:n.querySelector('.bv-cc span').textContent}}));
  await el.locator('a[rel~="sponsored"]').first().evaluate(a=>{a.addEventListener('click',e=>e.preventDefault());a.click()});await sleep(600);
  log('  counters:',await q("select spot,views::int,plays::int,clicks::int from public.bought_ad_results where status='live' order by spot"));
  // ---- security
@@ -150,5 +150,6 @@ async function payWebhook(amountInr){
  const noauth=await fetch('http://127.0.0.1:8797/api/bought/admin/money');log('  backend direct, no secret:',noauth.status);
  await R.locator('#v-paper [data-spot="feed-e"] video').first().evaluate(v=>v.pause());log('  poster loaded:',await R.evaluate(()=>{const v=document.querySelector('#v-paper [data-spot="feed-e"] video');return !!v.poster}));await fetch(C+'/shift?seconds=0');
  log('page errors:',errs.length?errs:'none');
+ log('R2 files removed:',await cleanR2());
  await b.close();
 })().catch(e=>{console.log('FAILED',e.message.slice(0,500));console.log('errs',errs);process.exit(1)});

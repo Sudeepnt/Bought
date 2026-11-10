@@ -4,6 +4,9 @@
                                               public/issues/index.json   every published date, newest first
                                               public/s/<id>/             link-preview pages for stories with a video
 
+With R2 configured (pipeline/r2.py) the videos, their posters and the podcast go to Cloudflare R2 instead of public/, and the
+issue points readers at R2_PUBLIC_URL. Card pictures, share cards and the JSON stay on the site.
+
 Safe to rerun at any time: the issue's numbers are kept from the first publish, and files that did not change are not copied again.
 """
 from __future__ import annotations
@@ -229,6 +232,30 @@ def _versioned(path: Path, url: str) -> str:
     return f"{url}?v={int(path.stat().st_mtime)}"
 
 
+def _md5(path: Path) -> str:
+    digest = hashlib.md5()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _place(src: Path, date: str, target: Path, media) -> str:
+    """Put one media file where readers will fetch it and return its address (versioned, so a changed file is never served stale).
+    media is an R2 client or None: R2 gets the file (skipped when its copy is already identical) and the site's copy is removed;
+    without R2 the file is copied into public/ as before."""
+    key = f"issues/{date}/media/{src.name}"
+    if media is None:
+        _copy(src, target / "media" / src.name)
+        return _versioned(src, key)
+    from .. import r2
+    have = media.head(key)
+    if not have or have["etag"].strip('"') != _md5(src):
+        media.put_file(key, src)
+    (target / "media" / src.name).unlink(missing_ok=True)
+    return _versioned(src, r2.public_url(key))
+
+
 def funnel_stats(conn, sources: int, feed: dict) -> dict:
     """The real counts behind the issue, for 'How this issue was made'."""
     count = lambda q, *a: conn.execute(q, a).fetchone()[0]
@@ -269,8 +296,8 @@ def build_page(date: str, feed: dict, pictures: dict, stats: dict, podcast, tran
             "podcast": podcast, "translations": translations, "stats": stats}
 
 
-def publish(cfg, date: str, conn, sources: int, out_root=None, public_root=None, fetch=fetch_picture, build_share=True, site=None) -> dict:
-    """Write one issue into the site. Returns what was published."""
+def publish(cfg, date: str, conn, sources: int, out_root=None, public_root=None, fetch=fetch_picture, build_share=True, site=None, media=None) -> dict:
+    """Write one issue into the site. Returns what was published. media: an R2 client for the videos, posters and podcast (r2.store())."""
     base = Path(out_root or OUT) / "issues" / date
     public = Path(public_root or PUBLIC)
     target = public / "issues" / date
@@ -287,10 +314,7 @@ def publish(cfg, date: str, conn, sources: int, out_root=None, public_root=None,
     for item in unique_items(feed):
         if item.get("video_url"):
             mp4, poster = base / "media" / f"{item['id']}.mp4", base / "media" / f"{item['id']}.jpg"
-            _copy(mp4, target / "media" / mp4.name)
-            _copy(poster, target / "media" / poster.name)
-            url = f"issues/{date}/media/"
-            pictures["video:" + item["id"]] = (_versioned(mp4, url + mp4.name), _versioned(poster, url + poster.name))
+            pictures["video:" + item["id"]] = (_place(mp4, date, target, media), _place(poster, date, target, media))
         elif item.get("image_url"):
             jpg = target / "media" / f"{item['id']}.jpg"
             if fetch(item["image_url"], jpg, cfg.user_agent):
@@ -307,8 +331,7 @@ def publish(cfg, date: str, conn, sources: int, out_root=None, public_root=None,
     mp3, meta = base / "media" / "podcast.mp3", base / "media" / "podcast.json"
     if mp3.exists() and meta.exists():
         info = json.loads(meta.read_text())
-        _copy(mp3, target / "media" / "podcast.mp3")
-        podcast = {"audio_url": _versioned(mp3, f"issues/{date}/media/podcast.mp3"), "duration_s": info["duration_s"], "chapters": info["chapters"]}
+        podcast = {"audio_url": _place(mp3, date, target, media), "duration_s": info["duration_s"], "chapters": info["chapters"]}
 
     translations, refused = [], []
     for path in sorted((base / "translations").glob("*.json")) if (base / "translations").exists() else []:
@@ -325,7 +348,7 @@ def publish(cfg, date: str, conn, sources: int, out_root=None, public_root=None,
     page = build_page(date, feed, pictures, stats, podcast, translations, share)
     if build_share:
         from ..share_pages import issue_pages
-        issue_pages(page, target / "media", public, site=site)
+        issue_pages(page, base / "media", public, site=site)     # the posters as the funnel made them, wherever readers get them
     write_json(page_path, page)
     for item in unique_items(feed):                   # what ran today can't run again, however it was published
         conn.execute("UPDATE articles SET status='used', reject_reason=? WHERE id=?", (f"issue:{date}", item["id"]))
@@ -334,7 +357,7 @@ def publish(cfg, date: str, conn, sources: int, out_root=None, public_root=None,
     index = public / "issues" / "index.json"
     label = json.loads(index.read_text()).get("publish_label") if index.exists() else None
     write_json(index, {"latest": dates[0], "dates": dates, **({"publish_label": label} if label else {})})
-    return {"stories": len(page["stories"]), "videos": sum(1 for s in page["stories"] if s.get("video")), "pictures": len(card_pictures),
+    return {"stories": len(page["stories"]), "videos": sum(1 for s in page["stories"] if s.get("video")), "pictures": len(card_pictures), "media": "r2" if media else "site",
             "podcast": bool(podcast), "translations": translations, "translations_refused": refused, "path": str(page_path)}
 
 

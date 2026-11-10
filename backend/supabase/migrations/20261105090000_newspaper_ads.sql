@@ -1,6 +1,6 @@
 -- Bought. Daily: advertiser accounts, ads, the per-spot auction and points.
--- The media pipeline (upload claim, thumbnail claim, media event) is Bought's, moved from one broadcast
--- per drop to one ad per spot. The rules are the ones the Advertise page prints: 6 display spots + 8
+-- The media pipeline (upload claim, thumbnail claim, media check) is Bought's, moved from one broadcast
+-- per drop to one ad per spot. Ad videos live in Cloudflare R2 under a random key per take. The rules are the ones the Advertise page prints: 6 display spots + 8
 -- classified lines per issue; bidding opens D-7 06:00 UTC and closes D 05:45 UTC, a 5-minute soft close
 -- up to 05:50 UTC, so bidding is always over 10 minutes before the issue goes live at 06:00 UTC.
 -- Bids are in points: every new email gets 100 free points once, more cost $1 each (plus GST in India).
@@ -48,14 +48,11 @@ create table public.bought_ads (
  title text not null check (char_length(title) between 1 and 160),
  fields jsonb not null default '{}'::jsonb,
  state text not null default 'draft' check (state in ('draft','processing','ready','rejected')),
- mux_upload_id text unique,
- mux_upload_url text,
- mux_upload_expires_at timestamptz,
+ video_key text unique check (video_key ~ '^ads/[0-9a-f-]{36}/[0-9a-f-]{36}\.(mp4|webm|mov)$'),
+ upload_expires_at timestamptz,
  upload_claimed_at timestamptz,
  upload_attempts smallint not null default 0 check (upload_attempts between 0 and 20),
  upload_quota_date date,
- mux_asset_id text unique,
- mux_playback_id text,
  media_state text not null default 'none' check (media_state in ('none','waiting','processing','ready','errored')),
  thumbnail_path text unique,
  thumbnail_verified boolean not null default false,
@@ -589,7 +586,7 @@ begin
  return n;
 end $$;
 
--- ---------- media: Bought's claim and event functions, now on ads ----------
+-- ---------- media: Bought's claim and check functions, now on ads ----------
 create function public.bought_ad_claim_upload(p_ad_id uuid, p_replace boolean default false)
 returns boolean language plpgsql set search_path = '' set lock_timeout = '5s' as $$
 declare
@@ -599,7 +596,7 @@ declare
 begin
  select * into d from public.bought_ads where id = p_ad_id for update;
  if not found then raise exception 'BOUGHT: Ad not found.'; end if;
- if not p_replace and d.mux_upload_url is not null and d.mux_upload_expires_at > clock_timestamp() + interval '5 minutes' and d.media_state = 'waiting' then
+ if not p_replace and d.video_key is not null and d.upload_expires_at > clock_timestamp() + interval '5 minutes' and d.media_state = 'waiting' then
   return false;
  end if;
  if d.upload_claimed_at > clock_timestamp() - interval '2 minutes' then raise exception 'BOUGHT: An upload is being prepared. Try again shortly.'; end if;
@@ -612,7 +609,7 @@ begin
  returning upload_count into daily_count;
  if not found then raise exception 'BOUGHT: You have used your 10 video uploads for today. Try again after 00:00 UTC.'; end if;
  update public.bought_ads set upload_attempts = upload_attempts + 1, upload_claimed_at = clock_timestamp(), upload_quota_date = upload_day,
-  mux_upload_id = null, mux_upload_url = null, mux_asset_id = null, mux_playback_id = null, media_state = 'none', state = 'draft',
+  video_key = null, upload_expires_at = null, media_state = 'none', state = 'draft',
   submitted_at = null, problem = null where id = d.id;
  return true;
 end $$;
@@ -622,7 +619,7 @@ language plpgsql set search_path = '' set lock_timeout = '5s' as $$
 declare d public.bought_ads;
 begin
  select * into d from public.bought_ads where id = p_ad_id for update;
- if not found or d.upload_quota_date is null or d.mux_upload_id is not null then return; end if;
+ if not found or d.upload_quota_date is null or d.video_key is not null then return; end if;
  update public.bought_ad_upload_usage set upload_count = greatest(upload_count - 1, 0) where user_id = d.user_id and upload_date = d.upload_quota_date;
  update public.bought_ads set upload_claimed_at = null, upload_quota_date = null where id = d.id;
 end $$;
@@ -639,24 +636,23 @@ begin
  return d.thumbnail_path;
 end $$;
 
-create function public.bought_ad_media_event(p_event_id text, p_upload_id text, p_asset_id text, p_playback_id text, p_ready boolean, p_valid boolean, p_reason text)
-returns void language plpgsql set search_path = '' as $$
+-- The server has looked at the uploaded file in R2 (size, type, ffprobe) and says whether it can run.
+-- Only the take the ad points at now can change it: a check of an older take is ignored.
+create function public.bought_ad_media_checked(p_ad_id uuid, p_key text, p_valid boolean, p_reason text)
+returns boolean language plpgsql set search_path = '' set lock_timeout = '5s' as $$
 declare d public.bought_ads;
 begin
- if exists (select 1 from public.bought_ad_webhook_events where provider = 'mux' and event_id = p_event_id) then return; end if;
- select * into d from public.bought_ads where mux_upload_id = p_upload_id for update;
- -- Old attempts are deliberately ignored; they cannot overwrite a retake.
- if not found then return; end if;
- insert into public.bought_ad_webhook_events(provider, event_id) values ('mux', p_event_id) on conflict do nothing;
- if not found then return; end if;
- if d.media_state in ('ready','errored') then return; end if;
- update public.bought_ads set mux_asset_id = p_asset_id, mux_playback_id = p_playback_id,
-  media_state = case when p_ready and p_valid then 'ready' when p_ready then 'errored' else 'processing' end,
-  state = case when p_ready and not p_valid then 'rejected' when p_ready and submitted_at is not null then 'ready' else state end,
-  problem = p_reason where id = d.id;
- if p_ready and not p_valid then
-  perform public.bought_ad_notify(d.user_id, 'media', coalesce(p_reason, 'Your video could not be processed. Upload a new one.'), null, d.spot);
+ select * into d from public.bought_ads where id = p_ad_id for update;
+ if not found or d.video_key is distinct from p_key then return false; end if;
+ if d.media_state in ('ready','errored') then return true; end if;
+ update public.bought_ads set
+  media_state = case when p_valid then 'ready' else 'errored' end,
+  state = case when not p_valid then 'rejected' when submitted_at is not null then 'ready' else state end,
+  problem = case when p_valid then null else p_reason end where id = d.id;
+ if not p_valid then
+  perform public.bought_ad_notify(d.user_id, 'media', coalesce(p_reason, 'Your video could not be used. Upload a new one.'), null, d.spot);
  end if;
+ return true;
 end $$;
 
 create function public.bought_ad_submit(p_ad_id uuid) returns void
@@ -755,7 +751,7 @@ end $$;
 -- ---------- what the Advertise page reads ----------
 create function public.bought_ad_ad_json(a public.bought_ads) returns jsonb
 language sql stable set search_path = '' as $$
- select a.fields || jsonb_build_object('id',a.id,'kind',a.kind,'state',a.state,'reason',a.problem,'mux',case when a.mux_playback_id is not null then a.id end,'image',a.thumbnail_path)
+ select a.fields || jsonb_build_object('id',a.id,'kind',a.kind,'state',a.state,'reason',a.problem,'hosted',case when a.media_state = 'ready' and a.video_key is not null then a.id end,'image',a.thumbnail_path)
 $$;
 
 create function public.bought_ad_market(p_user uuid default null) returns jsonb
@@ -830,7 +826,7 @@ end $$;
 create function public.bought_ad_winners(p_issue date) returns jsonb
 language sql stable set search_path = '' as $$
  select coalesce(jsonb_agg(jsonb_build_object('spot',r.spot,'rank',r.rank,'amt',r.price_minor,'adv',c.name,'ad',a.id,'kind',a.kind,'fields',a.fields,
-   'mux',a.mux_playback_id is not null,'image',a.thumbnail_path,'script',nullif(a.fields->>'about','')) order by r.spot, r.rank), '[]'::jsonb)
+   'hosted',a.media_state = 'ready' and a.video_key is not null,'image',a.thumbnail_path,'script',nullif(a.fields->>'about','')) order by r.spot, r.rank), '[]'::jsonb)
  from public.bought_ad_results r join public.bought_ads a on a.id = r.ad_id join public.bought_accounts c on c.user_id = r.user_id
  where r.issue = p_issue and r.status = 'live'
 $$;

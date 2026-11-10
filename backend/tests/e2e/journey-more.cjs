@@ -11,15 +11,21 @@ async function deskLogin(adm){
   await adm.waitForLoadState();if(!adm.url().includes('/login'))return;await new Promise(r=>setTimeout(r,31000))}   // a code is good once: wait for the next
  throw new Error('desk sign-in failed')}
 const q=async s=>(await fetch(C+'/query',{method:'POST',body:s})).json();const log=(...a)=>console.log(...a);const errs=[];const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-let stall=false,got=0;
+let stall=false;const puts=[];const R2HOST=/\.r2\.cloudflarestorage\.com$/;
+// ---- leave the bucket as it was: delete every file this journey uploaded (ads/<its ad ids>/)
+async function cleanR2(){const ids=(await q('select id from public.bought_ads')).map(r=>r.id);if(!ids.length)return 0;
+ const py=require('path').resolve(__dirname,'../../..');const out=require('child_process').execFileSync(process.env.HOME+'/.cache/bought/funnel-venv/bin/python',['-c',
+  'import sys\nfrom pipeline import r2\nr2.load_local_env()\nc=r2.R2()\nn=0\nfor i in sys.argv[1:]:\n for o in c.list("ads/"+i+"/"):\n  c.delete(o["key"]);n+=1\nprint(n)',...ids],{cwd:py}).toString().trim();return Number(out)}
+
 async function ctx(b,name,opts={}){const c=await b.newContext({viewport:{width:1280,height:900},...opts});
  await c.route('https://fake.supabase.test/**',async r=>{const q=r.request();const u=new URL(q.url());const h={...q.headers()};delete h.host;
   if(q.method()==='OPTIONS')return r.fulfill({status:200,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}});
   const res=await fetch(C+'/sb'+u.pathname+u.search,{method:q.method(),headers:h,body:q.postDataBuffer()||undefined,redirect:'manual'});
   const loc=res.headers.get('location');
   r.fulfill({status:res.status,headers:{'content-type':res.headers.get('content-type')||'application/json','access-control-allow-origin':'*','access-control-expose-headers':'*',...(loc?{location:loc}:{})},body:Buffer.from(await res.arrayBuffer())})});
- await c.route('https://storage.googleapis.com/fake-mux/**',async r=>{const q=r.request();if(q.method()==='OPTIONS')return r.fulfill({status:200,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}});
-  if(stall)return r.abort();got+=(q.postDataBuffer()||Buffer.alloc(0)).length;r.fulfill({status:200,headers:{'access-control-allow-origin':'*'},body:''})});
+ // the real R2 bucket; "stall" drops the connection to it, as a train tunnel would
+ await c.route(u=>R2HOST.test(u.host),r=>stall?r.abort('internetdisconnected'):r.continue());
+ c.on('response',r=>{const q=r.request();if(q.method()==='PUT'&&R2HOST.test(new URL(q.url()).host))puts.push(r.status())});
  await c.route('https://checkout.razorpay.com/**',r=>r.fulfill({status:200,contentType:'text/javascript',body:'window.Razorpay=function(o){this.open=function(){setTimeout(function(){o.handler({})},50)}}'}));
  const p=await c.newPage();p.on('pageerror',e=>errs.push(name+': '+e.message));p.on('console',m=>{if(m.type()==='error'&&!/favicon|ERR_|Failed to load resource/.test(m.text()))errs.push(name+' console: '+m.text().slice(0,200))});
  await p.goto(U+'/#advertise');await p.waitForSelector('#adv .adv-tabs');await sleep(400);return p}
@@ -40,19 +46,20 @@ async function pay(){const o=(await q("select payment_reference,charge_minor fro
  await P.click('#sheet .wallet [data-topup="100"]');await sleep(1000);await pay();
  await P.waitForFunction(()=>AU.wallet.bal>100,null,{timeout:20000});log('  points after buying 100:',await P.evaluate(()=>[AU.wallet.bal,AU.wallet.free,withdrawable()]));
  await P.click('#sheet [data-x]');
- // ---- a dropped connection mid-upload, then a refresh: the saved copy carries on
+ // ---- a dropped connection mid-upload, then a refresh: the saved copy carries on. The file has no sound,
+ // so once it lands the server's check (ffprobe, in R2) sends it back with the reason
  stall=true;
  const iss=await P.evaluate(()=>AU.dates[2]);
  await P.evaluate(d=>Bid.start('front',[d]),iss);await next(P);await step(P,'Set your bid');await next(P);await step(P,'Add your ad');
- await P.setInputFiles('#b-file',T+'/upload.mp4');await P.waitForFunction(()=>Bid.st.cre.dur>0);
+ await P.setInputFiles('#b-file',T+'/silent.mp4');await P.waitForFunction(()=>Bid.st.cre.dur>0);
  await P.fill('#b-about','Third video');await P.fill('#b-thumb','Third');await P.fill('#b-who','Tess');await P.fill('#b-web','third.example');await next(P);await step(P,'Review and place');
  await P.check('#b-agree');await next(P);await step(P,'Bids placed');await sleep(1500);
  log('2 upload status while blocked:',await P.innerText('#b-up'),'| pending:',await P.evaluate(()=>Object.values(store.get('bought-pending',{})).length));
- stall=false;got=0;await P.reload();await P.waitForSelector('#adv .adv-tabs');
+ stall=false;puts.length=0;await P.reload();await P.waitForSelector('#adv .adv-tabs');
  await P.waitForFunction(()=>Object.keys(store.get('bought-pending',{})).length===0,null,{timeout:25000}).catch(()=>{});
- log('  after refresh: bytes at mux',got,'| pending',await P.evaluate(()=>Object.keys(store.get('bought-pending',{})).length),'|',(await q("select state,media_state from public.bought_ads where fields->>'about'='Third video'"))[0]);
- // ---- Mux says the file has no sound / bad media → rejected with a reason on the page
- await fetch(C+'/mux-ready?duration=9999');await sleep(300);await P.reload();await P.waitForSelector('#adv .adv-tabs');await sleep(500);
+ log('  after refresh: R2 PUTs',puts,'| pending',await P.evaluate(()=>Object.keys(store.get('bought-pending',{})).length),'|',(await q("select state,media_state from public.bought_ads where fields->>'about'='Third video'"))[0]);
+ // ---- the file had no sound → rejected with a reason on the page, and no "Try again" for the same file
+ await sleep(300);await P.reload();await P.waitForSelector('#adv .adv-tabs');await sleep(500);
  log('3 bad media:',(await q("select state,media_state,problem from public.bought_ads where fields->>'about'='Third video'"))[0]);
  await P.evaluate(()=>Adv.tab('mine'));await sleep(300);log('  pill:',await P.locator('#adv .pill.sub').first().innerText());
  await P.screenshot({path:T+'/w-mine.png'});
@@ -60,7 +67,7 @@ async function pay(){const o=(await q("select payment_reference,charge_minor fro
  await P.evaluate(d=>Bid.editAd(d,'front'),iss);await step(P,'Edit your ad');
  await P.setInputFiles('#b-file',T+'/upload.mp4');await P.waitForFunction(()=>Bid.st.cre.dur>0&&Bid.st.cre.blob);await P.fill('#b-about','Third video v2');await next(P);await P.waitForSelector('#sheet',{state:'hidden'}).catch(()=>{});await sleep(1500);
  const ad2=(await q("select id,state,media_state from public.bought_ads where fields->>'about'='Third video v2'"))[0];log('4 edited ad:',ad2,'| bid points at it:',(await q(`select count(*)::int c from public.bought_ad_bids where ad_id='${ad2.id}'`))[0].c);
- await fetch(C+'/mux-ready');await sleep(300);
+ await P.waitForFunction(()=>!Object.keys(store.get('bought-pending',{})).length,null,{timeout:30000}).catch(()=>{});await sleep(300);
  log('5 new take ready, no review:',(await q("select state,media_state from public.bought_ads where fields->>'about'='Third video v2'"))[0]);
  await P.reload();await P.waitForSelector('#adv .adv-tabs');await sleep(500);await P.evaluate(()=>Adv.tab('mine'));await sleep(300);log('  pill:',await P.locator('#adv .pill.sub').first().innerText());
  const adm=await (await b.newContext()).newPage();await deskLogin(adm);
@@ -88,5 +95,5 @@ async function pay(){const o=(await q("select payment_reference,charge_minor fro
  log('9 phone record button uses camera input:',await M.evaluate(()=>{let hit=false;document.getElementById('b-cap').click=()=>{hit=true};Rec.start();return hit}));
  // ---- the old endpoints are gone; escaping
  for(const path of ['drops','review','snapshot','published','market','push/key'])log('10',path,(await fetch(U+'/api/bought/'+path)).status);
- log('page errors:',errs.length?errs:'none');await b.close();
+ log('page errors:',errs.length?errs:'none');log('R2 files removed:',await cleanR2());await b.close();
 })().catch(e=>{console.log('FAILED',e.message.slice(0,400));console.log('errs',errs);process.exit(1)});

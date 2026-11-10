@@ -1,9 +1,12 @@
 import { MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS } from './drop-domain';
 
+// The file is played as recorded (no transcoding), so MP4 with H.264 and AAC comes first: every browser plays it.
+// WebM is the fallback for browsers that can't record MP4.
 export const RECORDING_MIME_TYPES = [
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  'video/mp4',
   'video/webm;codecs=vp9,opus',
   'video/webm;codecs=vp8,opus',
-  'video/mp4',
   'video/webm',
 ] as const;
 

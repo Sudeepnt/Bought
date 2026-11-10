@@ -20,6 +20,15 @@ void test('recording codecs use a consistent browser-safe preference order', () 
     supportedRecordingMimeType(() => false),
     undefined,
   );
+  // MP4 (H.264 + AAC) wins wherever the browser can record it, since the file is played exactly as uploaded.
+  assert.equal(
+    supportedRecordingMimeType(() => true),
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  );
+  assert.equal(
+    supportedRecordingMimeType((type) => type === 'video/mp4' || type.startsWith('video/webm')),
+    'video/mp4',
+  );
   assert.equal(recordingExtension('video/mp4;codecs=avc1'), 'mp4');
   assert.equal(recordingExtension('video/quicktime'), 'mov');
   assert.equal(recordingExtension('video/webm;codecs=vp9,opus'), 'webm');

@@ -128,7 +128,7 @@ if [ ! -f /etc/bought/bought.env ]; then
     echo "BOUGHT_SMTP_USER="
     echo "BOUGHT_SMTP_PASS="
     echo "BOUGHT_SMTP_FROM="
-    echo "# Ads: fill these from backend/.env.example (Supabase, Mux, Upstash, Stripe, Razorpay)."
+    echo "# Media and ads: fill these from backend/.env.example (Cloudflare R2, Supabase, Upstash, Stripe, Razorpay)."
     grep -E '^[A-Z_]+=' backend/.env.example | grep -vE '^(APP_ORIGIN|CRON_SECRET)=' | sed 's/=.*/=/'
   } > /etc/bought/bought.env
   echo "wrote /etc/bought/bought.env: the admin password is in it"

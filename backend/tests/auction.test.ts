@@ -299,28 +299,43 @@ void test('only a matching signed payment adds points, once, and a reversal remo
   await db.close();
 });
 
-void test('media: a replaced upload cannot touch the current take; a ready video is ready, a broken one is sent back', async () => {
+void test('media: only the current take can be checked; a playable file is ready, a broken one is sent back', async () => {
   const db = await testDatabase();
   const a = await user(db);
   const id = randomUUID();
+  const key = (take: string) => `ads/${id}/${take}.mp4`;
+  const take1 = randomUUID(), take2 = randomUUID();
   await db.query("insert into public.bought_ads(id,user_id,spot,kind,title) values ($1,$2,'feed-e','video','An ad')", [id, a]);
   assert.equal((await one<{ c: boolean }>(db, 'select public.bought_ad_claim_upload($1) as c', [id])).c, true);
-  await db.query("update public.bought_ads set mux_upload_id='up1',mux_upload_url='https://x',mux_upload_expires_at=public.test_now()+interval '2 hours',media_state='waiting',upload_claimed_at=null where id=$1", [id]);
+  // the key is always ads/<ad>/<take>.mp4|webm: nothing else can be stored, so no path can point elsewhere in the bucket
+  for (const bad of ['../other.mp4', `ads/${id}/x.html`, `issues/${id}/${take1}.mp4`])
+    await assert.rejects(() => db.query('update public.bought_ads set video_key=$2 where id=$1', [id, bad]));
+  await db.query("update public.bought_ads set video_key=$2,upload_expires_at=public.test_now()+interval '2 hours',media_state='waiting',upload_claimed_at=null where id=$1", [id, key(take1)]);
+  // the same waiting take is handed back without a new claim
+  assert.equal((await one<{ c: boolean }>(db, 'select public.bought_ad_claim_upload($1) as c', [id])).c, false);
   await db.query('select public.bought_ad_submit($1)', [id]);
   const state = async () => (await one<{ state: string; media_state: string; problem: string | null }>(db, 'select state,media_state,problem from public.bought_ads where id=$1', [id]));
   assert.equal((await state()).state, 'processing');
-  const event = (eventId: string, upload: string, ready = true, valid = true, reason: string | null = null) =>
-    db.query('select public.bought_ad_media_event($1,$2,$3,$4,$5,$6,$7)', [eventId, upload, 'asset1', 'play1', ready, valid, reason]);
-  await event('e0', 'old-upload');
+  const checked = async (k: string, valid = true, reason: string | null = null) =>
+    (await one<{ c: boolean }>(db, 'select public.bought_ad_media_checked($1,$2,$3,$4) as c', [id, k, valid, reason])).c;
+  assert.equal(await checked(key(randomUUID())), false, 'a check of another take is ignored');
   assert.equal((await state()).media_state, 'waiting');
-  await event('e1', 'up1');
-  assert.equal((await state()).state, 'ready');
-  // a retake that Mux can't use comes back to the advertiser with the reason
+  assert.equal(await checked(key(take1)), true);
+  assert.deepEqual(await state(), { state: 'ready', media_state: 'ready', problem: null });
+  const json = async () => (await one<{ j: Record<string, unknown> }>(db, 'select public.bought_ad_ad_json(a) as j from public.bought_ads a where id=$1', [id])).j;
+  assert.equal((await json()).hosted, id, 'a ready video tells the page it can be played');
+  // a retake that can't play comes back to the advertiser with the reason, and nothing is playable any more
   assert.equal((await one<{ c: boolean }>(db, 'select public.bought_ad_claim_upload($1,true) as c', [id])).c, true);
-  await db.query("update public.bought_ads set mux_upload_id='up2',media_state='waiting',upload_claimed_at=null where id=$1", [id]);
+  assert.equal((await state()).media_state, 'none');
+  await db.query("update public.bought_ads set video_key=$2,upload_expires_at=public.test_now()+interval '2 hours',media_state='waiting',upload_claimed_at=null where id=$1", [id, key(take2)]);
   await db.query('select public.bought_ad_submit($1)', [id]);
-  await event('e2', 'up2', true, false, 'Your video needs a picture and a sound track.');
+  assert.equal(await checked(key(take1)), false, 'the replaced take cannot change the retake');
+  assert.equal(await checked(key(take2), false, 'Your video needs a picture and a sound track.'), true);
   assert.deepEqual(await state(), { state: 'rejected', media_state: 'errored', problem: 'Your video needs a picture and a sound track.' });
+  assert.equal((await json()).hosted, null);
+  // a second check of a finished take changes nothing
+  assert.equal(await checked(key(take2), true), true);
+  assert.equal((await state()).media_state, 'errored');
   await db.close();
 });
 

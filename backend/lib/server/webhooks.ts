@@ -1,6 +1,6 @@
-import { validMedia } from '../drop-domain';
+// Signed webhooks from the payment providers. Ad videos need none: the server checks each file in R2 itself.
 import { HttpError, required } from './config';
-import { basic, mux, providerRequest, type MuxAsset } from './providers';
+import { basic, providerRequest } from './providers';
 import { database, dbError, hmac, readBody, verifyWebhook } from './security';
 
 type Entity = {
@@ -19,32 +19,12 @@ type ProviderEvent = {
   id?: string;
   type?: string;
   event?: string;
-  data?: {
-    object?: Entity;
-    id?: string;
-    upload_id?: string;
-    asset_id?: string;
-    track_id?: string;
-    type?: string;
-    status?: string;
-    language_code?: string;
-    text_source?: string;
-    parameters?: {
-      asset_id?: string;
-      track_id?: string;
-      to_language_code?: string;
-    };
-    outputs?: { uploaded_track_id?: string };
-    errors?: { message?: string }[];
-    name?: string;
-    resolution?: string;
-    passthrough?: string;
-  };
+  data?: { object?: Entity };
   payload?: { payment?: { entity: Entity }; refund?: { entity: Entity } };
 };
 
 export async function webhook(request: Request, provider: string) {
-  if (!['stripe', 'razorpay', 'mux'].includes(provider))
+  if (!['stripe', 'razorpay'].includes(provider))
     throw new HttpError(404, 'Unknown provider.');
   const raw = await readBody(request, 1024 * 1024);
   const signature = request.headers.get(
@@ -66,74 +46,6 @@ export async function webhook(request: Request, provider: string) {
     throw new HttpError(400, 'Invalid webhook payload.');
   }
   const db = database();
-  if (provider === 'mux') {
-    if (!event.id || !event.data)
-      throw new HttpError(400, 'Missing event information.');
-    if (
-      ![
-        'video.asset.ready',
-        'video.asset.errored',
-        'video.upload.asset_created',
-        'video.upload.errored',
-      ].includes(event.type ?? '')
-    )
-      return;
-    const uploadError = event.type === 'video.upload.errored';
-    const assetId =
-      event.type === 'video.upload.asset_created'
-        ? event.data.asset_id
-        : event.data.id;
-    const asset = uploadError
-      ? null
-      : (await mux<MuxAsset>(`assets/${encodeURIComponent(assetId ?? '')}`))
-          .data;
-    const uploadId = uploadError ? event.data.id : asset?.upload_id;
-    if (!uploadId) throw new HttpError(400, 'Missing upload identity.');
-    const { data: drop, error } = await db
-      .from('bought_ads')
-      .select('id')
-      .eq('mux_upload_id', uploadId)
-      .maybeSingle();
-    dbError(error);
-    if (!drop) {
-      if (asset?.passthrough) {
-        const { data: pending, error: pendingError } = await db
-          .from('bought_ads')
-          .select('upload_claimed_at,mux_upload_id')
-          .eq('id', asset.passthrough)
-          .maybeSingle();
-        dbError(pendingError);
-        if (pending?.upload_claimed_at && !pending.mux_upload_id)
-          throw new HttpError(
-            503,
-            'Upload is still being linked. Retry delivery.',
-          );
-      }
-      return; // A replaced upload can never update the current take.
-    }
-    if (asset && asset.passthrough !== drop.id)
-      throw new HttpError(400, 'Asset does not match this ad.');
-    const ready =
-      uploadError || asset?.status === 'ready' || asset?.status === 'errored';
-    const playbackId =
-      asset?.playback_ids?.find((p) => p.policy === 'signed')?.id ?? null;
-    const valid =
-      !!asset && asset.status === 'ready' && validMedia(asset) && !!playbackId;
-    const { error: updateError } = await db.rpc('bought_ad_media_event', {
-      p_event_id: event.id,
-      p_upload_id: uploadId,
-      p_asset_id: asset?.id ?? null,
-      p_playback_id: playbackId,
-      p_ready: ready,
-      p_valid: valid,
-      p_reason:
-        ready && !valid
-          ? 'Your video needs a picture, a sound track and a length under 10 minutes. Record or upload a new one.'
-          : null,
-    });
-    dbError(updateError);
-    return;
-  }
   let entity: Entity | undefined;
   let state: 'paid' | 'refunded' | 'disputed' = 'paid';
   let reference: string | null = null;

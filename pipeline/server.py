@@ -39,6 +39,7 @@ from . import db, desk as dk, mailer
 from . import security as sec
 from .config import load_config, load_sources
 from .funnel import publish as fp
+from . import r2
 
 ROOT = dk.ROOT
 sys.path.insert(0, str(ROOT))
@@ -48,7 +49,7 @@ log = logging.getLogger(__name__)
 SESSION_HOURS = 12
 BACKEND = ROOT / "backend"
 BACKEND_PORT = int(os.environ.get("BOUGHT_BACKEND_PORT", "8787"))
-PROXY_HEADERS = ("Content-Type", "Origin", "Authorization", "Mux-Signature", "Stripe-Signature", "X-Razorpay-Signature")
+PROXY_HEADERS = ("Content-Type", "Origin", "Authorization", "Stripe-Signature", "X-Razorpay-Signature")
 PROXY_MAX_BODY = 2 * 1024 * 1024
 GZIP_TYPES = ("text/", "application/javascript", "application/json", "image/svg+xml", "application/wasm")
 GZIP_CACHE_BYTES = 96 * 1024 * 1024
@@ -155,7 +156,7 @@ class App:
     def cfg(self):
         return load_config(self.config_path)
 
-    # ---------- the backend (backend/, Bought's Mux, Supabase and payments code) ----------
+    # ---------- the backend (backend/: ad video on R2, Supabase and payments) ----------
     def backend_secret(self) -> str:
         secret = os.environ.get("CRON_SECRET", "")
         path = BACKEND / ".env"
@@ -302,7 +303,8 @@ class App:
     # ---------- going live ----------
     def put_live(self, desk, date: str) -> dict:
         settings = dk.get_settings(desk)
-        return fp.publish(self.cfg(), date, self.news(), len(self.sources()), out_root=dk.out_dir(), public_root=dk.public_dir(), site=settings["site_url"] or None)
+        return fp.publish(self.cfg(), date, self.news(), len(self.sources()), out_root=dk.out_dir(), public_root=dk.public_dir(), site=settings["site_url"] or None,
+                          media=r2.store())
 
     def go_live(self, desk, date: str) -> None:
         try:

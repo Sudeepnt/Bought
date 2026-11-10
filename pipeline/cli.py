@@ -5,7 +5,7 @@ import logging
 import sys
 from datetime import datetime, timezone
 
-from . import db
+from . import db, r2
 from .config import ConfigError, load_config, load_sources
 from .ingest import parse_iso
 from .runner import ROOT, fixture_now, paths, run_cycle
@@ -189,7 +189,7 @@ def cmd_funnel(args) -> int:
         return 0
     if args.step in ("publish", "podcast", "translate", "run"):
         from .funnel import publish as fp
-        put = lambda: print("published: " + ", ".join(f"{k} {v}" for k, v in fp.publish(cfg, date, conn, len(sources)).items()))
+        put = lambda: print("published: " + ", ".join(f"{k} {v}" for k, v in fp.publish(cfg, date, conn, len(sources), media=r2.store()).items()))
         if args.step in ("publish", "run"):            # readers get the issue first; audio and languages join it when ready
             put()
         if args.step in ("podcast", "run") and cfg.tts_command:
@@ -231,6 +231,7 @@ def main(argv=None) -> int:
     ps.add_argument("--desk-port", type=int, default=None)
     _add_common(ps)
     args = parser.parse_args(argv)
+    r2.load_local_env()                            # a laptop keeps its keys in backend/.env; the VPS sets them through systemd
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:

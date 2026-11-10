@@ -1,6 +1,6 @@
 // Bought's browser side with no interface of its own: sign-in, the camera profile and take checks,
-// the microphone check, the wake lock, the local recovery copy, resumable upload to Mux, image
-// upload, signed playback and checkout. The newspaper's Advertise page calls these from its own buttons.
+// the microphone check, the wake lock, the local recovery copy, upload to Cloudflare R2 on a signed
+// link, image upload, signed playback and checkout. The newspaper's Advertise page calls these from its own buttons.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { THUMBNAIL_BUCKET } from '../lib/drop-domain';
 import {
@@ -14,7 +14,6 @@ import {
 import {
   createRecordingDevice,
   importedRecordingIssue,
-  recordingExtension,
   recordingProfile,
   supportedRecordingMimeType,
   validRecordedTake,
@@ -258,48 +257,78 @@ export async function uploadImage(adId: string, file: Blob) {
   if (error) throw new Error('Image upload failed. Your bid is saved. Try again.');
 }
 
+type UploadTarget = { url: string; key: string; contentType: string };
+type UploadCheck = { state: string; media: string; reason: string | null };
+
+// One PUT of the whole file to the signed link. R2 takes it all or nothing, so a retry starts over.
+function putFile(target: UploadTarget, blob: Blob, onProgress: (percent: number) => void) {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', target.url);
+    xhr.setRequestHeader('Content-Type', target.contentType);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress((event.loaded / event.total) * 100);
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`upload ${xhr.status}`));
+    xhr.onerror = () => reject(new Error('upload network'));
+    xhr.ontimeout = () => reject(new Error('upload timeout'));
+    xhr.send(blob);
+  });
+}
+
 export async function uploadVideo(
   adId: string,
   blob: Blob,
   onProgress: (percent: number) => void,
   replace = false,
 ) {
-  const target = await api<{ url: string; uploadId: string }>(`ads/ads/${adId}/upload`, { replace });
-  // Keep a copy until the upload lands, so a refresh or dropped connection can't lose the take.
-  await saveTake(adId, blob, undefined, target.uploadId).catch(() => {});
-  const { createUpload } = await import('@mux/upchunk');
-  await new Promise<void>((resolve, reject) => {
-    const task = createUpload({
-      endpoint: target.url,
-      file: new File([blob], `ad-${adId}.${recordingExtension(blob.type)}`, { type: blob.type }),
-      chunkSize: 5120,
-      attempts: 5,
+  let target: UploadTarget | null = null;
+  for (let attempt = 0; ; attempt++) {
+    // Each try asks for a fresh link; after the first it reuses the same take, so a retry costs no upload.
+    target = await api<UploadTarget>(`ads/ads/${adId}/upload`, {
+      replace: attempt === 0 && replace,
+      type: blob.type,
+      size: blob.size,
     });
-    task.on('progress', (event) => onProgress(event.detail));
-    task.on('success', () => resolve());
-    task.on('error', () => reject(new Error('The upload was interrupted. Your recording is saved. Try again.')));
-  });
-  await markTakeUploaded(adId, target.uploadId).catch(() => false);
+    // Keep a copy until the upload lands, so a refresh or dropped connection can't lose the take.
+    await saveTake(adId, blob, undefined, target.key).catch(() => {});
+    try {
+      await putFile(target, blob, onProgress);
+      break;
+    } catch {
+      if (attempt >= 4) throw new Error('The upload was interrupted. Your recording is saved. Try again.');
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+    }
+  }
+  const checked = await api<UploadCheck>(`ads/ads/${adId}/uploaded`, { key: target.key });
+  if (checked.media === 'errored') {
+    const error = new Error(checked.reason || 'Your video could not be used. Upload a new one.');
+    error.name = 'VideoRejected';
+    throw error;
+  }
+  await markTakeUploaded(adId, target.key).catch(() => false);
 }
 
-// ---------- playback: signed Mux HLS into the page's own <video> ----------
+// ---------- playback: a short-lived signed link to the file in R2, into the page's own <video> ----------
 export async function attach(video: HTMLVideoElement, adId: string) {
-  const media = await api<{ playbackId: string; token: string; poster?: string | null }>(`media/${adId}`);
-  const src = `https://stream.mux.com/${media.playbackId}.m3u8?token=${media.token}`;
+  const media = await api<{ url: string; poster?: string | null }>(`media/${adId}`);
   if (media.poster && !video.poster) video.poster = media.poster;
-  if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = src;
-    return;
-  }
-  const { default: Hls } = await import('hls.js/light');
-  const hls = new Hls();
-  hls.loadSource(src);
-  hls.attachMedia(video);
+  // The page renders ad videos with preload="none"; metadata is needed before the caller seeks and plays.
+  video.preload = 'metadata';
+  video.src = media.url;
   await new Promise<void>((resolve, reject) => {
-    hls.on(Hls.Events.MANIFEST_PARSED, () => resolve());
-    hls.on(Hls.Events.ERROR, (_e: unknown, data: { fatal?: boolean }) => {
-      if (data.fatal) reject(new Error('This video could not be played.'));
-    });
+    const timer = window.setTimeout(() => fail(), 20000);
+    const done = () => {
+      window.clearTimeout(timer);
+      video.removeEventListener('loadedmetadata', ok);
+      video.removeEventListener('error', fail);
+    };
+    const ok = () => (done(), resolve());
+    const fail = () => (done(), reject(new Error('This video could not be played.')));
+    video.addEventListener('loadedmetadata', ok);
+    video.addEventListener('error', fail);
+    video.load();
   });
 }
 

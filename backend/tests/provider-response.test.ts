@@ -3,13 +3,21 @@ import test from 'node:test';
 import { HttpError } from '../lib/server/config';
 import {
   createCheckout,
-  deleteMuxAsset,
   providerRequest,
   trustedStripeCheckoutUrl,
-  validMuxUploadTarget,
   validProviderReference,
   type Topup,
 } from '../lib/server/providers';
+import {
+  deleteVideo,
+  judgeProbe,
+  newVideoKey,
+  NOT_PLAYABLE,
+  presign,
+  signUrl,
+  storedType,
+  validVideoKey,
+} from '../lib/server/r2';
 
 const paymentEnv = [
   'APP_ORIGIN',
@@ -86,49 +94,89 @@ void test('provider identifiers and browser destinations are constrained', () =>
     trustedStripeCheckoutUrl('https://user@checkout.stripe.com/pay'),
     false,
   );
+});
 
+void test('the R2 signer matches AWS\'s published presigned-URL example', () => {
+  // https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html
+  const url = signUrl({
+    method: 'GET',
+    host: 'examplebucket.s3.amazonaws.com',
+    path: '/test.txt',
+    region: 'us-east-1',
+    accessKey: 'AKIAIOSFODNN7EXAMPLE',
+    secret: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    seconds: 86400,
+    now: new Date('2013-05-24T00:00:00Z'),
+  });
   assert.equal(
-    validMuxUploadTarget(
-      'upload_123',
-      'https://storage.googleapis.com/video-upload/object?token=signed',
-    ),
-    true,
-  );
-  assert.equal(
-    validMuxUploadTarget(
-      'upload_123',
-      'https://upload.mux.com/direct-upload/path',
-    ),
-    true,
-  );
-  assert.equal(
-    validMuxUploadTarget('upload_123', 'https://mux.com.evil.test/upload'),
-    false,
+    new URL(url).searchParams.get('X-Amz-Signature'),
+    'aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404',
   );
 });
 
-void test('expired Mux recordings are deleted with bounded asset IDs', async () => {
-  const originalFetch = globalThis.fetch;
-  const originalId = process.env.MUX_TOKEN_ID;
-  const originalSecret = process.env.MUX_TOKEN_SECRET;
+const r2Env = { R2_ACCOUNT_ID: 'a'.repeat(32), R2_ACCESS_KEY_ID: 'ak', R2_SECRET_ACCESS_KEY: 'secret-value-never-in-a-link', R2_BUCKET: 'bucket' };
+async function withR2Env(run: () => Promise<void> | void) {
+  const saved = Object.fromEntries(Object.keys(r2Env).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, r2Env);
   try {
-    process.env.MUX_TOKEN_ID = 'mux_test_id';
-    process.env.MUX_TOKEN_SECRET = 'mux_test_secret';
-    let method = '';
-    globalThis.fetch = async (_input, init) => {
-      method = init?.method ?? '';
-      return new Response(null, { status: 204 });
-    };
-    await deleteMuxAsset('asset_123');
-    assert.equal(method, 'DELETE');
-    await assert.rejects(() => deleteMuxAsset('../asset'));
+    await run();
   } finally {
-    globalThis.fetch = originalFetch;
-    if (originalId === undefined) delete process.env.MUX_TOKEN_ID;
-    else process.env.MUX_TOKEN_ID = originalId;
-    if (originalSecret === undefined) delete process.env.MUX_TOKEN_SECRET;
-    else process.env.MUX_TOKEN_SECRET = originalSecret;
+    for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
+}
+
+void test('ad video links: one object, one method, short-lived, and the secret never in them', async () => {
+  await withR2Env(async () => {
+    const ad = '6f1c7d3e-2b4a-4c8d-9e0f-1a2b3c4d5e6f';
+    const key = newVideoKey(ad, 'mp4');
+    assert.ok(validVideoKey(key));
+    const put = new URL(presign('PUT', key, 7200, { 'content-type': 'video/mp4' }));
+    assert.equal(put.host, `${'a'.repeat(32)}.r2.cloudflarestorage.com`);
+    assert.equal(put.pathname, `/bucket/${key}`);
+    assert.equal(put.searchParams.get('X-Amz-Expires'), '7200');
+    assert.equal(put.searchParams.get('X-Amz-SignedHeaders'), 'content-type;host');
+    assert.ok(!put.href.includes('secret-value'));
+    assert.equal(new URL(presign('GET', key, 600)).searchParams.get('X-Amz-SignedHeaders'), 'host');
+    // nothing outside ads/<ad>/<take>.mp4|webm can ever be signed
+    for (const bad of ['issues/2026-11-05/media/x.mp4', `ads/${ad}/../x.mp4`, `ads/${ad}/x.html`, '', 'ads/x/y.mp4'])
+      assert.throws(() => presign('GET', bad, 600));
+    let method = '';
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = async (_input, init) => {
+        method = init?.method ?? '';
+        return new Response(null, { status: 204 });
+      };
+      await deleteVideo(key);
+      assert.equal(method, 'DELETE');
+      await assert.rejects(() => deleteVideo('../asset'));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+void test('only browser-playable video types can be uploaded; a .mov is stored as MP4', () => {
+  assert.deepEqual(storedType('video/mp4;codecs=avc1.42E01E,mp4a.40.2'), { ext: 'mp4', type: 'video/mp4' });
+  assert.deepEqual(storedType('video/quicktime'), { ext: 'mp4', type: 'video/mp4' });
+  assert.deepEqual(storedType('video/webm;codecs=vp9,opus'), { ext: 'webm', type: 'video/webm' });
+  for (const bad of ['text/html', 'image/svg+xml', 'application/octet-stream', '', null, 42]) assert.equal(storedType(bad), null);
+});
+
+void test('the file check: picture, sound, size and length, in codecs every browser plays', () => {
+  const good = { format: { duration: '30.5' }, streams: [{ codec_type: 'video', codec_name: 'h264', width: 1280, height: 720 }, { codec_type: 'audio', codec_name: 'aac' }] };
+  assert.equal(judgeProbe(good, 1000), null);
+  // a browser recording may carry no duration; the page limits those takes itself
+  assert.equal(judgeProbe({ ...good, format: {} }, 1000), null);
+  assert.equal(judgeProbe(null, 1000), NOT_PLAYABLE);
+  assert.equal(judgeProbe({ ...good, streams: [good.streams[0]] }, 1000), NOT_PLAYABLE, 'no sound');
+  assert.equal(judgeProbe({ ...good, streams: [good.streams[1]] }, 1000), NOT_PLAYABLE, 'no picture');
+  assert.equal(judgeProbe({ ...good, streams: [{ ...good.streams[0], codec_name: 'hevc' }, good.streams[1]] }, 1000), NOT_PLAYABLE, 'not every browser plays HEVC');
+  assert.equal(judgeProbe({ ...good, streams: [{ ...good.streams[0], width: 200 }, good.streams[1]] }, 1000), NOT_PLAYABLE, 'too small');
+  assert.equal(judgeProbe({ ...good, format: { duration: '601.5' } }, 1000), NOT_PLAYABLE, 'over 10 minutes');
+  assert.equal(judgeProbe({ ...good, format: { duration: '0.4' } }, 1000), NOT_PLAYABLE, 'under a second');
+  assert.match(judgeProbe(good, 501 * 1024 * 1024) ?? '', /500 MB/);
+  assert.match(judgeProbe(good, 0) ?? '', /500 MB/);
 });
 
 void test('Stripe checkout retries use one stable idempotency key and validate the session', async () => {

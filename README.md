@@ -4,7 +4,7 @@ A daily tech, AI and business newspaper made by a news funnel: it finds the stor
 
 - `public/`: the site, plain HTML, CSS and JavaScript with no build step. Today, Listen, Advertise and the build notes (`#spec`) are views of one page. UI notes: `UI_NOTES.md`.
 - `pipeline/`: the funnel, the admin desk, mail and the publish clock. From source to published issue: `pipeline/funnel/README.md`.
-- `backend/`: the ads (Mux, Supabase, Stripe, Razorpay, Upstash), with no pages of its own. Setup, keys and webhooks: `backend/README.md`. Advertisers bid in points (100 free per new email, more at $1). There is no ad review: winning ads go out with the issue when ready. Withdrawals and sales are on the desk's Ads page.
+- `backend/`: the ads (Cloudflare R2 for video, Supabase, Stripe, Razorpay, Upstash), with no pages of its own. Setup, keys and webhooks: `backend/README.md`. Advertisers bid in points (100 free per new email, more at $1). There is no ad review: winning ads go out with the issue when ready. Withdrawals and sales are on the desk's Ads page.
 - `deploy/`: the production setup for a VPS.
 
 ## Run it locally
@@ -27,7 +27,7 @@ Email needs `BOUGHT_SMTP_HOST` and `BOUGHT_SMTP_FROM` (plus `BOUGHT_SMTP_USER`, 
 PYTHON=~/.cache/bought/funnel-venv/bin/python npm test     # Python, backend and typecheck
 ```
 
-The full ad journey in a real browser, with stand-ins for Supabase, Mux and Upstash: `backend/tests/e2e/` (see `backend/README.md`). GitHub Actions runs the tests on every push (`.github/workflows/test.yml`).
+The full ad journey in a real browser, with stand-ins for Supabase and Upstash and the real Cloudflare R2 bucket: `backend/tests/e2e/` (see `backend/README.md`). GitHub Actions runs the tests on every push (`.github/workflows/test.yml`).
 
 ## Production (Ubuntu 24.04 VPS)
 

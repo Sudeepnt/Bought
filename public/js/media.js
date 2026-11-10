@@ -150,7 +150,7 @@ function personSVG(p,shape){
 
 function bvHTML(key,cre,shape){
  BVREG[key]=cre;const st=ap(key), p=PEOPLE[cre.p||"me"], still=!!cre.img&&!cre.file;
- const media=cre.file?`<video class="uv" src="${cre.file}" muted playsinline preload="metadata"></video>`:cre.mux?`<video class="uv"${cre.poster?` poster="${esc(cre.poster)}"`:""} muted playsinline preload="none"></video>`:cre.img?`<img class="uv" src="${cre.img}" alt="${esc(cre.line||cre.adv||"Ad image")}">`:personSVG(p,shape);
+ const media=cre.file?`<video class="uv" src="${cre.file}" muted playsinline preload="metadata"></video>`:cre.hosted?`<video class="uv"${cre.poster?` poster="${esc(cre.poster)}"`:""} muted playsinline preload="none"></video>`:cre.img?`<img class="uv" src="${cre.img}" alt="${esc(cre.line||cre.adv||"Ad image")}">`:personSVG(p,shape);
  return `<div class="bv ${shape}${st.playing?" playing":""}${still?" still":""}" data-bv="${key}" role="${still?"img":"button"}" ${still?"":'tabindex="0"'} aria-label="${still?"Image ad":"Play ad"} from ${esc(cre.adv||"advertiser")}">
   ${media}<span class="bv-tag">${still?"Ad":`Ad · ${fmt(cre.len||30)}`}</span>
   <div class="tt"><b>${markText(cre)}</b>${cre.who?`<small>${esc(cre.who)}</small>`:""}</div>
@@ -165,9 +165,9 @@ function setPlaying(el,on){
  const v=el.querySelector("video");if(v){
   /* uploaded video plays only its 60-second window: trimStart → trimStart + len */
   const s0=cre?.trimStart||0, s1=s0+Math.min(60,cre?.len||60);
-  /* a real ad streams from Mux: fetch its signed link the first time it plays */
-  if(on&&cre?.mux&&!cre.file&&!v.dataset.ready){v.dataset.ready="1";Live.count(el.closest("[data-spot]")?.dataset.spot,"play");
-   Live.attach(v,cre.mux).then(()=>{if(st.playing)setPlaying(el,true)}).catch(()=>{v.dataset.ready="";setPlaying(el,false);toast("This video couldn't be played.")});return}
+  /* a real ad plays from R2: fetch its signed link the first time it plays */
+  if(on&&cre?.hosted&&!cre.file&&!v.dataset.ready){v.dataset.ready="1";Live.count(el.closest("[data-spot]")?.dataset.spot,"play");
+   Live.attach(v,cre.hosted).then(()=>{if(st.playing)setPlaying(el,true)}).catch(()=>{v.dataset.ready="";setPlaying(el,false);toast("This video couldn't be played.")});return}
   if(on){if(v.currentTime<s0||v.currentTime>=s1)v.currentTime=s0;v.ontimeupdate=()=>{if(v.currentTime>=s1){v.pause();v.currentTime=s0;st.t=0;setPlaying(el,false)}};
    v.muted=false;v.play().catch(()=>{v.muted=true;v.play().catch(()=>{})})}else v.pause()}
 }
