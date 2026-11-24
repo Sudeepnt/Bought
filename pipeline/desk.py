@@ -119,6 +119,24 @@ def in_reader_hours(now: datetime, settings: dict) -> bool:
     return False
 
 
+def wait_quiet(desk, date: str, now=None, sleep=None, busy=None, step: float = 60) -> float:
+    """Before each heavy render: wait while it is reader hours or the machine is busy (1-minute load above 70% of the cores),
+    unless the issue is due within 3 hours, when it can't wait. Returns the seconds waited."""
+    import os
+    import time as _t
+    sleep = sleep or _t.sleep
+    clock = now or (lambda: datetime.now(timezone.utc))
+    busy = busy or (lambda: os.getloadavg()[0] > 0.7 * (os.cpu_count() or 1))
+    waited = 0.0
+    while True:
+        s = get_settings(desk)
+        t = clock()
+        if due_at(date, s) - t < timedelta(hours=3) or not (in_reader_hours(t, s) or busy()):
+            return waited
+        sleep(step)
+        waited += step
+
+
 def due_at(date: str, settings: dict) -> datetime:
     return datetime.strptime(f"{date} {settings['publish_time']}", "%Y-%m-%d %H:%M").replace(tzinfo=ZoneInfo(ZONES[settings["publish_zone"]]))
 

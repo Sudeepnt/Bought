@@ -4,8 +4,10 @@
                                               public/issues/index.json   every published date, newest first
                                               public/s/<id>/             link-preview pages for stories with a video
 
-With R2 configured (pipeline/r2.py) the videos, their posters and the podcast go to Cloudflare R2 instead of public/, and the
-issue points readers at R2_PUBLIC_URL. Card pictures, share cards and the JSON stay on the site.
+Story videos are explainers (pipeline/explainer/): out/issues/<date>/explainers/<id>/{16x9,9x16}.mp4|.jpg, captions.vtt, plan.json.
+With R2 configured (pipeline/r2.py) they go to Cloudflare R2 at issues/<date>/explainers/<id>/, the podcast to issues/<date>/media/,
+and the issue points readers at R2_PUBLIC_URL. Card pictures, share cards and the JSON stay on the site. The paper's video spots
+play the 16:9 file, the clips rail the 9:16 one. A story the desk held is published without its video.
 
 Safe to rerun at any time: the issue's numbers are kept from the first publish, and files that did not change are not copied again.
 """
@@ -240,20 +242,28 @@ def _md5(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _place(src: Path, date: str, target: Path, media) -> str:
+def _place(src: Path, date: str, target: Path, media, folder: str = "media") -> str:
     """Put one media file where readers will fetch it and return its address (versioned, so a changed file is never served stale).
     media is an R2 client or None: R2 gets the file (skipped when its copy is already identical) and the site's copy is removed;
-    without R2 the file is copied into public/ as before."""
-    key = f"issues/{date}/media/{src.name}"
+    without R2 the file is copied into public/ as before. folder: media, or explainers/<story id> for a story's explainer."""
+    key = f"issues/{date}/{folder}/{src.name}"
     if media is None:
-        _copy(src, target / "media" / src.name)
+        _copy(src, target / folder / src.name)
         return _versioned(src, key)
     from .. import r2
     have = media.head(key)
     if not have or have["etag"].strip('"') != _md5(src):
         media.put_file(key, src)
-    (target / "media" / src.name).unlink(missing_ok=True)
+    (target / folder / src.name).unlink(missing_ok=True)
     return _versioned(src, r2.public_url(key))
+
+
+def held(conn, date: str) -> set:
+    """Stories whose explainer the desk held: they go out without a video."""
+    try:
+        return {r[0] for r in conn.execute("SELECT article_id FROM explainers WHERE issue=? AND decision='hold'", (date,))}
+    except Exception:                                  # no explainers table yet
+        return set()
 
 
 def funnel_stats(conn, sources: int, feed: dict) -> dict:
@@ -268,6 +278,14 @@ def funnel_stats(conn, sources: int, feed: dict) -> dict:
             "expired": expired, "published": len(items), "videos": sum(1 for i in items if i.get("video_url"))}
 
 
+CLIPS = 6    # stories in the clips rail; each plays its explainer's 9:16 file
+
+
+def clip_ids(feed: dict) -> list:
+    """The stories the clips rail shows: the first ones with a video, in page order."""
+    return [item["id"] for item, _ in lay_out(feed) if item.get("video_url")][:CLIPS]
+
+
 def build_page(date: str, feed: dict, pictures: dict, stats: dict, podcast, translations: list, share: set) -> dict:
     stories = []
     for n, (item, size) in enumerate(lay_out(feed)):
@@ -275,6 +293,8 @@ def build_page(date: str, feed: dict, pictures: dict, stats: dict, podcast, tran
         if item.get("video_url"):
             entry["video"], entry["poster"] = pictures["video:" + item["id"]]
             entry["cc"] = captions(item.get("script", ""))
+            if "reel:" + item["id"] in pictures:                 # the clips rail plays the 9:16 explainer
+                entry["reel"], entry["reel_poster"] = pictures["reel:" + item["id"]]
         entry["share"] = item["id"] in share
         stories.append(entry)
     by_size = lambda *sizes: [s for s in stories if s["sz"] in sizes]
@@ -292,7 +312,7 @@ def build_page(date: str, feed: dict, pictures: dict, stats: dict, podcast, tran
     rx = {s["id"]: _counts(s["uid"] + "rx", 4, 40, 700) for s in by_size("m") if s["id"] not in polls}
     rx = dict(list(rx.items())[:6])
     return {"issue": date, "generated_at": feed.get("generated_at", ""), "stories": stories, "brief": [[s["id"], sentence(short_label(s["t"], 96))] for s in pool[:3]], "nums": nums,
-            "clips": [s["id"] for s in stories if s.get("video")][:6], "polls": polls, "rx": {str(k): v for k, v in rx.items()},
+            "clips": [s["id"] for s in stories if s.get("video")][:CLIPS], "polls": polls, "rx": {str(k): v for k, v in rx.items()},
             "podcast": podcast, "translations": translations, "stats": stats}
 
 
@@ -307,14 +327,26 @@ def publish(cfg, date: str, conn, sources: int, out_root=None, public_root=None,
     feed = json.loads(feed_path.read_text())
     if not unique_items(feed):
         raise ValueError(f"issue {date} has no stories")
+    hold = held(conn, date) if conn is not None else set()
+    for item in unique_items(feed):
+        if item["id"] in hold:
+            for k in ("video_url", "poster_url", "reel_url", "reel_poster_url", "captions_url", "plan_url", "explainer"):
+                item.pop(k, None)
+            item["image_url"] = None if str(item.get("image_url", "")).startswith("explainers/") else item.get("image_url")
     page_path = target / "issue.json"
     old = json.loads(page_path.read_text()) if page_path.exists() else {}
 
     pictures, card_pictures = {}, []
     for item in unique_items(feed):
         if item.get("video_url"):
-            mp4, poster = base / "media" / f"{item['id']}.mp4", base / "media" / f"{item['id']}.jpg"
-            pictures["video:" + item["id"]] = (_place(mp4, date, target, media), _place(poster, date, target, media))
+            folder = f"explainers/{item['id']}"
+            put = lambda rel: _place(base / rel, date, target, media, folder)
+            pictures["video:" + item["id"]] = (put(item["video_url"]), put(item["poster_url"]))
+            if item.get("reel_url") and (base / item["reel_url"]).exists() and (base / item["reel_poster_url"]).exists():
+                pictures["reel:" + item["id"]] = (put(item["reel_url"]), put(item["reel_poster_url"]))
+            for extra in ("captions_url", "plan_url"):          # captions and the plan beside the videos, for anyone who checks
+                if item.get(extra) and (base / item[extra]).exists():
+                    put(item[extra])
         elif item.get("image_url"):
             jpg = target / "media" / f"{item['id']}.jpg"
             if fetch(item["image_url"], jpg, cfg.user_agent):
@@ -348,7 +380,7 @@ def publish(cfg, date: str, conn, sources: int, out_root=None, public_root=None,
     page = build_page(date, feed, pictures, stats, podcast, translations, share)
     if build_share:
         from ..share_pages import issue_pages
-        issue_pages(page, base / "media", public, site=site)     # the posters as the funnel made them, wherever readers get them
+        issue_pages(page, base, public, site=site)               # the posters as the funnel made them, wherever readers get them
     write_json(page_path, page)
     for item in unique_items(feed):                   # what ran today can't run again, however it was published
         conn.execute("UPDATE articles SET status='used', reject_reason=? WHERE id=?", (f"issue:{date}", item["id"]))

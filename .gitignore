@@ -8,6 +8,10 @@ public/s/
 public/share/
 .DS_Store
 backend/node_modules/
+web/node_modules/
+web/.next/
+web/next-env.d.ts
+web/*.tsbuildinfo
 backend/.env
 /node_modules/
 /.venv/
@@ -16,3 +20,4 @@ backend/.env
 # precompressed copies made by deploy/setup.sh on the server
 public/**/*.gz
 public/**/*.br
+/restore-points/

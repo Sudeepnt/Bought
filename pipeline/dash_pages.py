@@ -22,6 +22,27 @@ document.addEventListener("scroll",()=>{tip.hidden=true},{passive:true});
 document.addEventListener("focusin",ev=>{const el=ev.target.closest&&ev.target.closest("[data-tip]");if(el){const r=el.getBoundingClientRect();show(el,r.left+r.width/2,r.top)}else tip.hidden=true});
 """
 
+COPY_JS = r"""
+const toast=document.getElementById("copy-status"),res=document.getElementById("copy-result"),file=document.getElementById("copy-file");
+function say(t,c){toast.textContent=t;toast.className="note toast "+(c||"ok");toast.hidden=!t}
+function el(tag,text,cls){const n=document.createElement(tag);if(text)n.textContent=text;if(cls)n.className=cls;return n}
+function line(t,c){res.replaceChildren(el("p",t,"note "+(c||"ok")))}
+document.querySelectorAll("a[data-export]").forEach(a=>a.addEventListener("click",ev=>{ev.preventDefault();const t=Math.random().toString(36).slice(2);
+say("Making the copy: every database is checked and every file is read back. The download starts by itself in a moment.");location.href="/admin/copy/export?t="+t;
+const iv=setInterval(()=>{if(document.cookie.split("; ").includes("bought_copy="+t)){clearInterval(iv);say("Your copy is downloading. Keep it somewhere off this server: your computer, a drive or cloud storage.");setTimeout(()=>{toast.hidden=true},15000)}},500)}));
+file.addEventListener("change",()=>{const f=file.files[0];if(!f)return;const x=new XMLHttpRequest();x.open("POST","/admin/copy/check");x.setRequestHeader("Content-Type","application/zip");
+line("Uploading "+f.name+"…");x.upload.onprogress=e=>{if(e.lengthComputable)line("Uploading "+f.name+": "+Math.floor(e.loaded/e.total*100)+"%")};
+x.upload.onload=()=>line("Uploaded. Checking every file against its checksum…");x.onerror=()=>{line("The upload stopped. Check the connection and try again.","bad");file.value=""};
+x.onload=()=>{let r;try{r=JSON.parse(x.responseText)}catch(e){r={error:"The server answered "+x.status+"."}}file.value="";if(!r.ok){line(r.error||"That did not work.","bad");return}
+const box=el("div","","card copy-ok"),dl=el("div","","facts");box.append(el("p","This copy is whole: every file matches its checksum. It holds:","hint"));
+r.facts.forEach(([k,v])=>{const d=el("div");d.append(el("span",k),el("b",v));dl.append(d)});box.append(dl,el("p","Importing replaces everything on this server (databases, issues, videos, pictures, logs) with what is in this copy. What is here now is kept, so you can undo it.","hint"));
+const go=el("button","Replace everything with this copy","b danger");box.append(go);res.replaceChildren(box);
+go.addEventListener("click",()=>{if(!confirm("Replace everything on this server with the copy made "+r.made+"?"))return;go.disabled=true;go.textContent="Putting the copy back…";
+fetch("/admin/copy/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:r.id})}).then(a=>a.json().catch(()=>({error:"The server answered "+a.status+"."}))).then(a=>{
+if(a.ok){line(a.message);const b=el("a","Reload the dashboard","b");b.href="/admin/dashboard";res.append(b)}else{line(a.error||"That did not work.","bad")}}).catch(()=>line("The connection dropped. Reload the page to see what happened.","bad"))})};x.send(f)});
+const undo=document.getElementById("copy-undo");if(undo)undo.addEventListener("submit",ev=>{if(!confirm("Undo it? This server goes back to how it was just before that step."))ev.preventDefault()});
+"""
+
 CSS = """
 .dash h2{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.dash h2 small{font:400 12.5px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--muted)}
 .range{display:inline-flex;background:#e6e0d2;border-radius:8px;padding:3px;gap:2px}.range a{padding:5px 12px;border-radius:6px;text-decoration:none;font-size:13.5px;font-weight:600;color:var(--muted)}.range a.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
@@ -50,6 +71,8 @@ td.hl a{text-decoration:none;font-family:Georgia,serif;font-size:14.5px}td.hl a:
 td.hl{min-width:240px}.dash td.n{white-space:nowrap}.cw{overflow-x:auto;-webkit-overflow-scrolling:touch}
 @media (max-width:640px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.kpi{min-height:0;padding:10px 11px}.kpi b{font-size:24px}.kpi em{font-size:11.5px}
 .cw .chart{min-width:620px}.cw.half .chart{min-width:440px}.range a{padding:5px 9px}.facts{grid-template-columns:repeat(2,minmax(0,1fr))}.hb{grid-template-columns:minmax(70px,38%) 1fr}}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:60;width:max-content;max-width:min(560px,92vw);box-shadow:0 6px 20px rgba(0,0,0,.18);margin:0}
+.copy .facts{margin-top:12px}.copy-ok{margin:12px 0 0}.b.danger{background:#9b3a26}.b:disabled{opacity:.6;cursor:wait}.copy input[type=file]{font:inherit;max-width:100%}
 .pager{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:10px;font-size:13.5px;color:var(--muted)}
 """
 
@@ -112,8 +135,33 @@ def alerts(items: list[tuple[str, str]]) -> str:
     return '<div class="alerts">' + "".join(f'<div class="alert {tone}"><span class="ic" aria-label="{tone}">{icon[tone]}</span><span>{text}</span></div>' for tone, text in items) + "</div>"
 
 
+def copy_facts(info: dict) -> list[list[str]]:
+    made = datetime.strptime(info["made_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=ZoneInfo("UTC")).astimezone(IST).strftime("%a %d %b %Y, %H:%M IST") if info.get("made_at") else "–"
+    n = lambda v: "–" if v is None else num(v)
+    return [["Made", made], ["Size", size(info["bytes"])], ["Files", num(info["files"])], ["Databases", num(info["databases"])],
+            ["Stories stored", n(info["stories"])], ["Subscribers", n(info["subscribers"])], ["Published issues", num(info["issues"])],
+            ["Latest issue", pages.day(info["latest"]) if info.get("latest") else "None"]]
+
+
+def copy_card(copy: dict) -> str:
+    last = pages.ist(copy["last"]) if copy.get("last") else "Never from this page"
+    point = copy.get("point")
+    undo = ""
+    if point:
+        what = "the last import" if point.get("label") == "before-import" else "the last undo"
+        undo = (f'<form method="post" action="/admin/copy/undo" id="copy-undo" class="row" style="margin-top:14px"><button class="b g">Undo {what}</button>'
+                f'<span class="hint">Puts back what this server held before {what} ({pages.ist(point.get("made_at"))}).</span></form>')
+    return f"""<div class="card copy" id="copy"><h2>Keep a copy <small>everything on this server, in one file</small></h2>
+<p class="hint" style="font-size:13.5px;margin-bottom:12px">One zip with every database (subscribers, the desk, every stored story, reader counts), every issue the funnel made and the site published, the videos, pictures, podcasts, translations and logs, plus a checksum for each file. If this server is lost, set up a new one and import the file here: it comes back exactly as it was when the copy was made. Not in the file: the desk password and the keys in bought.env (R2, mail, payments, sign-in code), so keep those in your password manager. Ad accounts and bids live in Supabase, and ad and issue videos in Cloudflare R2, so they don't depend on this server.</p>
+<div class="row"><a class="b" href="/admin/copy/export" data-export>Download a copy</a><span class="hint">Last downloaded: {e(last)}</span></div>
+<h3 class="h3" style="margin-top:18px">Import a copy</h3>
+<p class="hint" style="font-size:13.5px">Choose a copy you downloaded. It is checked first; nothing changes until you confirm.</p>
+<p><input type="file" id="copy-file" accept=".zip,application/zip"></p><div id="copy-result"></div>{undo}</div>"""
+
+
 def dashboard(r: dict, flow: dict, top: list, issue_rows: list, subs: dict, server: dict, ads: dict, warnings: list, days: int, publish_hour: int,
-              publish_label: str, now: datetime, date: str) -> str:
+              publish_label: str, now: datetime, date: str, copy: dict | None = None, message: str = "", error: str = "") -> str:
+    copy = copy or {}
     series = r["series"]
     rng = "".join(f'<a href="/admin/dashboard?days={d}" class="{"on" if d == days else ""}">{d} days</a>' for d in (7, 30, 90))
     vs_yesterday = ch.num(r["today"] - r["yesterday"])
@@ -195,8 +243,8 @@ def dashboard(r: dict, flow: dict, top: list, issue_rows: list, subs: dict, serv
 <div><span>Up for</span><b>{f"{up // 86400}d {up % 86400 // 3600}h" if up >= 86400 else f"{up // 3600}h {up % 3600 // 60}m"}</b></div></div>
 <h3 class="h3">Recent jobs</h3>{table(["Job", "Status", "Started", "Took", ""], job_rows, (3,)) if job_rows else '<p class="empty">Nothing has run from here yet.</p>'}"""
 
-    body = f"""<div class="row" style="justify-content:space-between;align-items:flex-end"><div><h1>Dashboard</h1><p class="sub">Everything on Bought, as of {now.astimezone(IST).strftime("%a %d %b, %H:%M")} IST. Days are IST days; the paper goes live at {e(publish_label)}.</p></div><nav class="range" aria-label="Range">{rng}</nav></div>
-{alerts(warnings)}
+    body = f"""<div class="row" style="justify-content:space-between;align-items:flex-end"><div><h1>Dashboard</h1><p class="sub">Everything on Bought, as of {now.astimezone(IST).strftime("%a %d %b, %H:%M")} IST. Days are IST days; the paper goes live at {e(publish_label)}.</p></div><div class="row" style="margin-bottom:14px"><a class="b g" href="/admin/copy/export" data-export>Keep a copy</a><a class="b g" href="#copy">Import a copy</a><nav class="range" aria-label="Range">{rng}</nav></div></div>
+{pages.notes(message, error)}{alerts(warnings)}
 <div class="kpis">{kpis}</div>
 <div class="card"><h2>Readers per day <small>people who opened the paper, each counted once a day</small></h2><div class="legend"><span><i style="background:{ch.S1}"></i>Returning</span><span><i style="background:{ch.S2}"></i>New</span></div>{readers_chart}{readers_tbl}</div>
 <div class="two"><div class="card"><h2>When readers come <small>visits by hour, IST; the line is when the paper goes live</small></h2>{hours_chart}</div>
@@ -211,7 +259,8 @@ def dashboard(r: dict, flow: dict, top: list, issue_rows: list, subs: dict, serv
 <div class="card"><h2>Issues</h2>{issue_tbl}</div>
 <div class="card"><h2>Email</h2><div class="facts">{mail_facts}</div>{subs_chart}</div>
 <div class="card"><h2>Ads</h2>{ads_html}</div>
-<div class="card"><h2>Server</h2>{server_html}</div>"""
+<div class="card"><h2>Server</h2>{server_html}</div>
+{copy_card(copy)}<p id="copy-status" class="note toast ok" role="status" hidden></p><script>{COPY_JS}</script>"""
     return _tip_page("Dashboard", "dash", body.replace('<h3 class="h3">', '<h3 class="h3" style="font:600 15px Georgia,serif;margin:0 0 8px">'), date)
 
 

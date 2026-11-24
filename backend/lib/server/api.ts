@@ -5,7 +5,6 @@ import {
   MAX_THUMBNAIL_BYTES,
   MAX_VIDEO_BYTES,
   MAX_VIDEO_SECONDS,
-  THUMBNAIL_BUCKET,
   thumbnailMetadata,
   validUuid,
 } from '../drop-domain';
@@ -23,14 +22,21 @@ import {
   setting,
 } from './config';
 import {
+  chooseProvider,
   createCheckout,
+  stripeSession,
   trustedStripeCheckoutUrl,
   validProviderReference,
   type Topup,
 } from './providers';
 import {
+  deleteObject,
   deleteVideo,
+  getObject,
   headVideo,
+  imageKey,
+  putObject,
+  validImageKey,
   judgeProbe,
   newVideoKey,
   NOT_PLAYABLE,
@@ -54,6 +60,7 @@ import {
 import { webhook } from './webhooks';
 
 const KINDS = ['video', 'image', 'classified'] as const;
+const ROLES = ['reader', 'indie_hacker', 'founder', 'investor', 'marketer', 'student'] as const;
 const SPOTS = ['top', 'front', 'feed-a', 'half', 'feed-e', 'clip', 'cls'];
 const IMAGE_URL_SECONDS = 6 * 3600;
 const FIELD_LIMITS: Record<string, number> = {
@@ -214,12 +221,16 @@ function sameFields(a: Record<string, unknown>, b: Record<string, unknown>) {
   return stable(a) === stable(b);
 }
 
+// A checked picture in R2, as a link that stops working after IMAGE_URL_SECONDS. Never the unchecked staging copy.
 async function signedImage(path: string | null) {
   if (!path || path.endsWith('-staging')) return null;
-  const { data } = await database()
-    .storage.from(THUMBNAIL_BUCKET)
-    .createSignedUrl(path, IMAGE_URL_SECONDS);
-  return data?.signedUrl ?? null;
+  const key = imageKey(path);
+  if (!validImageKey(key)) return null;
+  try {
+    return presign('GET', key, IMAGE_URL_SECONDS);
+  } catch {
+    return null;
+  }
 }
 
 // The market hands back storage paths. The page only ever gets short-lived signed links.
@@ -231,7 +242,61 @@ async function signCreative(cre: Record<string, unknown> | undefined) {
   delete cre.image;
 }
 
+// Card top-ups need no webhook: the server asks Stripe whether each open checkout was paid and credits it through
+// the same locked function a webhook uses, so a payment can never count twice (a webhook, if set, is harmless).
+// The clock checks everyone's every 30 seconds; a buyer's own wallet refresh checks theirs at once.
+const stripeChecked = new Map<string, number>();
+async function reconcileStripe(userId?: string) {
+  if (!configuredProviders().stripe) return 0;
+  let query = database()
+    .from('bought_topups')
+    .select('id,payment_reference,created_at')
+    .eq('provider', 'stripe')
+    .eq('state', 'created')
+    .eq('checkout_state', 'ready')
+    .not('payment_reference', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(userId ? 5 : 50);
+  if (userId) query = query.eq('user_id', userId);
+  const { data, error } = await query;
+  dbError(error);
+  const since = Date.now() - 48 * 3600 * 1000; // a Checkout Session expires after 24 hours
+  let paid = 0;
+  for (const topup of data ?? []) {
+    if (new Date(topup.created_at).getTime() < since) continue;
+    if (Date.now() - (stripeChecked.get(topup.id) ?? 0) < (userId ? 4000 : 20000)) continue;
+    stripeChecked.set(topup.id, Date.now());
+    try {
+      const session = await stripeSession(topup.payment_reference);
+      if (
+        session.id !== topup.payment_reference ||
+        session.client_reference_id !== topup.id ||
+        session.payment_status !== 'paid' ||
+        !Number.isSafeInteger(session.amount_total) ||
+        typeof session.currency !== 'string'
+      )
+        continue;
+      const { error: payError } = await database().rpc('bought_ad_payment_event', {
+        p_provider: 'stripe',
+        p_event_id: `checkout:${session.id}`,
+        p_reference: session.id,
+        p_payment_id: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+        p_amount: session.amount_total,
+        p_currency: session.currency,
+        p_state: 'paid',
+      });
+      dbError(payError);
+      paid += 1;
+    } catch {
+      console.error('BOUGHT a card payment check is pending.');
+    }
+  }
+  if (stripeChecked.size > 10000) stripeChecked.clear();
+  return paid;
+}
+
 async function market(userId: string | null) {
+  if (userId) await reconcileStripe(userId).catch(() => 0);
   const { data, error } = await database().rpc('bought_ad_market', {
     p_user: userId,
   });
@@ -297,9 +362,10 @@ async function expireUnusedRecordings() {
 
 export async function tick() {
   const expiredRecordings = await expireUnusedRecordings();
+  const cardPayments = await reconcileStripe().catch(() => 0);
   const { data, error } = await database().rpc('bought_ad_tick');
   dbError(error);
-  return { ...data, expiredRecordings };
+  return { ...data, expiredRecordings, cardPayments };
 }
 
 // ---------- the desk: only the password-protected /admin server calls these ----------
@@ -385,25 +451,18 @@ async function advertiser(request: Request, path: string[]) {
   const body = await jsonBody(request);
 
   if (exactPath(path, 'ads', 'account')) {
+    // Sign-up asks a name and what describes you; nothing about payment (that comes with buying points).
     const name = typeof body.name === 'string' ? body.name.trim() : '';
-    const country = typeof body.country === 'string' ? body.country.trim() : '';
-    const gstin =
-      typeof body.gstin === 'string' ? body.gstin.trim().toUpperCase() : '';
-    if (!name || name.length > 120)
-      throw new HttpError(400, 'Add your business name.');
-    if (!country || country.length > 60)
-      throw new HttpError(400, 'Choose your country.');
-    if (gstin && !/^[0-9A-Z]{15}$/.test(gstin))
-      throw new HttpError(400, 'A GSTIN has 15 letters and digits.');
+    if (!name || name.length > 120) throw new HttpError(400, 'Add your name.');
+    if (!ROLES.includes(String(body.role) as (typeof ROLES)[number]))
+      throw new HttpError(400, 'Choose what describes you.');
     // The email is the one the sign-in proved, never the one typed into a form. Its first account gets 100 free points.
     if (!user.email) throw new HttpError(400, 'Your sign-in has no email address.');
     const { data, error } = await db.rpc('bought_ad_open_account', {
       p_user: user.id,
       p_email: user.email,
       p_name: name,
-      p_country: country,
-      p_gstin: gstin || null,
-      p_method: body.method === 'card' ? 'card' : 'upi',
+      p_role: body.role,
     });
     dbError(error);
     return json(data);
@@ -494,7 +553,10 @@ async function advertiser(request: Request, path: string[]) {
         throw new HttpError(503, 'The upload target is unavailable. Try again shortly.');
       const contentType = typeOfKey(current.video_key);
       return json({
-        url: presign('PUT', current.video_key, left, { 'content-type': contentType }),
+        url: presign('PUT', current.video_key, left, {
+          'content-type': contentType,
+          'content-length': String(size),
+        }),
         key: current.video_key,
         contentType,
       });
@@ -543,19 +605,24 @@ async function advertiser(request: Request, path: string[]) {
         { p_ad_id: ad.id, p_path: storagePath },
       );
       dbError(claimError);
-      const { data, error } = await db.storage
-        .from(THUMBNAIL_BUCKET)
-        .createSignedUploadUrl(storagePath, { upsert: true });
-      dbError(error);
-      if (!data?.token)
-        throw new HttpError(503, 'Image upload is temporarily unavailable.');
+      // A link for this ad's staging picture only, locked to the type and exact size the browser declared
+      const size = Number(body.size);
+      if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_THUMBNAIL_BYTES)
+        throw new HttpError(400, 'Upload a valid image under 10 MB.');
+      const url = presign('PUT', imageKey(storagePath), 600, {
+        'content-type': String(body.contentType),
+        'content-length': String(size),
+      });
       if (
         typeof previousPath === 'string' &&
         previousPath.startsWith(prefix) &&
-        previousPath !== storagePath
+        previousPath !== storagePath &&
+        validImageKey(imageKey(previousPath))
       )
-        await db.storage.from(THUMBNAIL_BUCKET).remove([previousPath]);
-      return json({ path: storagePath, token: data.token });
+        await deleteObject(imageKey(previousPath)).catch(() =>
+          console.error('BOUGHT replaced picture cleanup is pending.'),
+        );
+      return json({ url, contentType: body.contentType });
     }
     if (path[3] === 'submit') {
       if (['draft', 'rejected'].includes(ad.state)) {
@@ -563,13 +630,9 @@ async function advertiser(request: Request, path: string[]) {
         if (ad.thumbnail_path === stagingPath && !ad.thumbnail_verified) {
           // The bytes are checked and copied to a new immutable object, so a
           // still-valid staging token can never replace a submitted image.
-          const { data: file, error: fileError } = await db.storage
-            .from(THUMBNAIL_BUCKET)
-            .download(stagingPath);
-          dbError(fileError);
-          if (!file || file.size === 0 || file.size > MAX_THUMBNAIL_BYTES)
+          const bytes = await getObject(imageKey(stagingPath), MAX_THUMBNAIL_BYTES);
+          if (!bytes || bytes.length === 0)
             throw new HttpError(400, 'Upload a valid image under 10 MB.');
-          const bytes = new Uint8Array(await file.arrayBuffer());
           const meta = thumbnailMetadata(bytes);
           if (!meta || meta.width < 240 || meta.height < 240)
             throw new HttpError(
@@ -583,14 +646,7 @@ async function advertiser(request: Request, path: string[]) {
                 ? 'png'
                 : 'webp';
           const verifiedPath = `${user.id}/${ad.id}/verified-${crypto.randomUUID()}.${extension}`;
-          const { error: uploadError } = await db.storage
-            .from(THUMBNAIL_BUCKET)
-            .upload(verifiedPath, bytes, {
-              cacheControl: '31536000',
-              contentType: meta.mime,
-              upsert: false,
-            });
-          dbError(uploadError);
+          await putObject(imageKey(verifiedPath), bytes, meta.mime);
           const { data: changed, error: updateError } = await db
             .from('bought_ads')
             .update({ thumbnail_path: verifiedPath, thumbnail_verified: true })
@@ -600,11 +656,13 @@ async function advertiser(request: Request, path: string[]) {
             .in('state', ['draft', 'rejected'])
             .select('id');
           if (updateError || !changed?.length) {
-            await db.storage.from(THUMBNAIL_BUCKET).remove([verifiedPath]);
+            await deleteObject(imageKey(verifiedPath)).catch(() => {});
             dbError(updateError);
             throw new HttpError(409, 'The image changed. Refresh and try again.');
           }
-          await db.storage.from(THUMBNAIL_BUCKET).remove([stagingPath]);
+          await deleteObject(imageKey(stagingPath)).catch(() =>
+            console.error('BOUGHT staging picture cleanup is pending.'),
+          );
         }
       }
       const { error } = await db.rpc('bought_ad_submit', { p_ad_id: ad.id });
@@ -661,15 +719,10 @@ async function advertiser(request: Request, path: string[]) {
     dbError(acctError);
     if (!acct) throw new HttpError(400, 'Add your business details first.');
     const gst = acct.country === 'India' ? 0.18 : 0;
-    const method = body.method === 'card' ? 'card' : 'upi';
-    const provider = method === 'card' ? 'stripe' : 'razorpay';
-    if (!configuredProviders()[provider])
-      throw new HttpError(
-        503,
-        method === 'card'
-          ? 'Card payments are not available yet.'
-          : 'UPI payments are not available yet.',
-      );
+    const chosen = chooseProvider(body.method, configuredProviders());
+    if (!chosen)
+      throw new HttpError(503, 'Buying points opens soon. Your free points are ready to bid.');
+    const { provider, method } = chosen;
     // UPI only settles in rupees, so Razorpay charges INR at the rate you set. Stripe charges USD.
     let charge = Math.round(points * 100 * (1 + gst));
     let currency: 'USD' | 'INR' = 'USD';

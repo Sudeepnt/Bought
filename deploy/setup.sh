@@ -17,7 +17,7 @@ say() { printf '\n== %s\n' "$*"; }
 
 say "system packages"
 apt-get update -qq
-apt-get install -y -qq python3 python3-venv python3-dev ffmpeg git curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https brotli sqlite3 \
+apt-get install -y -qq python3 python3-venv python3-dev ffmpeg potrace git curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https brotli sqlite3 \
   ufw fail2ban unattended-upgrades qrencode >/dev/null
 if ! command -v node >/dev/null || ! node -e 'process.exit(+process.versions.node.split(".")[0] >= 22 ? 0 : 1)'; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
@@ -89,9 +89,11 @@ say "python: voice and translation models' runtime"
 as_bought "$MODELS/tts/venv/bin/pip" install -q --upgrade pip
 as_bought "$MODELS/tts/venv/bin/pip" install -q -r pipeline/requirements-models.lock
 
-say "node: video renderer, ads backend, Chromium"
+say "node: the explainer renderer, ads backend, the page (web/, Next.js), Chromium"
 as_bought npm ci --no-audit --no-fund
 as_bought npm --prefix backend ci --no-audit --no-fund
+as_bought npm --prefix web ci --no-audit --no-fund
+as_bought env NEXT_TELEMETRY_DISABLED=1 npm --prefix web run build    # without a build the server keeps serving public/index.html
 npx --yes playwright-core install-deps chromium >/dev/null
 as_bought npx playwright-core install chromium
 

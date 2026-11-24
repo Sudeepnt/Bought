@@ -1,0 +1,38 @@
+{
+ "id": "map-room",
+ "n": 12,
+ "name": "Map Room",
+ "description": "Sand chart paper. Coastlines, a cut undersea cable, a speed gauge and a repair ship.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "rule-left",
+  "16x9": "rule-left"
+ },
+ "tokens": {
+  "--bg": "repeating-linear-gradient(0deg,rgba(92,82,70,.06) 0 1px,transparent 1px 6cqw),#efe6d6",
+  "--bg-solid": "#efe6d6",
+  "--ink": "#2a2723",
+  "--mute": "#7c766b",
+  "--line": "#5c5246",
+  "--acc": "#b4432b",
+  "--accink": "#fff",
+  "--mark": "#b4432b",
+  "--markink": "#fff",
+  "--card": "#f8f2e6",
+  "--cardline": "#d2c5ad",
+  "--cardrad": "0",
+  "--headfont": "var(--head)",
+  "--capfont": "var(--head)",
+  "--capsize": "5.2cqw",
+  "--capweight": "600"
+ },
+ "css": [
+  "& .cap{text-align:left;margin:0 6cqw 8cqw;padding:0 0 0 4cqw;border-left:1.2cqw solid var(--acc)}",
+  "&.w .cap{margin:0 3.6cqw 2.6cqw;padding:0 0 0 1.6cqw;border-left-width:.6cqw;text-align:left}"
+ ]
+}

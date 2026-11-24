@@ -1,7 +1,7 @@
 /* Bought. Daily: loads a published issue into the page. The funnel writes issues/index.json and issues/<date>/issue.json (pipeline/funnel/publish.py). */
 
 let PUBLISH_LABEL="06:00 UTC", ISSUES=[], LATEST=null, PODCAST=null, ISSUE_STATS=null, ISSUE_META=null, LANG="en";
-const getJSON=async u=>{const r=await fetch(u,{cache:"no-cache"});if(!r.ok)throw new Error(u+" "+r.status);return r.json()};
+const getJSON=async u=>{const b=booted(u);if(b!==undefined)return b;const r=await fetch(u,{cache:"no-cache"});if(!r.ok)throw new Error(u+" "+r.status);return r.json()};
 const clearObj=o=>Object.keys(o).forEach(k=>delete o[k]);
 const Data={
  /* the list of issues, then the newest (or the one a shared link asks for) */

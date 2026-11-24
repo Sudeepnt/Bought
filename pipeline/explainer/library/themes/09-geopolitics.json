@@ -1,0 +1,33 @@
+{
+ "id": "geopolitics",
+ "n": 9,
+ "name": "Geopolitics",
+ "description": "Plum night with a map grid and a coral highlight.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "standard",
+  "16x9": "standard"
+ },
+ "tokens": {
+  "--bg": "repeating-linear-gradient(0deg,rgba(205,133,173,.07) 0 1px,transparent 1px 9cqw),repeating-linear-gradient(90deg,rgba(205,133,173,.07) 0 1px,transparent 1px 9cqw),radial-gradient(90% 60% at 50% 40%,#3a1f30,#1d0f18)",
+  "--bg-solid": "#2a1622",
+  "--ink": "#f6e6ef",
+  "--mute": "#c99bb4",
+  "--line": "#cd85ad",
+  "--acc": "#ff9f7a",
+  "--accink": "#24141e",
+  "--mark": "#ff9f7a",
+  "--markink": "#24141e",
+  "--card": "rgba(205,133,173,.08)",
+  "--cardline": "rgba(205,133,173,.35)",
+  "--capfont": "var(--ui)",
+  "--capsize": "4.8cqw",
+  "--capweight": "500"
+ },
+ "css": []
+}

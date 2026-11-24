@@ -1,0 +1,46 @@
+{
+ "id": "launch-day",
+ "n": 8,
+ "name": "Launch Day",
+ "description": "Friday's red. The headline sits on top in big Fraunces.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "headline-top",
+  "16x9": "headline-top"
+ },
+ "tokens": {
+  "--bg": "repeating-linear-gradient(135deg,rgba(255,255,255,.04) 0 2cqw,transparent 2cqw 4cqw),#a6443a",
+  "--bg-solid": "#a6443a",
+  "--ink": "#fff6ee",
+  "--mute": "#ffd9cc",
+  "--line": "#fff6ee",
+  "--acc": "#ffd36b",
+  "--accink": "#2a1210",
+  "--mark": "#2a2723",
+  "--markink": "#fff6ee",
+  "--card": "#fff6ee",
+  "--cardline": "#fff6ee",
+  "--cardink": "#2a2723",
+  "--cardmute": "#7c5a50",
+  "--brand": "#fff6ee",
+  "--capfont": "var(--disp)",
+  "--capsize": "7cqw",
+  "--capweight": "700"
+ },
+ "css": [
+  "& .in{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto 1fr auto}",
+  "& .cap{order:0;grid-row:3;padding:4cqw 6cqw 0;text-align:left}",
+  "& .cap span{letter-spacing:-.02em;line-height:1.05}",
+  "& .card{grid-row:5;margin:0 4.5cqw 8cqw}",
+  "& .stage{grid-row:4}",
+  "&.w .cap{grid-column:1;grid-row:2;align-self:start;text-align:left;padding:2.4cqw 2cqw 0 3.6cqw}",
+  "&.w .cap span{font-size:calc(var(--capsize) * .5)}",
+  "&.w .card{align-self:end;margin-bottom:3cqw}",
+  "&.w.nc .stage{grid-column:2}"
+ ]
+}

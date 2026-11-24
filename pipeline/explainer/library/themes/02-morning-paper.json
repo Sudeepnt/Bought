@@ -1,0 +1,38 @@
+{
+ "id": "morning-paper",
+ "n": 2,
+ "name": "Morning Paper",
+ "description": "Day mode: the cream page, ink lines, brick red, serif captions between thin rules.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "ruled",
+  "16x9": "ruled"
+ },
+ "tokens": {
+  "--bg": "#fcf9f2",
+  "--bg-solid": "#fcf9f2",
+  "--ink": "#2a2723",
+  "--mute": "#7c766b",
+  "--line": "#4a453e",
+  "--acc": "#b4432b",
+  "--accink": "#fff",
+  "--mark": "#f3e6c2",
+  "--markink": "#2a2723",
+  "--card": "transparent",
+  "--cardline": "#d2c9b7",
+  "--cardrad": "0",
+  "--headfont": "var(--head)",
+  "--capfont": "var(--head)",
+  "--capsize": "5.4cqw",
+  "--capweight": "500"
+ },
+ "css": [
+  "& .card{border-width:1px 0}",
+  "& .qbig{border-left-width:.6cqw}"
+ ]
+}

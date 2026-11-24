@@ -3,7 +3,7 @@ export const MAX_RUN_SECONDS = 60;
 export const MAX_VIDEO_SECONDS = 600;
 export const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 export const MAX_THUMBNAIL_BYTES = 10 * 1024 * 1024;
-export const THUMBNAIL_BUCKET = 'ad-images';
+
 
 export function validUuid(value: unknown): value is string {
   return (

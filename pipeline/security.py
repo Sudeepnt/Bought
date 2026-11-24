@@ -17,9 +17,9 @@ import threading
 import time
 
 # ---------- Content Security Policy ----------
-# The site runs only its own scripts. Outside it talks to: Supabase (advertiser sign-in, pictures), Cloudflare R2 (the issue's
-# videos, posters and podcast from the public bucket address; ad videos uploaded to and played from short-lived signed links on
-# the account's storage address), Razorpay (UPI checkout window). Stripe is a full-page redirect, which CSP leaves alone.
+# The site runs only its own scripts. Outside it talks to: Supabase (advertiser sign-in), Cloudflare R2 (the issue's
+# videos, posters and podcast from the public bucket address; ad videos and pictures uploaded to and shown from short-lived
+# signed links on the account's storage address), Razorpay (UPI checkout window). Stripe is a full-page redirect, which CSP leaves alone.
 SHARE_REDIRECT = re.compile(r'^location\.replace\("[^"<>\\]*"\);$')
 INLINE_SCRIPT = re.compile(r"<script>(.*?)</script>", re.S)
 
@@ -56,7 +56,7 @@ def site_csp(supabase_url: str | None, https: bool, inline=(), r2=None) -> str:
         "default-src": ["'self'"],
         "script-src": ["'self'", "https://checkout.razorpay.com", *inline],
         "style-src": ["'self'", "'unsafe-inline'"],             # the page sets colours in style attributes; no script can run from CSS
-        "img-src": ["'self'", "data:", "blob:", *sb[:1], *pub],
+        "img-src": ["'self'", "data:", "blob:", *pub, *store],      # ad pictures: short-lived signed R2 links
         "media-src": ["'self'", "blob:", *pub, *store],
         "font-src": ["'self'"],
         "connect-src": ["'self'", *sb, *store,

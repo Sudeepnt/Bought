@@ -13,6 +13,8 @@ create table public.bought_accounts (
  user_id uuid primary key references auth.users(id),
  name text not null check (char_length(name) between 1 and 120),
  email text not null check (char_length(email) between 3 and 254),
+ role text not null default 'reader' check (role in ('reader','indie_hacker','founder','investor','marketer','student')),
+ -- billing details: not asked at sign-in; the buy-points step will ask them once payments are on
  country text not null default 'India' check (char_length(country) between 2 and 60),
  gstin text check (gstin is null or gstin ~ '^[0-9A-Z]{15}$'),
  method text not null default 'upi' check (method in ('upi','card')),
@@ -217,10 +219,6 @@ grant all on public.bought_accounts, public.bought_ad_bonus, public.bought_ad_sp
  public.bought_issue_spots, public.bought_ad_bids, public.bought_ad_log, public.bought_wallet_tx, public.bought_topups,
  public.bought_withdrawals, public.bought_ad_webhook_events, public.bought_ad_results, public.bought_ad_notices
  to service_role;
-
-insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
-values ('ad-images','ad-images',false,10485760,array['image/jpeg','image/png','image/webp'])
-on conflict (id) do nothing;
 
 -- ---------- times and prices ----------
 -- The issue goes live at 06:00 UTC on its day (the desk's publish time). Bidding closes 15 minutes before,
@@ -682,7 +680,8 @@ begin
  return true;
 end $$;
 
--- Only a signed provider event adds points. Amount, currency and reference must match the saved top-up.
+-- Only the provider adds points: a signed webhook, or the server's own check of a Stripe Checkout Session with the
+-- secret key. Amount, currency and reference must match the saved top-up, and a top-up is credited once at most.
 create function public.bought_ad_payment_event(p_provider text, p_event_id text, p_reference text, p_payment_id text, p_amount bigint, p_currency text, p_state text)
 returns void language plpgsql set search_path = '' set lock_timeout = '5s' as $$
 declare d public.bought_topups; acct public.bought_accounts;
@@ -713,13 +712,15 @@ begin
 end $$;
 
 -- The account step. The first time an email opens an account it gets 100 free points; never again for that email.
-create function public.bought_ad_open_account(p_user uuid, p_email text, p_name text, p_country text, p_gstin text, p_method text) returns jsonb
+-- Sign-up asks only a name and what describes you. 'bonus' says whether this call gave the 100 free points
+-- (once per email), so the page can welcome a new account.
+create function public.bought_ad_open_account(p_user uuid, p_email text, p_name text, p_role text) returns jsonb
 language plpgsql set search_path = '' set lock_timeout = '5s' as $$
 declare acct public.bought_accounts; e text := lower(trim(p_email)); gift boolean := false;
 begin
- insert into public.bought_accounts(user_id, name, email, country, gstin, method)
- values (p_user, p_name, e, p_country, p_gstin, p_method)
- on conflict (user_id) do update set name = excluded.name, country = excluded.country, gstin = excluded.gstin, method = excluded.method;
+ insert into public.bought_accounts(user_id, name, email, role)
+ values (p_user, p_name, e, p_role)
+ on conflict (user_id) do update set name = excluded.name, role = excluded.role;
  insert into public.bought_ad_bonus(email, user_id) values (e, p_user) on conflict do nothing;
  if found then
   gift := true;
@@ -796,7 +797,7 @@ begin
  if p_user is not null then
   select * into acct from public.bought_accounts where user_id = p_user;
   mine := jsonb_build_object(
-   'acct', case when acct.user_id is null then null else jsonb_build_object('name',acct.name,'email',acct.email,'country',acct.country,'gstin',acct.gstin,'method',acct.method) end,
+   'acct', case when acct.user_id is null then null else jsonb_build_object('name',acct.name,'email',acct.email,'role',acct.role,'country',acct.country,'gstin',acct.gstin,'method',acct.method) end,
    'balance', coalesce(acct.balance_minor,0),
    'free', coalesce(acct.free_minor,0),
    'tx', (select coalesce(jsonb_agg(jsonb_build_object('t',x.at,'kind',x.kind,'amt',x.amount_minor,'label',x.label,'bal',x.balance_after) order by x.id desc),'[]'::jsonb)

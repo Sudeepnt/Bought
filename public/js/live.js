@@ -2,10 +2,10 @@
    Until every key is set, /api/bought/config says live:false and auction.js keeps its local simulation.
    When live, the server owns every number: this file only mirrors its market into AU and sends the page's buttons to it. */
 const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bought-notice-seen",0),polls:0,
- client(){return Live.lib||(Live.lib=import("./live/client.js?v=13"))},
+ client(){return Live.lib||(Live.lib=import("./live/client.js?v=16"))},
  async boot(){
-  let cfg=null;
-  try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),2500);const r=await fetch("api/bought/config",{signal:c.signal,cache:"no-store"});clearTimeout(tm);if(r.ok)cfg=await r.json()}catch{}
+  let cfg=booted("api/bought/config")||null;
+  if(!cfg)try{const c=new AbortController(),tm=setTimeout(()=>c.abort(),2500);const r=await fetch("api/bought/config",{signal:c.signal,cache:"no-store"});clearTimeout(tm);if(r.ok)cfg=await r.json()}catch{}
   if(!cfg||!cfg.live)return false;
   Live.cfg=cfg;Live.on=true;
   try{
@@ -30,7 +30,7 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
   Live.polls++;
   if(force===true||VIEW==="advertise"||(Live.user&&Live.polls%3===0))Live.sync().then(()=>{Adv.refresh();Wallet.render()}).catch(()=>{});
  },
- async sync(){const lib=await Live.client();Live.user=await lib.signedIn();Live.apply(await lib.api("ads/market"))},
+ async sync(){const lib=await Live.client();Live.user=await lib.signedIn();Live.apply(await lib.api("ads/market"));Me.paint()},
  /* the server counts points in hundredths; the page counts whole points */
  cre(raw,adv){
   if(!raw)return {adv};
@@ -147,15 +147,15 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
  async signinStep(st){const lib=await Live.client();await lib.sendCode(st.acct.email);return true},
  async verifyStep(st){
   const lib=await Live.client(),code=($("b-code")?.value||"").trim();
-  if(!/^\d{4,10}$/.test(code))throw new Error("Enter the code from your email.");
-  await lib.verifyCode(st.acct.email,code);
+  if(!new RegExp(`^\\d{${OTP_LEN}}$`).test(code))throw new Error(`Enter all ${OTP_LEN} digits of the code.`);
+  try{await lib.verifyCode(st.acct.email,code)}catch(e){throw new Error(/expired|invalid/i.test(e?.message||"")?"That code is wrong or has expired. Check the latest email or send a new code.":(e?.message||"Couldn't check the code. Try again."))}
   Live.user=true;await Live.sync();
  },
- async google(){
+ async oauth(provider){
   const st=Bid.st;if(!st||st.waiting)return;
-  st.err="";st.waiting=true;Bid.render();
+  st.err="";st.waiting=provider;Bid.render();
   try{
-   const lib=await Live.client(),ok=await lib.googleSignIn();
+   const lib=await Live.client(),ok=await lib.oauthSignIn(provider);
    st.waiting=false;
    if(!ok){if(Bid.st===st)Bid.render();return}
    Live.user=true;await Live.sync();await Live.afterSignIn(st);
@@ -163,20 +163,20 @@ const Live={on:false,user:false,lib:null,cfg:null,local:{},seen:store.get("bough
  },
  cancelGoogle(){Live.client().then(l=>l.cancelGoogle()).catch(()=>{})},
  /* signed in: a returning advertiser keeps the details on file and skips that step; a new one starts from their email */
+ /* signed in (code, Google or Facebook): a returning advertiser skips "About you" */
  async afterSignIn(st){
   const lib=await Live.client();Live.email=await lib.userEmail().catch(()=>null);
-  if(AU.acct)st.acct={...AU.acct};else if(Live.email&&!st.acct.email)st.acct.email=Live.email;
-  const at=st.steps.indexOf("signin");
-  st.steps=st.steps.filter(s=>s!=="signin"&&s!=="verify"&&!(s==="acct"&&AU.acct));st.i=Math.max(0,at);st.err="";
+  if(Live.email)st.acct.email=Live.email;
   Live.resume();
-  if(st.gate&&st.i>=st.steps.length){const after=st.gate;Sheet.close();after();return}
-  if(Bid.st===st)Bid.render();
+  Bid.afterCode(st,!!AU.acct);
  },
- async accountStep(st){const lib=await Live.client();await lib.api("ads/account",st.acct);await Live.sync();return true},
+ async accountStep(st){const lib=await Live.client(),r=await lib.api("ads/account",{name:st.acct.name,role:st.acct.role});await Live.sync();return !!r.bonus},
  gate(after){
   const steps=Live.user?["acct"]:["signin","verify","acct"];
-  Bid.open({k:"top",steps,i:0,dates:new Set(),mode:"exact",same:true,one:null,per:{},cre:defCre("top"),acct:{name:"",email:"",country:"India",gstin:"",method:"upi"},gate:after,err:""});
+  Bid.open({k:"top",steps,i:0,dates:new Set(),mode:"exact",same:true,one:null,per:{},cre:defCre("top"),acct:{name:"",email:"",role:""},gate:after,err:""});
  },
+ /* points can be bought only once the backend has a payment provider (Stripe and/or Razorpay) */
+ canBuy(){const p=Live.on&&Live.cfg&&Live.cfg.providers;return !!(p&&(p.stripe||p.razorpay))},
  async topup(btn,amt,method){
   const reset=btn.textContent;
   try{

@@ -10,7 +10,7 @@ from pipeline import r2
 from pipeline import security as sec
 from pipeline import share_pages
 from pipeline.funnel import publish as fp
-from pipeline.tests.test_publish import item
+from pipeline.tests.test_publish import explainer_files, item
 
 PUB = "https://media.bought.test"
 
@@ -62,8 +62,7 @@ class FakeBucket:
 def issue(tmp_path, with_podcast=True):
     base = tmp_path / "out" / "issues" / "2026-11-05"
     (base / "media").mkdir(parents=True)
-    (base / "media" / "id1.mp4").write_bytes(b"video-bytes")
-    (base / "media" / "id1.jpg").write_bytes(b"poster-bytes")
+    explainer_files(base)
     if with_podcast:
         (base / "media" / "podcast.mp3").write_bytes(b"mp3")
         (base / "media" / "podcast.json").write_text(json.dumps({"duration_s": 3, "chapters": []}))
@@ -87,25 +86,27 @@ def test_publish_puts_videos_posters_and_podcast_on_r2_and_points_readers_there(
     monkeypatch.setenv("R2_PUBLIC_URL", PUB + "/")
     issue(tmp_path)
     pub = tmp_path / "public" / "issues" / "2026-11-05"
-    (pub / "media").mkdir(parents=True)
-    (pub / "media" / "id1.mp4").write_bytes(b"an old local copy")
+    (pub / "explainers" / "id1").mkdir(parents=True)
+    (pub / "explainers" / "id1" / "16x9.mp4").write_bytes(b"an old local copy")
     bucket = FakeBucket()
     res = run(tmp_path, bucket)
     assert res["media"] == "r2"
-    assert sorted(bucket.puts) == ["issues/2026-11-05/media/id1.jpg", "issues/2026-11-05/media/id1.mp4", "issues/2026-11-05/media/podcast.mp3"]
+    ex = "issues/2026-11-05/explainers/id1"
+    assert sorted(bucket.puts) == sorted([f"{ex}/{n}" for n in ("16x9.mp4", "16x9.jpg", "9x16.mp4", "9x16.jpg", "captions.vtt", "plan.json")] + ["issues/2026-11-05/media/podcast.mp3"])
     page = json.loads((pub / "issue.json").read_text())
     lead = page["stories"][0]
-    assert lead["video"].startswith(PUB + "/issues/2026-11-05/media/id1.mp4?v=") and lead["poster"].startswith(PUB + "/issues/2026-11-05/media/id1.jpg?v=")
+    assert lead["video"].startswith(f"{PUB}/{ex}/16x9.mp4?v=") and lead["poster"].startswith(f"{PUB}/{ex}/16x9.jpg?v=")
+    assert lead["reel"].startswith(f"{PUB}/{ex}/9x16.mp4?v=") and lead["reel_poster"].startswith(f"{PUB}/{ex}/9x16.jpg?v=")
     assert page["podcast"]["audio_url"].startswith(PUB + "/issues/2026-11-05/media/podcast.mp3?v=")
-    assert not (pub / "media" / "id1.mp4").exists(), "the site's copy goes: readers get it from R2"
+    assert not (pub / "explainers" / "id1" / "16x9.mp4").exists(), "the site's copy goes: readers get it from R2"
     assert page["stories"][1]["picture"] == "issues/2026-11-05/media/id2.jpg" and (pub / "media" / "id2.jpg").exists(), "card pictures stay on the site"
     # a rerun uploads nothing that did not change; a changed file goes up again
     bucket.puts.clear()
     run(tmp_path, bucket)
     assert bucket.puts == []
-    (tmp_path / "out/issues/2026-11-05/media/id1.mp4").write_bytes(b"a recut video")
+    (tmp_path / "out/issues/2026-11-05/explainers/id1/16x9.mp4").write_bytes(b"a recut video")
     run(tmp_path, bucket)
-    assert bucket.puts == ["issues/2026-11-05/media/id1.mp4"]
+    assert bucket.puts == [f"{ex}/16x9.mp4"]
 
 
 def test_publish_without_r2_copies_media_into_the_site_as_before(tmp_path):
@@ -113,8 +114,8 @@ def test_publish_without_r2_copies_media_into_the_site_as_before(tmp_path):
     res = run(tmp_path, None)
     pub = tmp_path / "public" / "issues" / "2026-11-05"
     page = json.loads((pub / "issue.json").read_text())
-    assert res["media"] == "site" and page["stories"][0]["video"].startswith("issues/2026-11-05/media/id1.mp4?v=")
-    assert (pub / "media" / "id1.mp4").exists() and (pub / "media" / "podcast.mp3").exists()
+    assert res["media"] == "site" and page["stories"][0]["video"].startswith("issues/2026-11-05/explainers/id1/16x9.mp4?v=")
+    assert (pub / "explainers" / "id1" / "16x9.mp4").exists() and (pub / "media" / "podcast.mp3").exists()
 
 
 def test_share_pages_link_the_video_wherever_it_lives():
@@ -129,6 +130,7 @@ def test_csp_allows_the_bucket_and_nothing_that_is_not_a_plain_origin():
     csp = sec.site_csp("https://abc.supabase.co", True, r2=(pub, store))
     rules = dict(part.split(" ", 1) for part in csp.split("; ") if " " in part)
     assert PUB in rules["media-src"] and PUB in rules["img-src"] and store[0] in rules["media-src"] and store[0] in rules["connect-src"]
+    assert store[0] in rules["img-src"] and "supabase" not in rules["img-src"]    # ad pictures come from R2, never Supabase Storage
     assert "mux" not in csp and "googleapis" not in csp
     for bad in ({"R2_PUBLIC_URL": "http://insecure.test"}, {"R2_PUBLIC_URL": "https://x.test; script-src *"}, {"R2_PUBLIC_URL": "https://x.test/path"},
                 {"R2_ACCOUNT_ID": "not-an-account; x"}, {}):
@@ -137,3 +139,17 @@ def test_csp_allows_the_bucket_and_nothing_that_is_not_a_plain_origin():
     # until advertising is connected (Supabase), the account's storage address is not published at all
     quiet = sec.site_csp(None, True, r2=(pub, store))
     assert store[0] not in quiet and PUB in quiet
+
+
+def test_a_held_explainer_goes_out_without_its_video(tmp_path, monkeypatch):
+    import sqlite3
+    monkeypatch.setenv("R2_PUBLIC_URL", PUB)
+    issue(tmp_path)
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE explainers (issue TEXT, article_id TEXT, decision TEXT)")
+    conn.execute("CREATE TABLE articles (id TEXT, status TEXT, reject_reason TEXT)")
+    conn.execute("INSERT INTO explainers VALUES ('2026-11-05', 'id1', 'hold')")
+    bucket = FakeBucket()
+    fp.publish(SimpleNamespace(user_agent="t"), "2026-11-05", conn, 2, out_root=tmp_path / "out", public_root=tmp_path / "public", fetch=fetch_picture, build_share=False, media=bucket)
+    page = json.loads((tmp_path / "public/issues/2026-11-05/issue.json").read_text())
+    assert not page["stories"][0].get("video") and not page["clips"] and not any("explainers" in k for k in bucket.puts)

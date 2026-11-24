@@ -63,15 +63,6 @@ def cmd_show(args) -> int:
     return 0
 
 
-def cmd_clip(args) -> int:
-    from .clip import make_clip
-    cfg = load_config(args.config)
-    res = make_clip(args.spec, cfg, dry_run=args.dry_run)
-    print(f"clip: {res['mp4']} ({res['duration_s']}s)" + (f" -> attached to feed item {res['attached_to']}" if res["attached_to"] else ""))
-    print(f"laughs at {res['laughs']} | cutaways at {res['cutaways']}")
-    return 0
-
-
 def cmd_badges(args) -> int:
     """Recompute the badges on the current feed.json from the latest engagement counts (cheap: no ingest, no media)."""
     import json
@@ -170,8 +161,9 @@ def cmd_funnel(args) -> int:
             fetcher.close()
         issue = fi.cut_list(conn, cfg, date, ids, now, sources)
         clock = dk.publish_label(dk.get_settings(desk))
+        quiet = lambda: dk.wait_quiet(desk, date)  # readers first: renders wait out the reader hours unless the issue is due soon
         for _ in range(3):                         # a time budget can defer stories: go again, finished stages are skipped
-            res = fi.build_issue(conn, cfg, date, issue, limit=args.limit, clock=clock)
+            res = fi.build_issue(conn, cfg, date, issue, limit=args.limit, clock=clock, wait_quiet=quiet)
             print(f"issue {date}: " + ", ".join(f"{k} {v}" for k, v in res.items()), flush=True)
             if not res["deferred"]:
                 break
@@ -204,6 +196,35 @@ def cmd_funnel(args) -> int:
     return 0
 
 
+def cmd_explainer(args) -> int:
+    """The explainer engine: the library, portraits, and re-rendering one story. See pipeline/explainer/README.md."""
+    import json
+    from .explainer import library
+    if args.action == "catalogue":
+        cat = library.catalogue()
+        print(f"objects {len(cat['objects'])} | templates {len(cat['templates'])} | themes {len(cat['themes'])} | portraits {len(cat['portraits'])}")
+        return 0
+    if args.action == "portrait":
+        from .explainer import portraits
+        if args.what != "add" or not args.image:
+            raise ConfigError("usage: explainer portrait add IMAGE --name NAME --source URL --author AUTHOR --license LICENCE")
+        meta = portraits.add(args.image, args.name, args.source or "", args.author or "", args.license or "", args.license_url or "",
+                             aliases=[a for a in (args.alias or []) if a])
+        print(f"portrait {meta['slug']}: {meta['attribution']}")
+        return 0
+    if args.action == "rerender":
+        from . import desk as dk
+        from .explainer import rerender
+        res = rerender.run(load_config(args.config), args.issue, args.story, theme=args.theme, rules=args.rules, sources=load_sources(args.sources or ROOT / "sources.live.yaml"))
+        print(json.dumps(res), flush=True)
+        return 0 if res.get("ok") else 1
+    if args.action == "sample":
+        from .explainer import sample
+        print(json.dumps(sample.run(load_config(args.config), args.theme, args.out, real_voice=not args.silent)), flush=True)
+        return 0
+    raise ConfigError(f"unknown action {args.action}")
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="python -m pipeline", description=__doc__)
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -213,9 +234,6 @@ def main(argv=None) -> int:
     _add_common(sub.add_parser("translate", help="translate the stories for the language picker"))
     _add_common(sub.add_parser("badges", help="refresh the story badges from the latest engagement counts"))
     _add_common(sub.add_parser("podcast", help="narrate every story into one episode (uses the existing feed.json)"))
-    pc = sub.add_parser("clip", help="render a produced clip from a spec file (see pipeline/clips/)")
-    pc.add_argument("spec")
-    _add_common(pc)
     pf = sub.add_parser("funnel", help="source -> video: intake, freeze an issue, images, voice, render, gate")
     pf.add_argument("step", choices=["run", "intake", "build", "prepare", "publish", "podcast", "translate", "languages", "status", "schema"])
     pf.add_argument("--issue", help="issue date YYYY-MM-DD (default: today in IST)")
@@ -224,6 +242,23 @@ def main(argv=None) -> int:
     pf.add_argument("--langs", help="translate only these picker locales, comma separated, e.g. hi-IN,kn")
     pf.add_argument("--no-audio", action="store_true", help="prepare: skip the audio episode")
     _add_common(pf)
+    pe = sub.add_parser("explainer", help="the explainer engine: catalogue, portrait add, rerender, sample")
+    pe.add_argument("action", choices=["catalogue", "portrait", "rerender", "sample"])
+    pe.add_argument("what", nargs="?", help="portrait: add")
+    pe.add_argument("image", nargs="?", help="portrait add: the photo")
+    pe.add_argument("--name", help="portrait: the person's name")
+    pe.add_argument("--alias", action="append", help="portrait: another name they are known by")
+    pe.add_argument("--source", help="portrait: the photo's page (e.g. its Wikimedia Commons file page)")
+    pe.add_argument("--author", help="portrait: who took the photo")
+    pe.add_argument("--license", help="portrait: e.g. CC BY-SA 4.0, CC0, public domain")
+    pe.add_argument("--license-url", help="portrait: link to the licence")
+    pe.add_argument("--issue", help="rerender: issue date")
+    pe.add_argument("--story", help="rerender: story id")
+    pe.add_argument("--theme", help="rerender / sample: theme id")
+    pe.add_argument("--rules", action="store_true", help="rerender: use the plan made by rules instead of the AI's")
+    pe.add_argument("--out", help="sample: folder for the sample video")
+    pe.add_argument("--silent", action="store_true", help="sample: no voice (no Kokoro needed)")
+    _add_common(pe)
     ps = sub.add_parser("serve", help="the site, /admin, subscribing and the publish clock")
     ps.add_argument("--host", default="127.0.0.1")
     ps.add_argument("--port", type=int, default=8000)
@@ -235,7 +270,7 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
-        return {"run": cmd_run, "show": cmd_show, "clip": cmd_clip, "podcast": cmd_podcast, "badges": cmd_badges, "translate": cmd_translate, "funnel": cmd_funnel, "serve": cmd_serve}[args.cmd](args)
+        return {"run": cmd_run, "show": cmd_show, "podcast": cmd_podcast, "badges": cmd_badges, "translate": cmd_translate, "funnel": cmd_funnel, "explainer": cmd_explainer, "serve": cmd_serve}[args.cmd](args)
     except ConfigError as e:
         print(f"config error: {e}", file=sys.stderr)
         return 2

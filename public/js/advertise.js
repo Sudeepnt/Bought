@@ -78,14 +78,20 @@ function panelHTML(d,k){
   <div class="spp-hist"><h4>${k==="cls"?`Current top ${SPOTS.cls.seats}`:"Recent bids"}</h4>${hist?`<ul>${hist}</ul>`:`<p class="hint">No bids yet. Be first at the reserve price.</p>`}<small>Bidders stay anonymous until close.</small></div>
   <details class="spp-spec"${ADV.specOpen?" open":""}><summary>Format and specs</summary><ul>${f.spec.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></details>`;
 }
+/* today's issue, once its bidding has closed: stays in the row, blurred and stamped sold out, until midnight IST */
+const soldDay=()=>{const t=istISO(now());return AU.dates.length&&t<AU.dates[0]?t:null};
+function soldHTML(){
+ const x=soldDay();if(!x)return "";const T=THEMES[wdOf(x)];
+ return `<button type="button" role="tab" class="sold" disabled aria-disabled="true" aria-selected="false" aria-label="${dayShort(x)} issue: sold out. Today's paper is out." style="--th:${T.hue}"><span class="dw">${new Date(x+"T00:00:00Z").toLocaleDateString("en-GB",{weekday:"short",timeZone:"UTC"})}</span><span class="dd">${dayNum(x)}</span><span class="dt">${T.short}</span><span class="dc">In today's paper</span><span class="sold-tag" aria-hidden="true">Sold out</span></button>`;
+}
 function spotsHTML(){
  const d=ADV.date, d0=AU.dates[0];
  return `<section class="adv-hero rv"><span class="eyebrow">Bought. Ads</span>
   <h1>Buy a spot in the paper. <span>Only the winner pays.</span></h1>
   <p>Every spot in every issue is its own live auction. Bid, upload a short video of yourself, and if yours is the highest bid at close, it runs from 11:30 IST that day with your price printed beside it. Every spot starts at 1 point, and new advertisers get 100 free points.</p>
   <ol class="adv-steps"><li><b>1</b>Pick an issue and a spot</li><li><b>2</b>Bid and add your ad</li><li><b>3</b>Highest bid at 11:15 IST wins</li></ol>
-  <div class="adv-kpis"><div><small>Next close</small><b class="cdx" data-until="${nextClose()}">${hms(nextClose()-now())}</b><span>${dayShort(d0)} issue · 11:15 IST</span></div><div><small>Open issues</small><b>${AU.dates.length}</b><span>book up to a week ahead</span></div><div><small>Per issue</small><b>6 + 8</b><span>display spots + classified lines</span></div></div></section>
-  <div class="adv-dates" role="tablist" aria-label="Choose an issue">${AU.dates.map((x,i)=>{const T=THEMES[wdOf(x)],c=closeAt(x);return `<button type="button" role="tab" aria-selected="${x===d}" data-adate="${x}" style="--th:${T.hue}"><span class="dw">${new Date(x+"T00:00:00Z").toLocaleDateString("en-GB",{weekday:"short",timeZone:"UTC"})}</span><span class="dd">${dayNum(x)}</span><span class="dt">${T.short}</span><span class="dc">${istISO(c)===istISO(now())?"Closes today":"Closes "+dayNum(istISO(c))}</span></button>`}).join("")}</div>
+  <div class="adv-kpis"><div><small>Next close</small><b class="cdx${nextClose()-now()>0&&nextClose()-now()<URGENT_MS?" urgent":""}" data-until="${nextClose()}" data-urgent>${hms(nextClose()-now())}</b><span>${dayShort(d0)} issue · 11:15 IST</span></div><div><small>Open issues</small><b>${AU.dates.length}</b><span>book up to a week ahead</span></div><div><small>Per issue</small><b>6 + 8</b><span>display spots + classified lines</span></div></div></section>
+  <div class="adv-dates" role="tablist" aria-label="Choose an issue">${soldHTML()}${AU.dates.map((x,i)=>{const T=THEMES[wdOf(x)],c=closeAt(x);return `<button type="button" role="tab" aria-selected="${x===d}" data-adate="${x}" style="--th:${T.hue}"><span class="dw">${new Date(x+"T00:00:00Z").toLocaleDateString("en-GB",{weekday:"short",timeZone:"UTC"})}</span><span class="dd">${dayNum(x)}</span><span class="dt">${T.short}</span><span class="dc">${istISO(c)===istISO(now())?"Closes today":"Closes "+dayNum(istISO(c))}</span></button>`}).join("")}</div>
   <div class="adv-grid"><div class="adv-map">${mapHTML(d)}</div><aside class="sp-panel" id="sp-panel" aria-live="polite">${panelHTML(d,ADV.spot)}</aside></div>
   ${demoHTML()}`;
 }
@@ -130,6 +136,8 @@ const Adv={
   Adv.render();$$("#adv .rv").forEach(el=>el.classList.add("in"));
   if(fk){const el=$("adv").querySelector(`[data-spot-sel="${fk}"],[data-adate="${fk}"],[data-atab="${fk}"],[data-raise="${fk}"]`);el&&el.focus({preventScroll:true})}
  },
+ sold:undefined,
+ tickSold(){const x=soldDay();if(x!==Adv.sold){const first=Adv.sold===undefined;Adv.sold=x;if(!first&&VIEW==="advertise"&&ADV.tab==="spots")Adv.refresh(true)}},
  badge(){const n=myOpen().filter(needsRaise).length;$$('[data-go="advertise"]').forEach(b=>b.classList.toggle("has-alert",n>0))},
  tab(t){const order=["spots","mine","rules"],dir=order.indexOf(t)>=order.indexOf(ADV.tab)?1:-1;ADV.tab=t;if(t==="mine")$("toasts").innerHTML="";if(VIEW!=="advertise")go("advertise");else{Adv.render();scrollTo({top:0,behavior:"instant"});$$("#adv .rv").forEach(el=>el.classList.add("in"));Fade.in($("adv"))}},
  openSpot(k){ADV.spot=k;ADV.tab="spots";if(!AU.dates.includes(ADV.date))ADV.date=AU.dates[0];go("advertise");if(innerWidth<=900)setTimeout(()=>$("sp-panel")?.scrollIntoView({block:"start",behavior:reduce?"auto":"smooth"}),60)},
@@ -149,6 +157,10 @@ const Adv={
  click(e){
   const t=e.target;
   if(t.closest("[data-wallet]")){Wallet.open();return true}
+  if(t.closest("[data-me]")){Me.click();return true}
+  if(t.closest("[data-signout]")){Me.signOut();return true}
+  if(t.closest("[data-me-wallet]")){Sheet.close();Wallet.open();return true}
+  if(t.closest("[data-me-bids]")){Sheet.close();go("advertise");Adv.tab("mine");return true}
   const tu=t.closest("[data-topup]");if(tu){Wallet.topup(tu);return true}
   if(Live.on&&t.closest("[data-withdraw]")){Live.withdraw();return true}
   if(t.closest("[data-withdraw]")){const a=withdrawCredits(withdrawable());Wallet.render();Adv.refresh(true);toast(a?`${usd(a)} for ${pts(a)} is on its way to your bank. It usually arrives in 3–5 working days.`:"Nothing to withdraw right now.");return true}
@@ -176,9 +188,14 @@ VIEW_HOOKS.advertise={
    Raise: Bid → Review. Edit ad: Ad only.
    ========================================================= */
 const BANNED=/(guarantee[ds]?\s+(returns?|profits?)|risk[- ]free|100%\s*safe|\bcures?\b|get rich)/i;
-const STEP_T={dates:"Choose issues",bid:"Set your bid",ad:"Add your ad",signin:"Sign in",acct:"Account and payment",verify:"Confirm your email",review:"Review and place",done:"Bids placed"};
-const STEP_S={dates:"Issues",bid:"Bid",ad:"Ad",signin:"Sign in",acct:"Payment",verify:"Email",review:"Review"};
+const OTP_LEN=6, RESEND_S=60;   /* Supabase sends 6-digit codes (Auth > Providers > Email > OTP length) and one email a minute per address */
+const STEP_T={dates:"Choose issues",bid:"Set your bid",ad:"Add your ad",signin:"Log in or sign up",acct:"About you",verify:"Check your email",review:"Review and place",done:"Bids placed",welcome:"You're in"};
+const STEP_S={dates:"Issues",bid:"Bid",ad:"Ad",signin:"Sign in",acct:"You",verify:"Email",review:"Review"};
+/* sign-up asks only a name and one of these; nothing about payment */
+const ROLES=[["reader","Reader"],["indie_hacker","Indie hacker"],["founder","Founder"],["investor","Investor"],["marketer","Marketer"],["student","Student"]];
+const roleName=v=>(ROLES.find(r=>r[0]===v)||["",""])[1];
 const GOOGLE_G=`<svg class="g-mark" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33Z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"/></svg>`;
+const FB_F=`<svg class="g-mark" viewBox="0 0 24 24" aria-hidden="true"><path fill="#0866FF" d="M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036 26.805 26.805 0 0 0-.733-.009c-.707 0-1.259.096-1.675.309a1.686 1.686 0 0 0-.679.622c-.258.42-.374.995-.374 1.752v1.297h3.919l-.386 2.103-.287 1.564h-3.246v8.245C19.396 23.238 24 18.179 24 12.044c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.628 3.874 10.35 9.101 11.647Z"/></svg>`;
 function defCre(k){const f=SPOTS[k].fmt;if(f==="video")return {p:"me",about:"",thumb:"",who:"",file:null,img:null,fname:"",len:30,web:"",social:"",email:""};if(f==="creative")return {line:"",sub:"",cta:"",mark:{bg:"#1f3b5c",fg:"#f4efe4"}};return {line:"",link:""}}
 function adChecks(k,c){
  const f=SPOTS[k].fmt, txt=[c.about,c.thumb,c.who,c.line,c.sub].filter(Boolean).join(" "), out=[];
@@ -206,8 +223,8 @@ const Bid={
  start(k,dates){
   if(dates&&dates.length===1&&myBid(dates[0],k)&&isOpenSpot(dates[0],k)){Bid.raise(dates[0],k);return}
   const ds=(dates&&dates.length?dates:[ADV.date]).filter(d=>AU.dates.includes(d)&&isOpenSpot(d,k)&&!myBid(d,k));
-  const steps=["dates","bid","ad"];if(Live.on&&!Live.user)steps.push("signin","verify");if(!AU.acct)steps.push("acct");steps.push("review");
-  Bid.open({k,steps,i:0,dates:new Set(ds),mode:SPOTS[k].fmt==="classified"?"exact":"auto",same:true,one:null,per:{},cre:AU.cre[k]?{...AU.cre[k]}:defCre(k),acct:AU.acct?{...AU.acct}:{name:"",email:"",country:"India",gstin:"",method:"upi"},agree:false,err:""});
+  const steps=["dates","bid","ad"];if(!Me.signedIn()&&(!Live.on||!Live.user))steps.push("signin","verify");if(!AU.acct)steps.push("acct");steps.push("review");
+  Bid.open({k,steps,i:0,dates:new Set(ds),mode:SPOTS[k].fmt==="classified"?"exact":"auto",same:true,one:null,per:{},cre:AU.cre[k]?{...AU.cre[k]}:defCre(k),acct:AU.acct?{...AU.acct}:{name:"",email:"",role:""},agree:false,err:""});
  },
  raise(d,k){
   const my=myBid(d,k);if(!my||!isOpenSpot(d,k)){Bid.start(k,[d]);return}
@@ -233,7 +250,7 @@ const Bid={
   const st=Bid.st, step=st.steps[st.i], q=id=>$(id)?.value??"";
   if(step==="bid"){if(st.same)st.one=q("b-one");else $$("[data-per]").forEach(i=>st.per[i.dataset.per]=i.value)}
   if(step==="signin")st.acct.email=q("b-email").trim();
-  if(step==="acct")Object.assign(st.acct,{name:q("b-biz").trim(),email:q("b-email").trim(),country:q("b-country"),gstin:q("b-gst").trim(),method:(document.querySelector('input[name="pm"]:checked')||{}).value||"upi"});
+  if(step==="acct")Object.assign(st.acct,{name:q("b-name").trim(),role:q("b-role")});
   if(step==="review")st.agree=!!$("b-agree")?.checked;
  },
  validate(){
@@ -241,8 +258,9 @@ const Bid={
   if(step==="dates"&&!ds.length)return "Choose at least one issue.";
   if(step==="bid"||step==="review"){for(const d of ds){const a=Bid.amt(d),m=Bid.minFor(d);if(!(a>=m))return `${dayShort(d)}: the minimum is now ${pts(m)}. Raise your amount and try again.`}}
   if(step==="ad"){const bad=adChecks(st.k,st.cre).find(c=>!c.ok);if(bad)return `Fix this before you continue: ${bad.l.toLowerCase()}.`}
-  if(step==="signin"&&!/^\S+@\S+\.\S+$/.test(st.acct.email))return "Add your work email, like you@company.com, or continue with Google.";
-  if(step==="acct"){if(!st.acct.name)return "Add your business name.";if(!/^\S+@\S+\.\S+$/.test(st.acct.email))return "Add a work email, like you@company.com.";if(st.acct.country==="India"&&st.acct.gstin&&!/^[0-9A-Z]{15}$/.test(st.acct.gstin.toUpperCase()))return "A GSTIN has 15 letters and digits. Check it, or leave it blank.";}
+  if(step==="signin"&&!/^\S+@\S+\.\S+$/.test(st.acct.email))return st.acct.email?"That email doesn't look right. Check it and try again.":"Enter your email to continue.";
+  if(step==="verify"&&!new RegExp(`^\\d{${OTP_LEN}}$`).test(($("b-code")?.value||"").trim()))return `Enter all ${OTP_LEN} digits of the code.`;
+  if(step==="acct"){if(!st.acct.name)return "Add your name.";if(!ROLES.some(r=>r[0]===st.acct.role))return "Choose what describes you.";}
   if(step==="review"&&!st.agree)return "Tick the box to confirm you understand bids are binding.";
   if(step==="review"){const sh=c2(Bid.need()-availCredits());if(sh>0)return `Get at least ${pts(sh)} more to place ${ds.length>1?"these bids":"this bid"}.`}
   return "";
@@ -250,14 +268,52 @@ const Bid={
  async next(){
   const st=Bid.st;Bid.collect();st.err=Bid.validate();if(st.err){Bid.render();return}
   const step=st.steps[st.i];
-  if(Live.on&&(step==="acct"||step==="verify"||step==="signin")){
+  if(step==="welcome"){Bid.finishGate(st);go("advertise");return}
+  if(step==="signin"||step==="verify"||step==="acct"){
    const btn=$("sheet").querySelector("[data-next]");if(btn)btn.disabled=true;
-   try{if(step==="signin")await Live.signinStep(st);else if(step==="acct")await Live.accountStep(st);else{await Live.verifyStep(st);await Live.afterSignIn(st);return}}catch(e){st.err=e.message||"Please try again.";Bid.render();return}
-   if(st.gate&&st.i===st.steps.length-1){const after=st.gate;Sheet.close();after();return}
+   try{
+    if(step==="signin"){if(Live.on)await Live.signinStep(st);st.sentAt=Date.now()}
+    else if(step==="verify"){if(Live.on){await Live.verifyStep(st);await Live.afterSignIn(st)}else Bid.simSignedIn(st);return}
+    else{st.bonus=Live.on?await Live.accountStep(st):Bid.simJoin(st);Bid.joined(st);return}
+   }catch(e){st.err=e.message||"Please try again.";Bid.render();return}
   }
   if(step==="review")return Bid.submit();
   if(step==="ad"&&st.edit)return Bid.saveAd();
   st.i++;Bid.render();
+ },
+ /* after the code (or Google / Facebook): a returning account skips "About you"; the sheet carries on, or closes */
+ afterCode(st,returning){
+  if(returning)st.acct={...st.acct,...AU.acct};
+  const at=st.steps.indexOf("signin");
+  st.steps=st.steps.filter(s=>s!=="signin"&&s!=="verify"&&!(s==="acct"&&returning));st.i=Math.max(0,at);st.err="";
+  Me.paint();
+  if(returning)toast("Signed in. Welcome back.");
+  if(st.gate&&st.i>=st.steps.length){Bid.finishGate(st);return}
+  if(Bid.st===st)Bid.render();
+ },
+ /* "About you" is saved: a new account gets its 100 points with a little rain of coins */
+ joined(st){
+  Me.paint();
+  if(st.bonus){celebrate();if(st.gate){st.steps=[...st.steps,"welcome"];st.i=st.steps.length-1;Bid.render();return}toast("You got 100 free points. Every spot starts at 1 point.")}
+  else toast("Signed in.");
+  if(st.gate&&st.i>=st.steps.length-1){Bid.finishGate(st);return}
+  st.i++;Bid.render();
+ },
+ finishGate(st){const after=st.gate;Sheet.close();Me.paint();Adv.refresh(true);if(typeof after==="function")after()},
+ oauth(provider){
+  if(Live.on){Live.oauth(provider);return}
+  const st=Bid.st;st.acct.email=st.acct.email||`${provider==="google"?"Google":"Facebook"} account`;Bid.simSignedIn(st);
+ },
+ /* the prototype keeps accounts in this browser: an email it has seen is a returning account */
+ simSignedIn(st){
+  const known=store.get("bought-sim-accounts",{})[(st.acct.email||"").toLowerCase()];
+  if(known){AU.acct={...known};store.set("bought-sim-acct",AU.acct)}
+  Bid.afterCode(st,!!known);
+ },
+ simJoin(st){
+  const all=store.get("bought-sim-accounts",{}),key=(st.acct.email||"").toLowerCase(),fresh=!all[key];
+  AU.acct={...st.acct};all[key]=AU.acct;store.set("bought-sim-accounts",all);store.set("bought-sim-acct",AU.acct);
+  return fresh;
  },
  back(){const st=Bid.st;Bid.collect();st.err="";if(st.i>0)st.i--;Bid.render()},
  submit(){
@@ -291,7 +347,7 @@ const Bid={
   const st=Bid.st;if(!st)return;
   const step=st.steps[st.i], k=st.k, sp=SPOTS[k], ds=Bid.ds();
   const head=`<div class="sh-top"><div><span class="eyebrow">${st.gate?"Your account":`${esc(sp.name)} · ${FORMATS[sp.fmt].name}`}</span><h3>${st.edit?"Edit your ad":st.raise&&step==="bid"?"Raise your bid":STEP_T[step]}</h3></div><button type="button" class="chip-btn" data-x>Close</button></div>`
-   +(st.steps.length>1&&step!=="done"?`<ol class="stepper">${st.steps.filter(s=>s!=="done").map((s,j)=>`<li class="${j<st.i?"done":j===st.i?"on":""}">${STEP_S[s]}</li>`).join("")}</ol>`:"");
+   +(st.steps.length>1&&step!=="done"&&step!=="welcome"?`<ol class="stepper">${st.steps.filter(s=>s!=="done"&&s!=="welcome").map((s,j)=>`<li class="${j<st.i?"done":j===st.i?"on":""}">${STEP_S[s]}</li>`).join("")}</ol>`:"");
   let body="",acts="";
   const back=st.i>0&&step!=="done"?`<button type="button" class="btn ghost" data-back>Back</button>`:"";
   if(step==="dates"){
@@ -342,15 +398,15 @@ const Bid={
   }
   if(step==="acct"){
    const a=st.acct;
-   body=`<p class="hint">You set this up once. Every advertiser is verified before their first ad runs, one account per business.</p>
-   <label class="fld" for="b-biz">Business name<input id="b-biz" autocomplete="organization" value="${esc(a.name)}" placeholder="Shown on your ad and invoice"></label>
-   <label class="fld" for="b-email">Work email<input id="b-email" type="email" autocomplete="email" value="${esc(a.email)}" placeholder="you@company.com"></label>
-   <div class="row2"><label class="fld" for="b-country">Billing country<select id="b-country"><option${a.country==="India"?" selected":""}>India</option><option value="Other"${a.country!=="India"?" selected":""}>Another country</option></select></label>
-   <label class="fld" for="b-gst">GSTIN <small>optional</small><input id="b-gst" value="${esc(a.gstin)}" placeholder="15 characters" maxlength="15"></label></div>
-   <fieldset class="methods"><legend>Buy points with</legend><label><input type="radio" name="pm" value="upi"${a.method!=="card"?" checked":""}> UPI <small>India</small></label><label><input type="radio" name="pm" value="card"${a.method==="card"?" checked":""}> Card <small>any country</small></label></fieldset>
-   <div class="paybox"><b>How points work.</b> You get 100 free points, and more cost $1 each (plus 18% GST in India). A live bid sets aside its maximum. If you're outbid, those points are free again at once. At 11:15 IST we spend only what you win, free points first. Bought points you haven't used can be withdrawn; free ones can't.</div>
-   ${Live.on?"":`<p class="hint">Prototype: no payment details are collected and no money moves.</p>`}`;
+   body=`<p class="hint">Welcome to Bought. Two quick things and you're in.</p>
+   <label class="fld" for="b-name">Your name<input id="b-name" autocomplete="name" value="${esc(a.name)}" placeholder="Shown on your ads"></label>
+   <label class="fld" for="b-role">You are<select id="b-role"><option value="" disabled${a.role?"":" selected"}>Choose one</option>${ROLES.map(([v,l])=>`<option value="${v}"${a.role===v?" selected":""}>${l}</option>`).join("")}</select></label>`;
    acts=`${back}<button type="button" class="btn" data-next>Continue</button>`;
+  }
+  if(step==="welcome"){
+   body=`<div class="welcome"><div class="wl-coin" aria-hidden="true">+100</div><p class="done-h">You got 100 free points</p>
+   <p class="hint">Every ad spot starts at 1 point. Bidding for the ${dayShort(AU.dates[0])} issue closes in <b class="cdx${nextClose()-now()>0&&nextClose()-now()<URGENT_MS?" urgent":""}" data-until="${nextClose()}" data-urgent>${hms(nextClose()-now())}</b>. Hurry, the best spots go first.</p></div>`;
+   acts=`<button type="button" class="btn" data-next autofocus>Start bidding</button>`;
   }
   if(step==="review"){
    const cls=sp.fmt==="classified", rate=gstRate(st.acct), tot=ds.reduce((x,d)=>x+Bid.amt(d),0);
@@ -362,16 +418,20 @@ const Bid={
    acts=`${back}<button type="button" class="btn" data-next>${st.raise?"Confirm":"Place "+(ds.length>1?ds.length+" bids":"bid")} · up to ${pts(tot)}</button>`;
   }
   if(step==="signin"){
-   body=st.waiting?`<p class="hint">Finish signing in with Google in the window that opened. This sheet carries on by itself.</p>`
-   :`<p class="hint">Only advertisers sign in. Readers never need an account.</p>
+   body=st.waiting?`<p class="hint">${st.waiting==="facebook"?"Log in to Facebook":"Choose your Google account"} in the window that just opened. We'll bring you back here.</p>`
+   :`<p class="hint">New here? You get <b>100 free points</b> to start bidding.</p>
+   <label class="fld" for="b-email">Email<input id="b-email" type="email" autocomplete="email" value="${esc(st.acct.email)}" placeholder="you@example.com" autofocus></label>
+   <button type="button" class="btn g-btn" data-next>Continue with email</button>
+   <p class="or-rule"><span>or</span></p>
    <button type="button" class="btn ghost g-btn" data-google>${GOOGLE_G}Continue with Google</button>
-   <p class="or-rule"><span>or get a code by email</span></p>
-   <label class="fld" for="b-email">Work email<input id="b-email" type="email" autocomplete="email" value="${esc(st.acct.email)}" placeholder="you@company.com"></label>`;
-   acts=st.waiting?`<button type="button" class="btn ghost" data-google-cancel>Cancel</button>`:`${back}<button type="button" class="btn" data-next>Email me a code</button>`;
+   <button type="button" class="btn ghost g-btn" data-facebook>${FB_F}Continue with Facebook</button>`;
+   acts=st.waiting?`<button type="button" class="btn ghost" data-google-cancel>Cancel</button>`:back;
   }
   if(step==="verify"){
-   body=`<p class="hint">We sent a code to <b>${esc(st.acct.email)}</b>. Enter it here to confirm it's you.</p><label class="fld" for="b-code">Code from your email<input id="b-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10"></label><p class="hint"><button type="button" class="linkbtn" data-resend>Send a new code</button></p>`;
-   acts=`${back}<button type="button" class="btn" data-next>Continue</button>`;
+   body=`<p class="hint">Enter the ${OTP_LEN}-digit code we sent to <b>${esc(st.acct.email)}</b>. <button type="button" class="linkbtn" data-goto-step="signin">Change</button></p>
+   <div class="otp" role="group" aria-label="${OTP_LEN}-digit code">${Array.from({length:OTP_LEN},(_,i)=>`<input inputmode="numeric" pattern="[0-9]*" ${i?"":`autocomplete="one-time-code" autofocus `}aria-label="Digit ${i+1} of ${OTP_LEN}">`).join("")}</div><input type="hidden" id="b-code">
+   <p class="hint otp-re">Didn't get it? Check your spam folder, or <button type="button" class="linkbtn" data-resend>send a new code</button>.</p>`;
+   acts=`${back}<button type="button" class="btn" data-next>Verify</button>`;
   }
   if(step==="done"){
    const rs=st.results||[];
@@ -380,11 +440,34 @@ const Bid={
    <p class="hint">We'll tell you here the moment you're outbid. Bidding for the ${dayShort(ds[0])} issue closes ${closeText(ds[0],k)}.</p>${st.sending?`<p class="hint" id="b-up" role="status">Uploading your ad…</p>`:""}`;
    acts=`<button type="button" class="btn ghost" data-atab="mine">Track in My bids</button><button type="button" class="btn" data-x>Done</button>`;
   }
-  Sheet.set(head+`<div class="sh-body">${body}</div>${st.err?`<p class="msg" role="alert">${esc(st.err)}</p>`:""}<div class="sh-acts">${acts}</div>`);
+  Sheet.set(head+`<div class="sh-body">${body}</div>${st.err?`<p class="msg" role="alert">${esc(st.err)}</p>`:""}${acts?`<div class="sh-acts">${acts}</div>`:""}`);
   Bid.bind(step);
+ },
+/* the code from the email: one box per digit; typing moves on, Backspace moves back, a paste or the phone's
+    autofill fills every box, and the last digit sends it. "send a new code" waits RESEND_S after each email. */
+ bindCode(st,sh){
+  const bs=$$(".otp input",sh), code=$("b-code"), rs=sh.querySelector("[data-resend]");
+  const sync=()=>{code.value=bs.map(b=>b.value).join("");bs.forEach(b=>b.classList.toggle("on",!!b.value));
+   if(code.value.length===OTP_LEN&&!st.busy){st.busy=true;setTimeout(()=>{st.busy=false;const go_=sh.querySelector("[data-next]");if(Bid.st===st&&$("b-code")===code&&go_&&!go_.disabled)Bid.next()},120)}};
+  const fill=(from,digits)=>{let i=from;for(const d of digits){if(i>=OTP_LEN)break;bs[i++].value=d}bs[Math.min(i,OTP_LEN-1)].focus();sync()};
+  bs.forEach((b,i)=>{
+   b.addEventListener("input",()=>{const d=b.value.replace(/\D/g,"");b.value="";if(d)fill(i,d);else sync()});
+   b.addEventListener("paste",e=>{const d=(e.clipboardData?.getData("text")||"").replace(/\D/g,"");if(d){e.preventDefault();fill(d.length>=OTP_LEN?0:i,d)}});
+   b.addEventListener("keydown",e=>{
+    if(e.key==="Backspace"&&!b.value&&i){e.preventDefault();bs[i-1].value="";bs[i-1].focus();sync()}
+    else if(e.key==="ArrowLeft"&&i){e.preventDefault();bs[i-1].focus()}
+    else if(e.key==="ArrowRight"&&i<OTP_LEN-1){e.preventDefault();bs[i+1].focus()}});
+   b.addEventListener("focus",()=>b.select());
+  });
+  bs[0]?.focus({preventScroll:true});
+  if(!rs)return;
+  const tick=()=>{if(!rs.isConnected)return clearInterval(tm);const left=Math.ceil(RESEND_S-(Date.now()-(st.sentAt||0))/1e3);
+   if(left>0){rs.disabled=true;rs.textContent=`send a new code in ${Math.floor(left/60)}:${String(left%60).padStart(2,"0")}`}else if(rs.textContent!=="send a new code"){rs.disabled=false;rs.textContent="send a new code"}};
+  const tm=setInterval(tick,500);tick();
  },
  bind(step){
   const st=Bid.st, sh=$("sheet");
+  if(step==="verify")Bid.bindCode(st,sh);
   if(step==="bid"){
    const upd=()=>{Bid.collect();$("b-sum").innerHTML=Bid.sumHTML()};
    $$("input[type=number]",sh).forEach(i=>i.addEventListener("input",upd));
@@ -418,9 +501,11 @@ const Bid={
  click(e){
   if(!Bid.st||!e.target.closest("#sheet"))return false;
   const t=e.target, st=Bid.st;
-  if(t.closest("[data-google]")){Live.google();return true}
+  if(t.closest("[data-google]")){Bid.oauth("google");return true}
+  if(t.closest("[data-facebook]")){Bid.oauth("facebook");return true}
   if(t.closest("[data-google-cancel]")){Live.cancelGoogle();return true}
-  if(t.closest("[data-resend]")){Live.client().then(l=>l.sendCode(st.acct.email)).then(()=>toast("A new code is on its way."),e=>toast(e.message));return true}
+  const rs=t.closest("[data-resend]");if(rs){if(rs.disabled)return true;rs.disabled=true;
+   (Live.on?Live.client().then(l=>l.sendCode(st.acct.email)):Promise.resolve()).then(()=>{st.sentAt=Date.now();toast(`New code sent to ${st.acct.email}.`)},e=>{rs.disabled=false;toast(e.message||"Couldn't send a new code. Try again in a minute.")});return true}
   if(t.closest("[data-rec]")){Rec.start();return true}
   if(t.closest("[data-rec-stop]")){Rec.stop();return true}
   if(t.closest("[data-rec-cancel]")){Rec.cancel();return true}
@@ -445,12 +530,15 @@ const Bid={
    Wallet: points for bidding (100 free, more at $1 each)
    ========================================================= */
 const PACKS=[10,25,50,100];
+const URGENT_MS=10*60*1000;   /* the next close turns red and pulses in its last 10 minutes */
+/* until a payment provider is connected, buying stays in view under a blur, marked coming soon, and can't be used */
+const soon=h=>Live.canBuy()?h:`<div class="soon"><div class="soon-in" inert aria-hidden="true">${h}</div><span class="soon-tag pill ink">Coming soon</span><span class="vh">Buying points by UPI or card is coming soon.</span></div>`;
 function packsFor(short){const up=Math.max(10,Math.ceil(short)), ps=PACKS.filter(p=>p>up).slice(0,2);return [up,...ps]}
 function walletBox(need,n,rate){
  const av=availCredits(), short=c2(need-av), m=Bid.st?.acct?.method||AU.acct?.method||"upi";
  return `<div class="wbox${short>0?" short":""}">
   <div class="wb-rows"><div><small>Free in your wallet</small><b>${pts(av)}</b></div><div><small>${n>1?"These bids set":"This bid sets"} aside</small><b>${pts(need)}</b></div><div><small>Left after</small><b>${short>0?"—":pts(av-need)}</b></div></div>
-  ${short>0?`<p class="wb-msg">Get at least <b>${pts(short)}</b> more.</p><div class="wb-packs">${packsFor(short).map((a,i)=>`<button type="button" class="${i?"chip-btn":"btn sm"}" data-topup="${a}">Buy ${pts(a)} · ${usd(a)}</button>`).join("")}</div><small class="wb-pay">Paid by ${m==="card"?"card":"UPI"} · 1 point = $1${(Bid.st?.acct?.country||AU.acct?.country||"India")==="India"?" + 18% GST":""}</small>`
+  ${short>0?`<p class="wb-msg">Get at least <b>${pts(short)}</b> more.</p>${soon(`<div class="wb-packs">${packsFor(short).map((a,i)=>`<button type="button" class="${i?"chip-btn":"btn sm"}" data-topup="${a}">Buy ${pts(a)} · ${usd(a)}</button>`).join("")}</div><small class="wb-pay">Paid by ${m==="card"?"card":"UPI"} · 1 point = $1${(Bid.st?.acct?.country||AU.acct?.country||"India")==="India"?" + 18% GST":""}</small>`)}`
   :`<p class="wb-msg ok">Covered by your points. They're set aside until close: spent only if you win, free again the moment you're outbid.</p>`}
  </div>`;
 }
@@ -463,10 +551,10 @@ const Wallet={
   <div class="sh-body wallet">
    <div class="w-kpis"><div><small>Balance</small><b>${pts(w.bal)}</b>${w.free>0?`<span>${pts(Math.min(w.free,w.bal))} free</span>`:""}</div><div><small>Set aside</small><b>${pts(held)}</b><span>${nLive} live bid${nLive===1?"":"s"}</span></div><div class="on"><small>Free to bid</small><b>${pts(av)}</b></div></div>
    <div class="w-add"><b>Buy points</b>
-    <div class="wb-packs">${PACKS.map(a=>`<button type="button" class="chip-btn" data-topup="${a}">+${pts(a)} · ${usd(a)}</button>`).join("")}</div>
+    ${soon(`<div class="wb-packs">${PACKS.map(a=>`<button type="button" class="chip-btn" data-topup="${a}">+${pts(a)} · ${usd(a)}</button>`).join("")}</div>
     <div class="w-custom"><span class="money"><i>+</i><input id="w-amt" type="number" inputmode="numeric" min="10" step="1" placeholder="Other amount"></span><button type="button" class="btn sm" data-topup="custom">Add</button></div>
     <fieldset class="methods"><legend>Pay with</legend><label><input type="radio" name="wpm" value="upi"${m!=="card"?" checked":""}> UPI <small>India</small></label><label><input type="radio" name="wpm" value="card"${m==="card"?" checked":""}> Card <small>any country</small></label></fieldset>
-    <p class="hint">1 point = $1. In India you pay in rupees at the day's rate, plus 18% GST. At least 10 points at a time. Points never expire.</p></div>
+    <p class="hint">1 point = $1. In India you pay in rupees at the day's rate, plus 18% GST. At least 10 points at a time. Points never expire.</p>`)}</div>
    <div class="w-tx"><b>Activity</b>${w.tx.length?`<ul>${w.tx.map(x=>`<li><span>${esc(x.label)}<small>${dayShort(istISO(x.t))}, ${timeIST(x.t)} IST</small></span><b class="${x.amt<0?"neg":"pos"}">${x.amt<0?"−":"+"}${pts(Math.abs(x.amt))}</b></li>`).join("")}</ul>`:`<p class="hint">No activity yet.</p>`}</div>
    ${Live.on?"":`<p class="hint">Prototype: no payment details are collected and no money moves.</p>`}
   </div>
@@ -476,9 +564,52 @@ const Wallet={
   let amt=btn.dataset.topup;
   if(amt==="custom"){amt=Math.round(+($("w-amt")?.value||0));if(!(amt>=10)){toast("Buy at least 10 points at a time.");return}}else amt=+amt;
   const method=(document.querySelector('input[name="wpm"]:checked')||{}).value||Bid.st?.acct?.method||AU.acct?.method||"upi";
+  /* until a payment provider is connected nothing is sold: everyone bids with their free points */
+  if(!Live.canBuy()){toast("Buying points opens soon. Everyone gets 100 free points to start, and every spot starts at 1 point.");return}
   btn.disabled=true;btn.textContent="Adding…";
   if(Live.on){Live.topup(btn,amt,method);return}
   setTimeout(()=>{addCredits(amt,method);if(Bid.st){Bid.st.err="";Bid.render()}else Wallet.render();Adv.refresh(true);toast(`${pts(amt)} added to your wallet.`)},reduce?0:800);
+ }
+};
+
+
+/* =========================================================
+   Profile: the round picture in the top bar. Everyone gets the same anime picture; nothing is uploaded.
+   Signed out it opens the usual sign-in steps in the sheet; signed in, the account with its wallet and a sign-out.
+   ========================================================= */
+const AVATAR="img/avatar.webp?v=1";
+/* a new account's welcome: coins fall across the screen for a moment (nothing under reduced motion) */
+function celebrate(){
+ if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+ const box=document.createElement("div");box.className="coinrain";box.setAttribute("aria-hidden","true");
+ box.innerHTML=Array.from({length:30},(_,i)=>`<i style="--x:${(Math.random()*100).toFixed(1)}vw;--d:${(1.6+Math.random()*1.3).toFixed(2)}s;--w:${(Math.random()*.7).toFixed(2)}s;--r:${Math.round(Math.random()*900-450)}deg;--s:${(.7+Math.random()*.6).toFixed(2)}">+1</i>`).join("");
+ document.body.appendChild(box);setTimeout(()=>box.remove(),3800);
+}
+const Me={
+ signedIn(){return Live.on?!!(Live.user&&AU.acct):!!AU.acct},
+ restore(){const a=store.get("bought-sim-acct",null);if(a&&!Live.on)AU.acct=a},
+ paint(){const b=$("ab-me");if(!b)return;const on=Me.signedIn();b.classList.toggle("in",on);b.setAttribute("aria-label",on?"Your account":"Sign in")},
+ click(){
+  if(Me.signedIn()){Me.open();return}
+  if(Live.on){Live.gate(()=>{});return}
+  /* the prototype has no real sign-in: the same steps, kept in this browser */
+  Bid.open({k:"top",steps:["signin","verify","acct"],i:0,dates:new Set(),mode:"exact",same:true,one:null,per:{},cre:defCre("top"),acct:{name:"",email:"",role:""},gate:()=>{},err:""});
+ },
+ open(){Me.paint();Sheet.open(Me.html(),{label:"Your account"})},
+ render(){if(!$("sheetwrap").hidden&&$("sheet").querySelector(".me-sheet"))Sheet.set(Me.html())},
+ html(){
+  const a=AU.acct||{}, w=AU.wallet, mail=a.email||Live.email||"", nLive=myOpen().filter(e=>setAside(e)>0).length;
+  return `<div class="sh-top"><div><span class="eyebrow">Your account</span><h3>${esc(a.name||"Signed in")}</h3></div><button type="button" class="chip-btn" data-x>Close</button></div>
+  <div class="sh-body me-sheet">
+   <div class="me-head"><img class="me-av" src="${AVATAR}" alt="" width="64" height="64"><div><b>${esc(a.name||"")}</b><small>${esc(mail)}</small>${a.role?`<small>${esc(roleName(a.role))}</small>`:""}</div></div>
+   <div class="w-kpis"><div><small>Balance</small><b>${pts(w.bal)}</b>${w.free>0?`<span>${pts(Math.min(w.free,w.bal))} free</span>`:""}</div><div><small>Live bids</small><b>${nLive}</b><span>${pts(heldTotal())} set aside</span></div><div class="on"><small>Free to bid</small><b>${pts(availCredits())}</b></div></div>
+  </div>
+  <div class="sh-acts"><button type="button" class="btn ghost" data-signout>Sign out</button><button type="button" class="btn ghost" data-me-bids>My bids</button><button type="button" class="btn" data-me-wallet autofocus>Wallet</button></div>`;
+ },
+ async signOut(){
+  if(Live.on){try{const lib=await Live.client();await lib.signOut()}catch{}Live.user=false;Live.email=null;await Live.sync().catch(()=>{})}
+  else{AU.acct=null;store.set("bought-sim-acct",null)}
+  Sheet.close();Me.paint();Adv.refresh(true);toast("You're signed out.");
  }
 };
 

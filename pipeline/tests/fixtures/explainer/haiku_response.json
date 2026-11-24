@@ -1,0 +1,12 @@
+{"note": "A stand-in for a recorded Claude Haiku batch result: the exact shape the Batch API returns for one succeeded request (the text block holds the plan JSON). Replace it with a real recording once an API key is set (see README).",
+ "custom_id": "a1b2c3d4e5f60718", "type": "succeeded", "stop_reason": "end_turn",
+ "text": {"story_id": "a1b2c3d4e5f60718", "section": "Technology", "duration_target_s": 60, "scenes": [
+  {"template": "object", "object": "datacenter", "highlight": ["zoneB"], "arrows": [["zoneB", "zoneA"], ["zoneB", "zoneC"]],
+   "card": {"title": "Provider status page", "quote": "A power event at 07:08 in zone B", "highlight": "zone B", "source": "Provider status page"},
+   "narration": "A power event hit zone B of a cloud region at 07:08. The errors did not stay there."},
+  {"template": "timeline", "events": [["07:08", "Power event in zone B"], ["09:35", "Status page update"], ["15:00", "Services restored"]], "big": "7 hours 52 minutes",
+   "narration": "The status page spoke up at 09:35. Services were restored at 15:00, 7 hours 52 minutes after the fault."},
+  {"template": "source_quote", "quote": "Some services in the region may see elevated errors", "highlight": "elevated errors", "source": "Provider status page · 09:35",
+   "narration": "This is what customers were told while the errors spread to other zones."},
+  {"template": "network_spread", "state": "spread", "label": "other zones", "narration": "One power fault in one zone reached the other zones."},
+  {"template": "end_card"}]}}

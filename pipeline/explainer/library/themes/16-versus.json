@@ -1,0 +1,39 @@
+{
+ "id": "versus",
+ "n": 16,
+ "name": "Versus",
+ "description": "The frame splits into two section colours. Names, a VS badge, comparison bars, a winner.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "split",
+  "16x9": "split"
+ },
+ "tokens": {
+  "--bg": "linear-gradient(180deg,#b4432b 0 50%,#38805a 50% 100%)",
+  "--bg-solid": "#b4432b",
+  "--ink": "#fff8f0",
+  "--mute": "#fde4da",
+  "--line": "#fff8f0",
+  "--acc": "#ffd36b",
+  "--accink": "#2a1210",
+  "--mark": "#ffd36b",
+  "--markink": "#2a1210",
+  "--card": "rgba(0,0,0,.18)",
+  "--cardline": "rgba(255,255,255,.25)",
+  "--brand": "#fff8f0",
+  "--capfont": "var(--ui)",
+  "--capsize": "4.6cqw",
+  "--capweight": "700"
+ },
+ "css": [
+  "& .cap{margin:0 5cqw 7cqw}",
+  "& .cap span{background:#1d1b18;color:#fff8f0;padding:1cqw 2.2cqw;border-radius:1cqw}",
+  "&.w .bgl{background:linear-gradient(90deg,#b4432b 0 50%,#38805a 50% 100%)}",
+  "&.w .cap span{padding:.5cqw 1.2cqw;border-radius:.6cqw}"
+ ]
+}

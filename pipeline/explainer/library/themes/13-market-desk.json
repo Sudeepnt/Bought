@@ -1,0 +1,42 @@
+{
+ "id": "market-desk",
+ "n": 13,
+ "name": "Market Desk",
+ "description": "Cream with green and red, a live ticker on top, a giant number, a line chart that drops.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "ticker",
+  "16x9": "ticker"
+ },
+ "tokens": {
+  "--bg": "#f6f3ec",
+  "--bg-solid": "#f6f3ec",
+  "--ink": "#1d1b18",
+  "--mute": "#6b655b",
+  "--line": "#2f6b4f",
+  "--acc": "#b4432b",
+  "--accink": "#fff",
+  "--mark": "#b4432b",
+  "--markink": "#fff",
+  "--card": "#fff",
+  "--cardline": "#ddd5c4",
+  "--capfont": "var(--ui)",
+  "--capsize": "4.7cqw",
+  "--capweight": "600"
+ },
+ "css": [
+  "& .tk{display:block}",
+  "& .tk{overflow:hidden;white-space:nowrap;margin:3cqw 0 0;padding:1.8cqw 0;background:#1d1b18;color:#f6f3ec;font:500 2.7cqw/1 var(--mono)}",
+  "& .tk span{display:inline-block;animation:mq 16s linear infinite}",
+  "& .tk em{font-style:normal;color:#e8806a}",
+  "& .tk u{text-decoration:none;color:#6cbd8e}",
+  "& .cap{margin:0 4.5cqw 6cqw;padding:3.4cqw 4cqw;background:#1d1b18;border-radius:2cqw}",
+  "& .cap span{color:#f6f3ec}",
+  "&.w .cap{justify-self:center;margin:0 3.6cqw 1.6cqw;padding:1.1cqw 2.2cqw;border-radius:1cqw}"
+ ]
+}

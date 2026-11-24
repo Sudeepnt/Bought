@@ -1,0 +1,44 @@
+{
+ "id": "broadsheet",
+ "n": 10,
+ "name": "Broadsheet",
+ "description": "Front-page newsprint: masthead, double rule, halftone dots.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "masthead",
+  "16x9": "masthead"
+ },
+ "tokens": {
+  "--bg": "radial-gradient(rgba(42,39,35,.10) .5px,transparent .9px) 0 0/1.8cqw 1.8cqw,#f3eee4",
+  "--bg-solid": "#f3eee4",
+  "--ink": "#1d1b18",
+  "--mute": "#6b655b",
+  "--line": "#1d1b18",
+  "--acc": "#b4432b",
+  "--accink": "#fff",
+  "--mark": "#1d1b18",
+  "--markink": "#f3eee4",
+  "--card": "#fbf8f1",
+  "--cardline": "#cfc6b4",
+  "--cardrad": "0",
+  "--headfont": "var(--head)",
+  "--capfont": "var(--head)",
+  "--capsize": "5.3cqw",
+  "--capweight": "600"
+ },
+ "css": [
+  "& .top{flex-direction:column;gap:1.4cqw;padding-top:2.4cqw;margin:0 4.5cqw;border-bottom:3px double var(--ink);padding-bottom:2cqw}",
+  "& .brand{font-size:10cqw}",
+  "& .top .no{margin:0}",
+  "& .card{border-left:.9cqw solid var(--acc)}",
+  "& .cap{margin:0 6cqw;padding:2.6cqw 0 0;border-top:1px solid var(--ink);margin-bottom:8cqw}",
+  "&.w .top{margin:0 3.6cqw;padding:1.6cqw 0 1.2cqw}",
+  "&.w .brand{font-size:5cqw}",
+  "&.w .cap{margin:0 3.6cqw 2.4cqw;padding:1.2cqw 8cqw 0}"
+ ]
+}

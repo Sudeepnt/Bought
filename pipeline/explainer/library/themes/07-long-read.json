@@ -1,0 +1,41 @@
+{
+ "id": "long-read",
+ "n": 7,
+ "name": "Long Read",
+ "description": "Saturday's sepia. Centred, italic, slow and literary.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "centred",
+  "16x9": "centred"
+ },
+ "tokens": {
+  "--bg": "radial-gradient(120% 90% at 50% 40%,#f3ead9,#e4d6bd)",
+  "--bg-solid": "#efe5d3",
+  "--ink": "#3b2a1b",
+  "--mute": "#8b7258",
+  "--line": "#6b4e33",
+  "--acc": "#7a5a3a",
+  "--accink": "#fff",
+  "--mark": "#e2cba5",
+  "--markink": "#3b2a1b",
+  "--card": "transparent",
+  "--cardline": "transparent",
+  "--headfont": "var(--head)",
+  "--capfont": "var(--head)",
+  "--capsize": "5.8cqw",
+  "--capweight": "400",
+  "--capstyle": "italic"
+ },
+ "css": [
+  "& .card{text-align:center;padding-inline:6cqw}",
+  "& .card .h{font-variant:small-caps;letter-spacing:.06em;font-size:3.6cqw}",
+  "& .card .q{font-style:italic;font-size:3.6cqw}",
+  "& .qbig{border-left:0;text-align:center;background:transparent}",
+  "& .qbig p{font-style:italic}"
+ ]
+}

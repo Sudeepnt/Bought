@@ -118,7 +118,7 @@ const Paper={
   }).join("");
   $("pindex").innerHTML=PAGES.slice(1).map((p,k)=>{const n=k+1,c=CATS[k],first=c&&S[LAYOUT[c.name].main[0]],hl=c?(first?first.t:""):"Clips, classifieds and the back page";return `<li style="--c:${p.c}"><button type="button" data-page-go="${n}"><span class="pg">${n+1}</span><span><b>${esc(p.name)}</b><em>${esc(hl)}</em></span></button></li>`}).join("");
   $$("#pages [data-rh]").forEach(el=>{el.outerHTML=runHead(+el.dataset.rh)});
-  const tiles=CLIPIDS.map(id=>{const s=S[id];return `<button class="clip" type="button" data-clip="${id}" style="--c:${catColor(s.cat)};background:linear-gradient(rgba(0,0,0,.15) 30%,rgba(0,0,0,.82)),url('${esc(s.poster)}') center/cover"><small>${esc(s.cat)}</small><span class="pl"><i></i></span><span><b>${esc(s.t)}</b><em>${fmt(s.len)}</em></span></button>`});
+  const tiles=CLIPIDS.map(id=>{const s=S[id];return `<button class="clip" type="button" data-clip="${id}" style="--c:${catColor(s.cat)};background:linear-gradient(rgba(0,0,0,.15) 30%,rgba(0,0,0,.82)),url('${esc(s.reel_poster||s.poster)}') center/cover"><small>${esc(s.cat)}</small><span class="pl"><i></i></span><span><b>${esc(s.t)}</b><em>${fmt(s.len)}</em></span></button>`});
   tiles.splice(3,0,clipAdHTML());$("clips").innerHTML=tiles.join("");
   $("cls-end").innerHTML=clsBlock(1);
   $("issue-thread").innerHTML=discussHTML("issue",{title:"Today's open thread"});Talk.render();
@@ -178,7 +178,9 @@ const Paper={
   const f=t.closest("[data-filter]");if(f){Paper.applyFilter(f.dataset.filter);return true}
   const li=t.closest("[data-listen]");if(li){Radio.listenTo(+li.dataset.listen);return true}
   const shr=t.closest("[data-share]");if(shr){shareStory(S[+shr.dataset.share]);return true}
-  const clip=t.closest("[data-clip]");if(clip){const id=+clip.dataset.clip,key="clip-"+id,st=vs(key);st.t=0;st.playing=true;st.user=true;st.muted=false;Radio.pause();Ov.open(vidHTML(key,S[id],"full"),false);Paper.markRead(id);return true}
+  const clip=t.closest("[data-clip]");if(clip){const id=+clip.dataset.clip,key="clip-"+id,st=vs(key);st.t=0;st.playing=true;st.user=true;st.muted=false;Radio.pause();
+   /* a clip plays as a 9:16 reel when the funnel made one; otherwise the wide video */
+   const s=S[id],r=s.reel;Ov.open(r?vidHTML(key,{...s,video:r,poster:s.reel_poster||s.poster},"vert"):vidHTML(key,s,"full"),!!r);Paper.markRead(id);return true}
   const apl=t.closest("[data-adplay]");if(apl){const k=apl.dataset.adplay,cre=adCre(k),vert=SPOTS[k].shape==="vert";Ov.open(bvHTML("ov-"+k,cre,vert?"vert":"std")+`<div class="ovcap"><span><b>${esc(cre.adv)}</b> · ${esc(cre.line||"")}</span>${adLinks(cre,"onvid")}<button class="sp-bid" type="button" data-adv-spot="${k}">Bid for this spot</button></div>`,vert);return true}
   const bvv=t.closest(".bv");if(bvv&&!bvv.closest("#ov")){toggleAd(bvv);return true}
   if(bvv&&bvv.closest("#ov")){toggleAd(bvv);return true}

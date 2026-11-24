@@ -86,33 +86,3 @@ def assessment_schema() -> dict:
         }}},
     }
 
-
-@dataclass(frozen=True)
-class ImageAsset:
-    """One picture with where it came from and how to credit it. A picture without this record is not used."""
-    provider: str        # commons | publisher | library
-    url: str
-    page_url: str
-    title: str
-    author: str
-    license: str         # short name, e.g. "CC BY-SA 4.0"
-    license_url: str
-    path: str            # local file; for a video clip, a folder of numbered frames
-    width: int
-    height: int
-    phash: str
-    frames: int = 0      # above 0 this is a video clip
-
-    @property
-    def credit(self) -> str:
-        if self.provider == "library":
-            return ""
-        if self.provider == "publisher":
-            return f"Photo: {self.author}"[:90]
-        where = {"commons": "Wikimedia Commons"}.get(self.provider, self.provider)
-        kind = "File video" if self.frames else "File photo"
-        text = " · ".join(x for x in (f"{kind}: {self.author}" if self.author else kind, self.license, where) if x)
-        return text if len(text) <= 90 else text[:87].rsplit(" ", 1)[0] + "..."
-
-    def to_json(self) -> dict:
-        return {**asdict(self), "credit": self.credit}

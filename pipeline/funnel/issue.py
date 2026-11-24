@@ -4,8 +4,9 @@
   intake   visit the sources (titles and links) -> in the date window -> unique -> on brief -> jev decides -> ~50 selected -> descriptions fetched
   cut      the selection is written to out/issues/<date>/issue.json and never changes: videos carry their rank, "up next" and
            ticker in the picture, so re-ranking after this would make them wrong
-  build    for each video story: images -> voice -> render -> gate. Safe to stop and rerun; finished stages are skipped
-  feed     out/issues/<date>/feed.json, where only stories that passed the gate have a video; rights_review.json lists uncleared pictures
+  build    the top stories get explainer videos (pipeline/explainer/): plan -> check -> voice -> render -> gate. Safe to stop and
+           rerun; finished stages are skipped
+  feed     out/issues/<date>/feed.json, where only stories whose explainer passed have a video; rights_review.json lists card pictures
 """
 from __future__ import annotations
 
@@ -14,7 +15,6 @@ import hashlib
 import json
 import logging
 import os
-import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,25 +23,21 @@ from zoneinfo import ZoneInfo
 from .. import db
 from ..dedupe import dedupe
 from ..ingest import LiveFetcher, ingest_all, iso
-from ..media import synthesize
 from ..output import build_feed, story_item, write_feed
 from ..scoring import prefilter, select
 from ..text import short_summary
-from .contracts import ImageAsset
 from .brief import load_brief
 from .evaluate import build_model, consider
-from .images import Sourcer
 
 log = logging.getLogger(__name__)
 PKG = Path(__file__).resolve().parents[1]
 ROOT = PKG.parent
-THEMES = 20
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS story_media (
     issue      TEXT NOT NULL,
     article_id TEXT NOT NULL,
-    stage      TEXT NOT NULL,                 -- images | voice | video
+    stage      TEXT NOT NULL,                 -- voice | video (the explainer's plan lives in the explainers table)
     input_hash TEXT NOT NULL,                 -- a stage reruns only when what went into it changed
     status     TEXT NOT NULL,                 -- ok | failed
     attempts   INTEGER NOT NULL,
@@ -160,121 +156,25 @@ def _stage(conn, cfg, date, item_id, name, key, now_iso, work):
     return result if status == "ok" else None
 
 
-def make_voice(item, voice, wav, cfg, synth=synthesize) -> float:
-    """Speak the script (rules wrote it; the voice engine only reads it aloud), with a short breath at each end."""
-    mp3 = wav.with_suffix(".voice.mp3")
-    synth(item["script"], mp3, cfg, voice=voice)
-    tmp = wav.with_suffix(".tmp.wav")
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(mp3), "-af", "adelay=500:all=1,apad=pad_dur=0.7", "-ac", "1", "-ar", "24000", str(tmp)], check=True, timeout=120)
-    os.replace(tmp, wav)
-    mp3.unlink(missing_ok=True)
-    return round(float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(wav)],
-                                      capture_output=True, check=True, timeout=60).stdout), 2)
-
-
-def render(spec_path) -> None:
-    subprocess.run(["node", str(PKG / "prime_render.cjs"), str(spec_path)], check=True, timeout=1800)
-
-
-def gate(mp4, poster, duration, assets, cfg) -> None:
-    """The last check before a video can go out. Raises with the reason; a failed video is left out of the feed."""
-    from PIL import Image, ImageStat
-    from .images import license_ok
-    for a in assets:
-        if a.provider == "commons" and not license_ok(a.license, a.license, cfg.funnel_image_licenses):
-            raise ValueError(f"licence not allowed: {a.license}")
-        if a.provider == "commons" and not a.page_url:
-            raise ValueError("picture has no source page to credit")
-    if not assets:
-        raise ValueError("no pictures")
-    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height:format=duration", "-of", "json", str(mp4)],
-                         capture_output=True, check=True, timeout=60).stdout
-    info = json.loads(out)
-    kinds = {s["codec_type"] for s in info["streams"]}
-    if not {"video", "audio"} <= kinds:
-        raise ValueError(f"streams are {sorted(kinds)}")
-    size = next((s["width"], s["height"]) for s in info["streams"] if s["codec_type"] == "video")
-    if size != (1280, 720):
-        raise ValueError(f"size is {size}")
-    if abs(float(info["format"]["duration"]) - duration) > 1.0:
-        raise ValueError(f"video runs {info['format']['duration']}s, voice {duration}s")
-    with Image.open(poster) as im:
-        stat = ImageStat.Stat(im.convert("L"))
-    if stat.mean[0] < 12 or stat.stddev[0] < 8:
-        raise ValueError("still frame is blank")
-
-
-def build_issue(conn, cfg, date, issue, out_root=None, sourcer=None, synth=synthesize, renderer=render, limit=None, clock="06:30 IST") -> dict:
-    """Images -> voice -> video -> gate for the top stories, then write the feed. Returns counts per outcome."""
+def build_issue(conn, cfg, date, issue, out_root=None, limit=None, clock="06:30 IST", client=None, speak=None, render_fn=None, sleep=time.sleep, wait_quiet=None) -> dict:
+    """The explainers for the top stories, then the feed. Returns counts per outcome.
+    client, speak and render_fn stand in for the Batch API, the voice and the renderer in tests."""
+    from ..explainer import build as eb
     conn.executescript(SCHEMA)
     base = issue_dir(date, out_root)
-    media = base / "media"
-    work = base / "work"
-    media.mkdir(parents=True, exist_ok=True)
-    work.mkdir(parents=True, exist_ok=True)
+    (base / "work").mkdir(parents=True, exist_ok=True)
     now_iso = iso(datetime.now(timezone.utc))
-    sourcer = sourcer or Sourcer(cfg, PKG / "data" / "images", now_year=int(date[:4]))
-    prime = issue["prime"]
-    count = min(cfg.funnel_video_count, len(prime))
     deadline = time.monotonic() + cfg.funnel_time_budget_seconds
-    stats = {"passed": 0, "failed": 0, "deferred": 0, "not_attempted": 0, "commons": 0, "publisher": 0, "library": 0}
-    built = {}
-    for rank, item in enumerate(prime[:count]):
-        if limit is not None and rank >= limit:
-            stats["not_attempted"] += 1
-            continue
-        if time.monotonic() >= deadline:
-            stats["deferred"] += 1
-            continue
-        got = _stage(conn, cfg, date, item["id"], "images", _hash(item["headline"], cfg.funnel_image_licenses, cfg.funnel_images_per_story, IMAGE_RULES), now_iso,
-                     lambda: [a.to_json() for a in sourcer.for_story(item, use_publisher=cfg.funnel_publisher_images)])
-        if not got:
-            stats["failed"] += 1
-            continue
-        assets = [ImageAsset(**{k: v for k, v in a.items() if k != "credit"}) for a in got]
-        for a in assets:
-            stats[a.provider] += 1
-        voice = cfg.funnel_voices[rank % len(cfg.funnel_voices)]
-        wav = work / f"{item['id']}.wav"
-        spoke = _stage(conn, cfg, date, item["id"], "voice", _hash(item["script"], voice), now_iso,
-                       lambda: {"duration_s": make_voice(item, voice, wav, cfg, synth), "voice": voice})
-        if not spoke or not wav.exists():
-            stats["failed"] += 1
-            continue
-        duration = spoke["duration_s"]
-        mp4, poster = media / f"{item['id']}.mp4", media / f"{item['id']}.jpg"
-        shown = [a for a in assets] if len(assets) > 1 else assets * 2      # the frame cross-fades between pictures, so it needs two
-        spec = {"theme": rank % THEMES + 1, "cat": item["category"], "n": rank + 1, "src": item["source"], "h": item["headline"].rstrip("."), "s": item["summary"],
-                "next": [prime[(rank + k) % len(prime)]["headline"] for k in (1, 2, 3)], "images": [a.path for a in shown], "credits": [a.credit for a in shown],
-                "positions": ["50% 18%" if a.height > a.width else "50% 50%" for a in shown], "frames": [a.frames for a in shown],
-                "shot": max(2.6, min(6.0, duration / max(1, len(shown)))), "wav": str(wav), "dur": duration, "out": str(mp4), "poster": str(poster), "clock": clock}
-
-        def do_video():
-            spec_path = work / f"{item['id']}.json"
-            spec_path.write_text(json.dumps(spec))
-            renderer(spec_path)
-            gate(mp4, poster, duration, assets, cfg)
-            return {"bytes": mp4.stat().st_size}
-        done = _stage(conn, cfg, date, item["id"], "video", _hash(spec, RENDER_VERSION), now_iso, do_video)
-        if not done or not mp4.exists():
-            stats["failed"] += 1
-            continue
-        stats["passed"] += 1
-        built[item["id"]] = {"video_url": f"media/{mp4.name}", "poster_url": f"media/{poster.name}", "image_url": f"media/{poster.name}", "duration_s": duration, "voice": voice,
-                             "images": [a.to_json() for a in assets], "image_source": assets[0].provider}
+    built, stats = eb.build(conn, cfg, date, issue, base, _stage, now_iso, limit=limit, deadline=deadline, client=client, speak=speak,
+                            render_fn=render_fn, sleep=sleep, wait_quiet=wait_quiet)
     feed = json.loads(json.dumps(issue))
     for slot in db.SLOTS:
         for item in feed[slot]:
             item.update(built.get(item["id"], {}))
     write_feed(feed, base / "feed.json")
-    review = [{"article_id": i, "video": b["video_url"], "picture": a["url"], "article": a["page_url"], "credit": a["credit"]}
-              for i, b in built.items() for a in b["images"] if a["provider"] == "publisher"]
-    write_feed({"note": "Publisher pictures used without a licence yet.", "pictures": review}, base / "rights_review.json")
+    write_feed({"note": "Publisher pictures used on cards without a licence yet. Videos carry no pictures: they are drawn by code.", "pictures": []},
+               base / "rights_review.json")
     return stats
-
-
-RENDER_VERSION = "2"    # bump when prime_render.cjs changes the look
-IMAGE_RULES = "4"       # bump when images.py picks differently, so the current issue's pictures are chosen again
 
 
 def status(conn, date, out_root=None) -> list:
@@ -288,7 +188,7 @@ def status(conn, date, out_root=None) -> list:
     lines.append(("selected for the issue", count("SELECT COUNT(DISTINCT article_id) FROM selections")))
     has = conn.execute("SELECT 1 FROM sqlite_master WHERE name='story_media'").fetchone()
     if has:
-        for stage in ("images", "voice", "video"):
+        for stage in ("voice", "video"):
             ok = count("SELECT COUNT(*) FROM story_media WHERE issue=? AND stage=? AND status='ok'", date, stage)
             bad = count("SELECT COUNT(*) FROM story_media WHERE issue=? AND stage=? AND status='failed'", date, stage)
             lines.append((f"{stage} done" + (" and passed the gate" if stage == "video" else ""), ok))

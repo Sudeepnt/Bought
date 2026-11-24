@@ -1,0 +1,35 @@
+{
+ "id": "money-edition",
+ "n": 5,
+ "name": "Money Edition",
+ "description": "Wednesday's green on ledger paper, with big numbers.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "ledger",
+  "16x9": "ledger"
+ },
+ "tokens": {
+  "--bg": "repeating-linear-gradient(#eef3ec 0 5.4cqw,#d3e2d6 5.4cqw calc(5.4cqw + 1px)),#eef3ec",
+  "--bg-solid": "#eef3ec",
+  "--ink": "#1d2b23",
+  "--mute": "#5f7466",
+  "--line": "#2f6b4f",
+  "--acc": "#2f6b4f",
+  "--accink": "#fff",
+  "--mark": "#2f6b4f",
+  "--markink": "#fff",
+  "--card": "#fff",
+  "--cardline": "#b9d1c0",
+  "--capfont": "var(--ui)",
+  "--capsize": "4.9cqw",
+  "--capweight": "600"
+ },
+ "css": [
+  "& .tl .big{font-size:9.5cqw}"
+ ]
+}

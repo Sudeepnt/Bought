@@ -1,0 +1,34 @@
+{
+ "id": "red-pen",
+ "n": 18,
+ "name": "Red Pen",
+ "description": "A real-looking page on the desk, underlined in red, then a checklist and an IN FORCE stamp.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "standard",
+  "16x9": "standard"
+ },
+ "tokens": {
+  "--bg": "#e6dfcf",
+  "--bg-solid": "#e6dfcf",
+  "--ink": "#2a2723",
+  "--mute": "#7c766b",
+  "--line": "#2a2723",
+  "--acc": "#c4161c",
+  "--accink": "#fff",
+  "--mark": "#f6d2cf",
+  "--markink": "#2a2723",
+  "--card": "#fffdf8",
+  "--cardline": "#d2c9b7",
+  "--headfont": "var(--head)",
+  "--capfont": "var(--head)",
+  "--capsize": "5.2cqw",
+  "--capweight": "600"
+ },
+ "css": []
+}

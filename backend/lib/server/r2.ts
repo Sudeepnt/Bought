@@ -1,6 +1,7 @@
-// Ad videos in Cloudflare R2. R2 speaks the S3 API; this signs its links with AWS Signature V4 using node:crypto.
-// The browser gets only short-lived links for one object and one method: a PUT for its own upload, a GET to play
-// a video it may see. The secret key never leaves this server.
+// Ad media in Cloudflare R2: videos under ads/, pictures (image ads and each video's still) under ad-images/.
+// R2 speaks the S3 API; this signs its links with AWS Signature V4 using node:crypto. The browser gets only short-lived
+// links for one object and one method: a PUT for its own upload (locked to the file's type and exact size), a GET to see
+// what it may see. The secret key never leaves this server.
 import { execFile } from 'node:child_process';
 import { createHash, createHmac } from 'node:crypto';
 import { MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS } from '../drop-domain';
@@ -29,6 +30,15 @@ export function typeOfKey(key: string) {
 
 export function validVideoKey(key: unknown): key is string {
   return typeof key === 'string' && KEY.test(key);
+}
+
+// A picture's key is ad-images/ plus the path the database keeps for it: <user>/<ad>/image-staging while it uploads,
+// <user>/<ad>/verified-<uuid>.<ext> once the server has checked the bytes and made its own immutable copy.
+export const IMAGE_PREFIX = 'ad-images/';
+const IMAGE_KEY = /^ad-images\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/(image-staging|verified-[0-9a-f-]{36}\.(jpg|png|webp))$/;
+export const imageKey = (path: string) => IMAGE_PREFIX + path;
+export function validImageKey(key: unknown): key is string {
+  return typeof key === 'string' && IMAGE_KEY.test(key);
 }
 
 export function newVideoKey(adId: string, ext: 'mp4' | 'webm') {
@@ -104,7 +114,7 @@ export function presign(
   headers: Record<string, string> = {},
   now = new Date(),
 ) {
-  if (!validVideoKey(key)) throw new HttpError(400, 'Invalid video key.');
+  if (!validVideoKey(key) && !validImageKey(key)) throw new HttpError(400, 'Invalid media key.');
   const account = required('R2_ACCOUNT_ID');
   if (!/^[a-f0-9]{32}$/.test(account)) throw new HttpError(503, 'Video storage is not configured.');
   return signUrl({
@@ -133,13 +143,63 @@ export async function headVideo(key: string) {
   };
 }
 
-export async function deleteVideo(key: string) {
+export async function deleteObject(key: string) {
   const response = await fetch(presign('DELETE', key, 60), {
     method: 'DELETE',
     signal: AbortSignal.timeout(20000),
   });
   if (response.ok || response.status === 404) return;
-  throw new HttpError(502, 'Video storage could not remove an old recording.');
+  throw new HttpError(502, 'Media storage could not remove an old file.');
+}
+
+export const deleteVideo = (key: string) => deleteObject(key);
+
+// The uploaded picture's bytes, read by the server to check them. null: missing, or bigger than maxBytes.
+export async function getObject(key: string, maxBytes: number) {
+  const response = await fetch(presign('GET', key, 60), { signal: AbortSignal.timeout(30000) });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new HttpError(502, 'Media storage could not be reached. Try again shortly.');
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await response.body?.cancel();
+    return null;
+  }
+  const reader = response.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (reader) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
+// The server's own copy of a checked picture: written once, never changed, cached for a year.
+export async function putObject(key: string, bytes: Uint8Array, contentType: string) {
+  const headers = {
+    'content-type': contentType,
+    'content-length': String(bytes.length),
+    'cache-control': 'private, max-age=31536000, immutable',
+  };
+  const response = await fetch(presign('PUT', key, 60, headers), {
+    method: 'PUT',
+    headers: { 'content-type': headers['content-type'], 'cache-control': headers['cache-control'] },
+    body: new Blob([bytes as BlobPart], { type: contentType }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) throw new HttpError(502, 'Media storage could not save the picture. Try again shortly.');
 }
 
 type Probe = {

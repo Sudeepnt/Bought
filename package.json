@@ -4,12 +4,14 @@
   "description": "Bought. Daily: the newspaper site, the news pipeline, admin and the ads backend",
   "engines": { "node": ">=22.13.0" },
   "scripts": {
-    "setup": "npm ci && npm --prefix backend ci && playwright-core install chromium",
+    "setup": "npm ci && npm --prefix backend ci && npm --prefix web ci && npm --prefix web run build && playwright-core install chromium",
     "start": "${PYTHON:-python3} -m pipeline serve",
     "test": "npm run test:python && npm run test:backend",
     "test:python": "${PYTHON:-python3} -m pytest pipeline/tests -q",
-    "test:backend": "npm --prefix backend test && npm --prefix backend run typecheck",
-    "build:client": "npm --prefix backend run build:client"
+    "test:backend": "npm --prefix backend test && npm --prefix backend run typecheck && npm --prefix web run typecheck",
+    "build:client": "npm --prefix backend run build:client",
+    "build:web": "npm --prefix web run build",
+    "test:parity": "node web/tests/parity/dom.mjs"
   },
   "dependencies": {
     "playwright-core": "1.61.1"

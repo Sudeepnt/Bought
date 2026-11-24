@@ -1,6 +1,7 @@
-# /etc/systemd/system/bought.service: the site's dynamic side, /admin, the publish clock and the ads backend, as one service.
+# /etc/systemd/system/bought.service: the site's dynamic side, /admin, the publish clock, the ads backend and the page
+# (web/, Next.js on 127.0.0.1:3000; public/index.html whenever it is down), as one service.
 [Unit]
-Description=Bought (admin, publish clock, ads backend)
+Description=Bought (page, admin, publish clock, ads backend)
 After=network-online.target
 Wants=network-online.target
 
@@ -16,7 +17,7 @@ ExecStart=/srv/bought/.venv/bin/python -m pipeline serve --host 127.0.0.1 --port
 Restart=always
 RestartSec=3
 TimeoutStopSec=20
-# the backend (node) is a child: stop the whole group
+# the backend and the page (node) are children: stop the whole group
 KillMode=control-group
 LimitNOFILE=65536
 UMask=0027

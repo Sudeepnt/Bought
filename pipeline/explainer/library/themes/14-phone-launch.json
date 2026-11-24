@@ -1,0 +1,43 @@
+{
+ "id": "phone-launch",
+ "n": 14,
+ "name": "Phone Launch",
+ "description": "Friday red. The headline is on top, a phone drawing below with a notification and feature callouts.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "headline-top",
+  "16x9": "headline-top"
+ },
+ "tokens": {
+  "--bg": "linear-gradient(180deg,#f7ece4,#f1ddd1)",
+  "--bg-solid": "#f4e4da",
+  "--ink": "#2a1a16",
+  "--mute": "#86594c",
+  "--line": "#2a1a16",
+  "--acc": "#a6443a",
+  "--accink": "#fff",
+  "--mark": "#a6443a",
+  "--markink": "#fff",
+  "--card": "#fff",
+  "--cardline": "#e3c7b8",
+  "--capfont": "var(--disp)",
+  "--capsize": "6.6cqw",
+  "--capweight": "700"
+ },
+ "css": [
+  "& .in{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto 1fr auto}",
+  "& .cap{grid-row:2;text-align:left;padding:4cqw 6cqw 0}",
+  "& .cap span{letter-spacing:-.02em;line-height:1.05}",
+  "& .stage{grid-row:3}",
+  "& .card{grid-row:4;margin:0 4.5cqw 7cqw}",
+  "&.w .cap{grid-column:1;grid-row:2;align-self:start;text-align:left;padding:2.4cqw 2cqw 0 3.6cqw}",
+  "&.w .cap span{font-size:calc(var(--capsize) * .5)}",
+  "&.w .card{align-self:end;margin-bottom:3cqw}",
+  "&.w.nc .stage{grid-column:2}"
+ ]
+}

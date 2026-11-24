@@ -1,16 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { HttpError } from '../lib/server/config';
+import { configuredProviders } from '../lib/server/config';
 import {
+  chooseProvider,
   createCheckout,
   providerRequest,
+  stripeSession,
   trustedStripeCheckoutUrl,
   validProviderReference,
   type Topup,
 } from '../lib/server/providers';
 import {
   deleteVideo,
+  getObject,
+  imageKey,
   judgeProbe,
+  putObject,
+  validImageKey,
   newVideoKey,
   NOT_PLAYABLE,
   presign,
@@ -335,6 +342,91 @@ void test('Razorpay reconciliation fails closed on conflicting receipt data', as
         (error: unknown) => error instanceof HttpError && error.status === 502,
       );
       assert.equal(requests, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+void test('one payment provider takes every top-up; with none, nothing is sold', () => {
+  const both = { stripe: true, razorpay: true }, stripe = { stripe: true, razorpay: false }, upi = { stripe: false, razorpay: true }, none = { stripe: false, razorpay: false };
+  assert.deepEqual(chooseProvider('card', both), { provider: 'stripe', method: 'card' });
+  assert.deepEqual(chooseProvider('upi', both), { provider: 'razorpay', method: 'upi' });
+  assert.deepEqual(chooseProvider('upi', stripe), { provider: 'stripe', method: 'card' }, 'only Stripe: UPI buyers pay by card');
+  assert.deepEqual(chooseProvider('card', upi), { provider: 'razorpay', method: 'upi' });
+  assert.equal(chooseProvider('card', none), null);
+  assert.equal(chooseProvider(undefined, none), null);
+});
+
+void test('Stripe is connected with its secret key alone; the webhook secret is optional', () => {
+  const keys = ['SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET',
+    'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'APP_ORIGIN', 'CRON_SECRET', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET'];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  try {
+    for (const k of keys) delete process.env[k];
+    for (const k of keys.slice(0, 11)) process.env[k] = k === 'APP_ORIGIN' ? 'https://bought.test' : 'x';
+    assert.deepEqual(configuredProviders(), { stripe: false, razorpay: false });
+    process.env.STRIPE_SECRET_KEY = 'sk_test_only';
+    assert.deepEqual(configuredProviders(), { stripe: true, razorpay: false });
+    delete process.env.SUPABASE_URL;
+    assert.equal(configuredProviders().stripe, false, 'no payments until the ads backend itself is connected');
+  } finally {
+    for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
+});
+
+void test('a Checkout Session is read with the secret key, and only a well-formed session id is ever asked for', async () => {
+  const originalFetch = globalThis.fetch, original = process.env.STRIPE_SECRET_KEY;
+  let seen: { url: string; auth: string | null } | null = null;
+  try {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_reader';
+    globalThis.fetch = async (input, init) => {
+      seen = { url: String(input), auth: new Headers(init?.headers).get('authorization') };
+      return Response.json({ id: 'cs_test_1', payment_status: 'paid', amount_total: 1000, currency: 'usd' });
+    };
+    const session = await stripeSession('cs_test_1');
+    assert.equal(session.payment_status, 'paid');
+    assert.deepEqual(seen, { url: 'https://api.stripe.com/v1/checkout/sessions/cs_test_1', auth: 'Bearer sk_test_reader' });
+    for (const bad of ['../charges', 'cs_1/../../x', '', 'a'.repeat(300)]) await assert.rejects(() => stripeSession(bad));
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (original === undefined) delete process.env.STRIPE_SECRET_KEY; else process.env.STRIPE_SECRET_KEY = original;
+  }
+});
+
+void test('ad pictures live in R2 under ad-images/<user>/<ad>/; nothing else can be signed', async () => {
+  await withR2Env(async () => {
+    const user = '0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9', ad = '6f1c7d3e-2b4a-4c8d-9e0f-1a2b3c4d5e6f', take = '11111111-2222-4333-8444-555555555555';
+    assert.ok(validImageKey(imageKey(`${user}/${ad}/image-staging`)));
+    assert.ok(validImageKey(imageKey(`${user}/${ad}/verified-${take}.webp`)));
+    for (const bad of [`ad-images/${user}/${ad}/x.html`, `ad-images/${user}/../${ad}/image-staging`, `ad-images/${user}/${ad}/verified-${take}.svg`, 'ad-images/a/b/image-staging', `images/${user}/${ad}/image-staging`])
+      assert.throws(() => presign('PUT', bad, 60));
+    // the upload link is locked to the picture's type and exact size
+    const put = new URL(presign('PUT', imageKey(`${user}/${ad}/image-staging`), 600, { 'content-type': 'image/webp', 'content-length': '12345' }));
+    assert.equal(put.pathname, `/bucket/ad-images/${user}/${ad}/image-staging`);
+    assert.equal(put.searchParams.get('X-Amz-SignedHeaders'), 'content-length;content-type;host');
+  });
+});
+
+void test('the server reads an uploaded picture only up to 10 MB, and saves its checked copy as private and immutable', async () => {
+  await withR2Env(async () => {
+    const key = imageKey('0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9/6f1c7d3e-2b4a-4c8d-9e0f-1a2b3c4d5e6f/image-staging');
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = async () => new Response(new Uint8Array(10), { headers: { 'content-length': '10' } });
+      assert.equal((await getObject(key, 100))?.length, 10);
+      globalThis.fetch = async () => new Response(new Uint8Array(200), { headers: { 'content-length': '200' } });
+      assert.equal(await getObject(key, 100), null, 'declared too big');
+      globalThis.fetch = async () => new Response(new ReadableStream({ start(c) { c.enqueue(new Uint8Array(80)); c.enqueue(new Uint8Array(80)); c.close(); } }));
+      assert.equal(await getObject(key, 100), null, 'too big while streaming, whatever it declared');
+      globalThis.fetch = async () => new Response(null, { status: 404 });
+      assert.equal(await getObject(key, 100), null);
+      let seen: { url: string; headers: Headers } | null = null;
+      globalThis.fetch = async (input, init) => { seen = { url: String(input), headers: new Headers(init?.headers) }; return new Response(null, { status: 200 }); };
+      await putObject(imageKey('0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9/6f1c7d3e-2b4a-4c8d-9e0f-1a2b3c4d5e6f/verified-11111111-2222-4333-8444-555555555555.jpg'), new Uint8Array(42), 'image/jpeg');
+      const signed = new URL(seen!.url).searchParams.get('X-Amz-SignedHeaders');
+      assert.equal(signed, 'cache-control;content-length;content-type;host');
+      assert.equal(seen!.headers.get('cache-control'), 'private, max-age=31536000, immutable');
     } finally {
       globalThis.fetch = originalFetch;
     }

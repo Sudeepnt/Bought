@@ -1,0 +1,39 @@
+{
+ "id": "radio-ember",
+ "n": 3,
+ "name": "Radio Ember",
+ "description": "The Listen tab's dark red and amber, italic captions and a voice wave.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "voice-wave",
+  "16x9": "voice-wave"
+ },
+ "tokens": {
+  "--bg": "radial-gradient(110% 70% at 50% 35%,#5a2117,#2a1210 70%)",
+  "--bg-solid": "#3a1712",
+  "--ink": "#fff1e3",
+  "--mute": "#e2b8a0",
+  "--line": "#e2b8a0",
+  "--acc": "#ffb547",
+  "--accink": "#2a1210",
+  "--mark": "#ffb547",
+  "--markink": "#2a1210",
+  "--card": "rgba(255,241,227,.06)",
+  "--cardline": "rgba(255,241,227,.16)",
+  "--capfont": "var(--disp)",
+  "--capsize": "5.6cqw",
+  "--capweight": "500",
+  "--capstyle": "italic"
+ },
+ "css": [
+  "& .wave{display:flex;justify-content:center;align-items:center;gap:.9cqw;height:7cqw;margin:-6cqw auto 5cqw}",
+  "& .wave i{width:1cqw;border-radius:99px;background:var(--acc);animation:wv .9s ease-in-out infinite alternate}",
+  "&.w .wave{height:2.6cqw;margin:-1.6cqw auto 2cqw;gap:.45cqw}",
+  "&.w .wave i{width:.5cqw}"
+ ]
+}

@@ -107,7 +107,7 @@ def video_address(base: str, video: str) -> str:
     return video if video.startswith(("https://", "http://")) else f"{base}/{video}"
 
 
-def issue_pages(page: dict, media_dir: Path, public: Path = PUB, site: str = None) -> int:
+def issue_pages(page: dict, issue_dir: Path, public: Path = PUB, site: str = None) -> int:
     """One preview page per story with a video, for one published issue. Plain links to the site get the issue's own card."""
     base = (site or SITE).rstrip("/")
     (public / "share").mkdir(parents=True, exist_ok=True)
@@ -117,14 +117,14 @@ def issue_pages(page: dict, media_dir: Path, public: Path = PUB, site: str = Non
     img.save(public / "share/site.jpg", quality=88)
     made = 0
     for s in page["stories"]:
-        poster = Path(media_dir) / f"{s['uid']}.jpg"
+        poster = Path(issue_dir) / "explainers" / s["uid"] / "16x9.jpg"         # the explainer's 16:9 still
         if not s.get("share") or not s.get("video") or not poster.exists():
             continue
         sid = s["uid"]
         card_wide(poster, public / f"share/{sid}.jpg")
         desc = f"{s['cat']}. {s['dek']}"[:200]
         out = public / f"s/{sid}"; out.mkdir(parents=True, exist_ok=True)
-        (out / "index.html").write_text(page_html(sid, s["t"], desc, f"{base}/share/{sid}.jpg", video_address(base, s["video"]), 1280, 720, f"../../#s-{page['issue']}-{sid}", s["cat"]))
+        (out / "index.html").write_text(page_html(sid, s["t"], desc, f"{base}/share/{sid}.jpg", video_address(base, s["video"]), 1920, 1080, f"../../#s-{page['issue']}-{sid}", s["cat"]))
         made += 1
     return made
 

@@ -1,0 +1,4 @@
+{"id": "a1b2c3d4e5f60718", "headline": "Cloud provider says a power fault in one zone took 7 hours 52 minutes to fix",
+ "summary": "A power event at 07:08 in zone B spread errors to other zones before services were restored at 15:00. \"Some services in the region may see elevated errors,\" the status page said at 09:35.",
+ "source": "Provider status page", "category": "Technology", "link": "https://status.example/incident", "image_url": null, "image_credit": null,
+ "published_at": "2026-11-14T16:00:00Z", "script": "Technology. A power fault."}

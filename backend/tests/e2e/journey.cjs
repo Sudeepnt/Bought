@@ -18,7 +18,7 @@ const R2HOST=/\.r2\.cloudflarestorage\.com$/;
 // ---- leave the bucket as it was: delete every file this journey uploaded (ads/<its ad ids>/)
 async function cleanR2(){const ids=(await q('select id from public.bought_ads')).map(r=>r.id);if(!ids.length)return 0;
  const py=require('path').resolve(__dirname,'../../..');const out=require('child_process').execFileSync(process.env.HOME+'/.cache/bought/funnel-venv/bin/python',['-c',
-  'import sys\nfrom pipeline import r2\nr2.load_local_env()\nc=r2.R2()\nn=0\nfor i in sys.argv[1:]:\n for o in c.list("ads/"+i+"/"):\n  c.delete(o["key"]);n+=1\nprint(n)',...ids],{cwd:py}).toString().trim();return Number(out)}
+  'import sys\nfrom pipeline import r2\nr2.load_local_env()\nc=r2.R2()\nn=0\nids=sys.argv[1:]\nkeys=[o["key"] for i in ids for o in c.list("ads/"+i+"/")]+[o["key"] for o in c.list("ad-images/") if any("/"+i+"/" in o["key"] for i in ids)]\nfor k in keys:\n c.delete(k);n+=1\nprint(n)',...ids],{cwd:py}).toString().trim();return Number(out)}
 
 async function ctx(b,name,opts={}){
  const c=await b.newContext({viewport:{width:1280,height:900},...opts});
@@ -66,11 +66,13 @@ async function payWebhook(amountInr){
  log('  draft after refresh:',await A.evaluate(()=>({f:Bid.st.cre.fname,hasBlob:!!Bid.st.cre.blob})));
  await next(A);await waitStep(A,'Set your bid');await A.fill('#b-one','300');await next(A);await waitStep(A,'Add your ad');
  await A.fill('#b-about','We help clinics book patients in one tap');await A.fill('#b-thumb','Book in one tap');await A.fill('#b-who','Asha Rao, founder');await A.fill('#b-web','example.com');await next(A);
- await waitStep(A,'Sign in');log('  sign-in offers Google:',await A.locator('#sheet [data-google]').count());await A.fill('#b-email','asha@example.com');await next(A);
- await waitStep(A,'Confirm your email');await A.screenshot({path:T+'/3-code.png'});
- await A.fill('#b-code','000000');await next(A);await A.waitForSelector('#sheet .msg');log('3 wrong code:',await A.innerText('#sheet .msg'));
- await A.fill('#b-code','123456');await next(A);await waitStep(A,'Account and payment');
- log('  email carried over:',await A.inputValue('#b-email'));await A.fill('#b-biz','Clinic Co');await next(A);await waitStep(A,'Review and place');
+ await waitStep(A,'Log in or sign up');log('  sign-in offers Google:',await A.locator('#sheet [data-google]').count());await A.fill('#b-email','asha@example.com');await next(A);
+ await waitStep(A,'Check your email');await A.screenshot({path:T+'/3-code.png'});
+ await A.locator('#sheet .otp input').first().fill('000000');await A.waitForSelector('#sheet .msg');log('3 wrong code:',await A.innerText('#sheet .msg'));
+ await A.locator('#sheet .otp input').first().fill('123456');await waitStep(A,'About you');
+ log('  about you asks only:',await A.evaluate(()=>[...document.querySelectorAll('#sheet .sh-body input,#sheet .sh-body select')].map(e=>e.id)),'| payment words:',await A.evaluate(()=>/gstin|country|upi|card|billing/i.test(document.getElementById('sheet').innerText)));
+ await A.fill('#b-name','Clinic Co');await A.selectOption('#b-role','founder');await next(A);await waitStep(A,'Review and place');
+ log('  new account welcomed: coins falling',await A.locator('.coinrain i').count());
  log('  free points on the new account:',await A.evaluate(()=>[AU.wallet.bal,AU.wallet.free,AU.wallet.tx[0]?.label]));
  log('  signed in:',await A.evaluate(()=>({user:Live.user,acct:AU.acct.name,bal:AU.wallet.bal})));
  await A.check('#b-agree');await next(A);await A.waitForSelector('#sheet .msg');log('4 not enough points:',await A.innerText('#sheet .msg'));
@@ -85,7 +87,8 @@ async function payWebhook(amountInr){
  await A.waitForFunction(()=>Bid.st&&Bid.st.steps[Bid.st.i]==='review');await sleep(300);
  if(!await A.isChecked('#b-agree'))await A.check('#b-agree');await next(A);
  await waitStep(A,'Bids placed');log('6 placed:',await A.innerText('#sheet .done-h'),'|',await A.innerText('#sheet .mb-rows'));
- await A.waitForFunction(()=>/uploaded\./.test(document.getElementById('b-up')?.textContent||''),null,{timeout:30000}).catch(()=>{});
+ // the last message, once video, picture and submit are all done (not the "Video uploaded. Finishing up…" on the way)
+ await A.waitForFunction(()=>/Your ad is uploaded/.test(document.getElementById('b-up')?.textContent||''),null,{timeout:60000});
  log('  upload status:',await A.innerText('#b-up'),'| R2 PUTs:',puts);
  await A.screenshot({path:T+'/6-done.png'});await A.click('#sheet [data-x]');
  log('  ad row:',(await q("select state,media_state,kind,thumbnail_verified,fields->>'about' a from public.bought_ads"))[0]);
@@ -103,9 +106,9 @@ async function payWebhook(amountInr){
  await B.setInputFiles('#b-file',T+'/upload.mp4');await B.waitForFunction(()=>Bid.st.cre.dur>0);
  log('9 upload file:',await B.evaluate(()=>({f:Bid.st.cre.fname,d:Bid.st.cre.dur,blob:Bid.st.cre.blob.size})));
  await B.fill('#b-about','Rival video');await B.fill('#b-thumb','Rival');await B.fill('#b-who','Ben');await B.fill('#b-web','rival.example');await next(B);
- await waitStep(B,'Sign in');await B.fill('#b-email','ben@example.com');await next(B);
- await waitStep(B,'Confirm your email');await B.fill('#b-code','123456');await next(B);
- await waitStep(B,'Account and payment');await B.fill('#b-biz','Rival Inc');await B.selectOption('#b-country',{label:'United States'}).catch(()=>{});await next(B);await waitStep(B,'Review and place');
+ await waitStep(B,'Log in or sign up');await B.fill('#b-email','ben@example.com');await next(B);
+ await waitStep(B,'Check your email');await B.locator('#sheet .otp input').first().fill('123456');
+ await waitStep(B,'About you');await B.fill('#b-name','Rival Inc');await B.selectOption('#b-role','marketer');await next(B);await waitStep(B,'Review and place');
  await B.locator('#sheet [data-topup]').first().click();await sleep(1200);await payWebhook();await B.waitForFunction(()=>AU.wallet.bal>100,null,{timeout:20000});
  await B.waitForFunction(()=>Bid.st&&Bid.st.steps[Bid.st.i]==='review');await sleep(300);if(!await B.isChecked('#b-agree'))await B.check('#b-agree');await next(B);await waitStep(B,'Bids placed');
  log('  B result:',await B.innerText('#sheet .mb-rows'),'| wallet',await B.evaluate(()=>[AU.wallet.bal,heldTotal()]));await B.click('#sheet [data-x]');
@@ -150,6 +153,6 @@ async function payWebhook(amountInr){
  const noauth=await fetch('http://127.0.0.1:8797/api/bought/admin/money');log('  backend direct, no secret:',noauth.status);
  await R.locator('#v-paper [data-spot="feed-e"] video').first().evaluate(v=>v.pause());log('  poster loaded:',await R.evaluate(()=>{const v=document.querySelector('#v-paper [data-spot="feed-e"] video');return !!v.poster}));await fetch(C+'/shift?seconds=0');
  log('page errors:',errs.length?errs:'none');
- log('R2 files removed:',await cleanR2());
+ log('ad pictures in R2:',(await q("select count(*)::int c from public.bought_ads where thumbnail_verified and thumbnail_path like '%/verified-%'"))[0].c,'checked and copied');log('R2 files removed:',await cleanR2());
  await b.close();
 })().catch(e=>{console.log('FAILED',e.message.slice(0,500));console.log('errs',errs);process.exit(1)});

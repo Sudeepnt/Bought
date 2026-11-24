@@ -1,7 +1,8 @@
 # The funnel: source to video
 
 jev is a cheap, quick decision model with one job: can we have this news, is it really for Bought, and which section. Everything else is plain rules,
-and the same input gives the same result. The voice engine (Kokoro) is a neural model too, but it only reads out the script.
+and the same input gives the same result. The videos are explainers drawn by code (`pipeline/explainer/README.md`): Claude Haiku only picks
+scenes from the library and writes the words, plain code checks every fact against the sources, and the voice engine (Kokoro) reads it out.
 
 ```
  1 brief.yaml         what news we want: keywords per section, section sizes, date window
@@ -17,26 +18,26 @@ and the same input gives the same result. The voice engine (Kokoro) is a neural 
    |  describe     for the final list only, opens each article page once: share picture and summary (robots.txt honoured)
    v
  issue.json        FROZEN once per date. Videos show rank, "up next" and a ticker in the picture, so the order cannot change later.
-   |  images       publisher photo first, then free clips and photos; see below
-   |  voice        script from the rules, read by Kokoro
-   |  render       prime_render.cjs: 20 frame looks, Chromium + ffmpeg, credit on the picture
-   |  gate         streams, 1280x720, video length matches voice, still frame not blank
+   |  explainers   the top funnel_video_count stories (pipeline/explainer/): plan (Claude Haiku, Batch API) -> check against
+   |               the sources -> theme -> voice (Kokoro, one clip per line) -> render (Chromium + ffmpeg, 9:16 and 16:9,
+   |               every frame set exactly) -> gate. A plan that fails its checks twice waits on the desk with no video
    v
- feed.json + media/   only stories that passed the gate have a video
-   |  publish      publish.py: clean text, lay out the paper, copy media to public/issues/<date>/, list the date in issues/index.json
+ feed.json + explainers/   only stories whose explainer passed have a video
+   |  publish      publish.py: clean text, lay out the paper, videos to R2 issues/<date>/explainers/<id>/ (or public/issues/<date>/),
+   |               list the date in issues/index.json
    |  podcast      every story read aloud as one episode with chapters (Listen)
    |  translate    headlines and summaries for the language picker
    v
  the site          the issue is live after the first publish; audio and languages join it as they finish
 ```
 
-Run from the project root, with the Python that has `requirements.txt` and `requirements-media.txt`:
+Run from the project root, with the Python that has `requirements.txt` (node, ffmpeg and Chromium for the explainers):
 
 ```sh
 python -m pipeline funnel run              # intake, freeze today's issue (IST), build the videos
 python -m pipeline funnel run --issue 2026-11-03   # a past date: TLDR pages for that day, feeds cut off at that day
 python -m pipeline funnel intake           # intake only: safe every 30 minutes
-python -m pipeline funnel build --limit 3  # just the first 3 videos
+python -m pipeline funnel build --limit 3  # just the first 3 explainers
 python -m pipeline funnel publish          # put the built issue on the site (safe to rerun)
 python -m pipeline funnel podcast          # build the episode only, then publish
 python -m pipeline funnel translate --langs hi-IN,kn   # these languages only, then publish
@@ -49,18 +50,11 @@ Stop a build at any time and rerun it: finished stages are skipped, and a failed
 
 ## Pictures
 
-Each picture carries its source and credit. Licensing is being handled separately: every issue writes `rights_review.json`,
-listing each publisher picture used and its article, in videos (`pictures`) and on cards (`card_pictures`). That list is the input for the legal work. To stop one publisher's
-pictures add `image_rights: link_only` to its source; `funnel_publisher_images: false` stops them all.
-
-1. **Publisher:** the article's own share picture, read from its page. Credited on screen as "Photo: <credit or site>".
-2. **Free video clip** from Commons when one matches: six seconds cut into frames, no sound.
-3. **Wikipedia article pictures,** then **Commons search,** to give the video more than one shot. Names come from the
-   headline's capitalisation and Wikipedia must confirm each: "Palantir" passes; "Johnson" and "Boston" do not. Only allowed
-   free licences, and the file must name the subject. Pages of white (tables, screenshots) are refused.
-4. **House library** (`avatar_fallback_images`), only when nothing above was found.
-
-If the Commons service is down the stage fails and is retried, so an outage cannot freeze a video full of stand-ins.
+Videos carry no photos: everything in them is drawn by code, and people are traced line portraits from public-domain or
+CC BY / BY-SA photos, credited on the frame (`pipeline/explainer/README.md`). Cards still show the article's own share
+picture, read from its page. Licensing is being handled separately: every issue writes `rights_review.json`, listing each
+publisher picture used on a card and its article (`card_pictures`). To stop one publisher's pictures add
+`image_rights: link_only` to its source; `funnel_publisher_images: false` stops them all.
 
 ## The desk (admin page)
 

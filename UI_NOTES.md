@@ -82,6 +82,6 @@ Rival bidders, the clock ("Prototype controls" fast-forward and close), payments
 - Scheduled jobs: open D−7, close watch from 11:10 IST, settle on each spot's close, 11:30 IST publish, D+1 reports.
 - Payments: authorise-then-capture (UPI one-time mandate or card authorisation in India; manual-capture card payments elsewhere). Check hold expiry rules with your provider.
 - Advertiser video: managed upload and transcoding; render thumbnail text server-side over a frame.
-- Accounts: business verification (GSTIN in India), one account per business, linked-account detection.
+- Accounts: sign in with an email code, Google or Facebook; a new account gives only a name and a role, and gets 100 free points with a welcome. No payment details at sign-in.
 - Engagement: one vote and one reaction per reader, rate-limited.
 - Accessibility: keep the keyboard paths (Esc closes, arrows move between stories in the reader), focus return, and reduced-motion handling.

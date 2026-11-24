@@ -1,0 +1,33 @@
+{
+ "id": "night-desk",
+ "n": 1,
+ "name": "Night Desk",
+ "description": "Bought's own night mode. Warm dark grey, coral highlight. Closest to the reference.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "standard",
+  "16x9": "standard"
+ },
+ "tokens": {
+  "--bg": "radial-gradient(120% 80% at 50% 30%,#2c2d31,#18191c)",
+  "--bg-solid": "#202125",
+  "--ink": "#e8e4dc",
+  "--mute": "#9c978e",
+  "--line": "#cdc8be",
+  "--acc": "#e27a5c",
+  "--accink": "#1d1d1f",
+  "--mark": "#e27a5c",
+  "--markink": "#1d1d1f",
+  "--card": "rgba(255,255,255,.04)",
+  "--cardline": "#3f4046",
+  "--capfont": "var(--ui)",
+  "--capsize": "4.7cqw",
+  "--capweight": "500"
+ },
+ "css": []
+}

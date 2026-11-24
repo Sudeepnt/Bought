@@ -1,0 +1,35 @@
+{
+ "id": "big-number",
+ "n": 15,
+ "name": "Big Number",
+ "description": "No drawings at all. Huge Fraunces numbers and words build the story line by line.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "type-only",
+  "16x9": "type-only"
+ },
+ "tokens": {
+  "--bg": "#faf7f0",
+  "--bg-solid": "#faf7f0",
+  "--ink": "#2a2723",
+  "--mute": "#7c766b",
+  "--line": "#2a2723",
+  "--acc": "#b4432b",
+  "--accink": "#fff",
+  "--mark": "#f3e6c2",
+  "--markink": "#2a2723",
+  "--card": "transparent",
+  "--cardline": "transparent",
+  "--headfont": "var(--head)",
+  "--capfont": "var(--head)",
+  "--capsize": "4.6cqw",
+  "--capweight": "500",
+  "--capstyle": "italic"
+ },
+ "css": []
+}

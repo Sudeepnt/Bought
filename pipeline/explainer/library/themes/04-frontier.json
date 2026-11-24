@@ -1,0 +1,33 @@
+{
+ "id": "frontier",
+ "n": 4,
+ "name": "Frontier",
+ "description": "Thursday's AI edition. Deep violet with a dot grid.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "standard",
+  "16x9": "standard"
+ },
+ "tokens": {
+  "--bg": "radial-gradient(1px 1px at 50% 50%,rgba(185,174,245,.25) 1px,transparent 1.4px) 0 0/4cqw 4cqw,linear-gradient(170deg,#1d1934,#0f0d1c)",
+  "--bg-solid": "#16132a",
+  "--ink": "#ece8ff",
+  "--mute": "#a99fd6",
+  "--line": "#b9aef5",
+  "--acc": "#9a8af0",
+  "--accink": "#120f24",
+  "--mark": "#9a8af0",
+  "--markink": "#120f24",
+  "--card": "rgba(154,138,240,.08)",
+  "--cardline": "rgba(154,138,240,.35)",
+  "--capfont": "var(--ui)",
+  "--capsize": "4.9cqw",
+  "--capweight": "600"
+ },
+ "css": []
+}

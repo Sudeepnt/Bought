@@ -1,0 +1,39 @@
+{
+ "id": "builders",
+ "n": 6,
+ "name": "Builders",
+ "description": "Tuesday's terracotta on graph paper, monospace like a blueprint.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "blueprint",
+  "16x9": "blueprint"
+ },
+ "tokens": {
+  "--bg": "linear-gradient(rgba(173,99,48,.13) 1px,transparent 1px) 0 0/5cqw 5cqw,linear-gradient(90deg,rgba(173,99,48,.13) 1px,transparent 1px) 0 0/5cqw 5cqw,#f6efe4",
+  "--bg-solid": "#f6efe4",
+  "--ink": "#3a2414",
+  "--mute": "#8a6a52",
+  "--line": "#7a3f17",
+  "--acc": "#ad6330",
+  "--accink": "#fff",
+  "--mark": "#f3d4b6",
+  "--markink": "#3a2414",
+  "--card": "#fffaf2",
+  "--cardline": "#ad6330",
+  "--cardrad": "0",
+  "--headfont": "var(--mono)",
+  "--capfont": "var(--mono)",
+  "--capsize": "4.1cqw",
+  "--capweight": "600"
+ },
+ "css": [
+  "& .card{border-style:dashed}",
+  "& .cap span{text-transform:uppercase;letter-spacing:.02em}",
+  "& .qbig p{font-size:5.2cqw}"
+ ]
+}

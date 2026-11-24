@@ -1,0 +1,33 @@
+{
+ "id": "orbit",
+ "n": 20,
+ "name": "Orbit",
+ "description": "Charcoal night and amber. A launch path, a satellite circling, a coverage cone.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "standard",
+  "16x9": "standard"
+ },
+ "tokens": {
+  "--bg": "radial-gradient(.6px .6px at 20% 30%,#fff 50%,transparent 51%),radial-gradient(.6px .6px at 70% 15%,#fff 50%,transparent 51%),radial-gradient(.6px .6px at 85% 55%,#fff 50%,transparent 51%),radial-gradient(.6px .6px at 35% 70%,#fff 50%,transparent 51%),radial-gradient(.6px .6px at 55% 40%,#fff 50%,transparent 51%),radial-gradient(.6px .6px at 10% 85%,#fff 50%,transparent 51%),#141210",
+  "--bg-solid": "#141210",
+  "--ink": "#f4ead8",
+  "--mute": "#b5a688",
+  "--line": "#e0d2b4",
+  "--acc": "#ffb547",
+  "--accink": "#141210",
+  "--mark": "#ffb547",
+  "--markink": "#141210",
+  "--card": "rgba(255,181,71,.08)",
+  "--cardline": "rgba(255,181,71,.35)",
+  "--capfont": "var(--ui)",
+  "--capsize": "4.8cqw",
+  "--capweight": "500"
+ },
+ "css": []
+}

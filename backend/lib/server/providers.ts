@@ -200,6 +200,35 @@ export async function createCheckout(topup: Topup) {
   return { reference: order.id, url: null };
 }
 
+export type StripeSession = {
+  id: string;
+  status?: string;
+  payment_status?: string;
+  amount_total?: number;
+  currency?: string;
+  client_reference_id?: string | null;
+  payment_intent?: string | null;
+};
+
+// One Checkout Session, read with the secret key: how the server learns a card payment went through, webhook or not.
+export async function stripeSession(sessionId: string) {
+  if (!validProviderReference(sessionId)) throw new HttpError(400, 'Invalid checkout.');
+  return providerRequest<StripeSession>(
+    `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`,
+    { headers: { Authorization: `Bearer ${required('STRIPE_SECRET_KEY')}` } },
+  );
+}
+
+export type Ready = { stripe: boolean; razorpay: boolean };
+
+// UPI goes through Razorpay and card through Stripe; with only one of them connected it takes every top-up.
+// null: nothing is connected yet, so points can't be bought (everyone still gets their free points).
+export function chooseProvider(method: unknown, ready: Ready) {
+  const order: ('stripe' | 'razorpay')[] = method === 'card' ? ['stripe', 'razorpay'] : ['razorpay', 'stripe'];
+  const provider = order.find((p) => ready[p]) ?? null;
+  return provider && { provider, method: provider === 'stripe' ? ('card' as const) : ('upi' as const) };
+}
+
 export function basic(idKey: string, secretKey: string) {
   return `Basic ${btoa(`${required(idKey)}:${required(secretKey)}`)}`;
 }

@@ -4,6 +4,10 @@ const $=id=>document.getElementById(id);
 const $$=(sel,root=document)=>[...root.querySelectorAll(sel)];
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+/* what the server already put in the page (#boot-data: the Next.js page), by the URL it stands for; each is used once, so
+   anything asked again later is fetched fresh. public/index.html has none and everything is fetched, as before */
+const BOOT=(()=>{try{const el=document.getElementById("boot-data");const d=el&&JSON.parse(el.textContent);return d&&typeof d==="object"?d:{}}catch{return {}}})();
+const booted=u=>{if(!Object.prototype.hasOwnProperty.call(BOOT,u))return undefined;const d=BOOT[u];delete BOOT[u];return d};
 const fmt=x=>Math.floor(x/60)+":"+String(Math.floor(x%60)).padStart(2,"0");
 const usd=n=>"$"+Math.round(n).toLocaleString("en-US");
 /* ads are bid in points: 100 free for every new advertiser, more at $1 each */
@@ -144,7 +148,7 @@ const Sheet={
   if($("sheetwrap").hidden)Sheet.lastFocus=document.activeElement;
   $("sheet").innerHTML=html;$("sheet").setAttribute("aria-label",label||"Dialog");
   Sheet.onClose=onClose||null;$("sheetwrap").hidden=false;Lock.sync();Toasts.place();
-  requestAnimationFrame(()=>{const f=$("sheet").querySelector("[autofocus],input:not([type=hidden]):not(.vh),button.btn");f&&f.focus({preventScroll:true})});
+  requestAnimationFrame(()=>{const sh=$("sheet"),f=sh.querySelector("[autofocus]")||sh.querySelector("input:not([type=hidden]):not(.vh),button.btn");f&&f.focus({preventScroll:true})});   /* [autofocus] wins wherever it sits */
  },
  set(html){$("sheet").innerHTML=html;$("sheet").scrollTop=0},
  close(){

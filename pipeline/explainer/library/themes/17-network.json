@@ -1,0 +1,33 @@
+{
+ "id": "network",
+ "n": 17,
+ "name": "Network",
+ "description": "Plum night. One hacked node turns the whole web coral, then a shield closes it.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "standard",
+  "16x9": "standard"
+ },
+ "tokens": {
+  "--bg": "radial-gradient(70% 50% at 50% 45%,#3a1f30,#160b12)",
+  "--bg-solid": "#1d0f18",
+  "--ink": "#f6e6ef",
+  "--mute": "#c99bb4",
+  "--line": "#cd85ad",
+  "--acc": "#ff9f7a",
+  "--accink": "#24141e",
+  "--mark": "#ff9f7a",
+  "--markink": "#24141e",
+  "--card": "rgba(205,133,173,.08)",
+  "--cardline": "rgba(205,133,173,.35)",
+  "--capfont": "var(--ui)",
+  "--capsize": "4.8cqw",
+  "--capweight": "500"
+ },
+ "css": []
+}

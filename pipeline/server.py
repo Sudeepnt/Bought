@@ -22,6 +22,7 @@ import re
 import secrets
 import shutil
 import signal
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -34,7 +35,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import admin_pages as pages
-from . import analytics, dashboard as dash, dash_pages
+from . import analytics, copies, dashboard as dash, dash_pages
 from . import db, desk as dk, mailer
 from . import security as sec
 from .config import load_config, load_sources
@@ -49,6 +50,9 @@ log = logging.getLogger(__name__)
 SESSION_HOURS = 12
 BACKEND = ROOT / "backend"
 BACKEND_PORT = int(os.environ.get("BOUGHT_BACKEND_PORT", "8787"))
+WEB = ROOT / "web"                  # the page itself, server-rendered by Next.js (web/); public/index.html when it is down
+WEB_PORT = int(os.environ.get("BOUGHT_WEB_PORT", "3000"))
+WEB_PAGES = ("/", "/index.html")
 PROXY_HEADERS = ("Content-Type", "Origin", "Authorization", "Stripe-Signature", "X-Razorpay-Signature")
 PROXY_MAX_BODY = 2 * 1024 * 1024
 GZIP_TYPES = ("text/", "application/javascript", "application/json", "image/svg+xml", "application/wasm")
@@ -60,7 +64,7 @@ SITE_HEADERS = {
     "Permissions-Policy": "camera=(self), microphone=(self), geolocation=(), payment=(self \"https://api.razorpay.com\"), interest-cohort=()",
     "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
 }
-DESK_CSP = sec.desk_csp([sec.script_hash(pages.REVIEW_JS), sec.script_hash(dash_pages.TIP_JS)])
+DESK_CSP = sec.desk_csp([sec.script_hash(pages.REVIEW_JS), sec.script_hash(dash_pages.TIP_JS), sec.script_hash(dash_pages.COPY_JS)])
 DESK_PORT = int(os.environ.get("BOUGHT_DESK_PORT", "8100"))
 
 
@@ -150,7 +154,11 @@ class App:
         self._stats = None
         self.job_lock = threading.Lock()
         self.process = None
+        self.web = None                           # web/ (Next.js), started by serve()
+        self.web_started = 0.0
+        self.web_lock = threading.Lock()
         self.tick_lock = threading.Lock()
+        self.copy_lock = threading.Lock()         # one copy made or put back at a time
         self.fail_old_jobs()
 
     def cfg(self):
@@ -176,6 +184,40 @@ class App:
         # the backend exits when this pipe closes, so however this process dies it can't leave one behind holding the port
         self.backend = subprocess.Popen(["node", "--env-file-if-exists=.env", "--import", "tsx", "server.ts"], cwd=BACKEND, env=env, stdin=subprocess.PIPE)
         return self.backend
+
+    def start_web(self):
+        """The newspaper page from web/ (Next.js), when it is built. Not built or not running: public/index.html as before."""
+        nxt = WEB / "node_modules" / "next" / "dist" / "bin" / "next"
+        if os.environ.get("BOUGHT_WEB") == "off":             # the switch back to public/index.html, no rebuild needed
+            log.warning("BOUGHT_WEB=off: serving public/index.html")
+            return None
+        if not (WEB / ".next" / "BUILD_ID").exists() or not nxt.exists():
+            log.warning("web is not built: run npm --prefix web ci && npm --prefix web run build (serving public/index.html)")
+            return None
+        env = dict(os.environ, NODE_ENV="production", BOUGHT_WEB_PARENT="1", NEXT_TELEMETRY_DISABLED="1",
+                   BOUGHT_PUBLIC=str(dk.public_dir()), BOUGHT_BACKEND_PORT=str(BACKEND_PORT))
+        env.pop("NODE_OPTIONS", None)             # the backend's preloads (its test rig's fake services) are not the page's
+        self.web_started = time.monotonic()
+        try:
+            self.web = subprocess.Popen(["node", "--import", "./parent.mjs", str(nxt), "start", "-H", "127.0.0.1", "-p", str(WEB_PORT)],
+                                        cwd=WEB, env=env, stdin=subprocess.PIPE)
+        except OSError:
+            log.exception("web could not start (serving public/index.html)")
+        return self.web
+
+    def web_alive(self) -> bool:
+        """True while web/ is running. One that stopped is started again, at most once a minute; until it answers,
+        readers get public/index.html."""
+        web = self.web
+        if web is None:
+            return False
+        if web.poll() is None:
+            return True
+        with self.web_lock:
+            if self.web is web and time.monotonic() - self.web_started > 60:
+                log.warning("web stopped (exit %s): starting it again", web.returncode)
+                self.start_web()
+        return False
 
     def backend_call(self, method: str, path: str, body: dict | None = None):
         """/admin talking to the backend. Returns (status, data); status 0 means it is not running."""
@@ -242,9 +284,13 @@ class App:
         desk.execute("UPDATE issues SET state='failed', error='The server restarted during this step. Retry carries on where it stopped.' WHERE state='building'")
 
     def _spawn(self, kind: str, issue, log_path: Path):
-        args = {"intake": ["intake"], "prepare": ["prepare", "--issue", issue], "languages": ["languages", "--issue", issue]}[kind]
+        if kind == "explainer":                       # the desk re-rendering one story: issue carries "date story theme|rules"
+            date, story, how = (issue.split(" ") + ["", ""])[:3]
+            args = ["explainer", "rerender", "--issue", date, "--story", story] + (["--rules"] if how == "rules" else ["--theme", how] if how else [])
+        else:
+            args = ["funnel", *{"intake": ["intake"], "prepare": ["prepare", "--issue", issue], "languages": ["languages", "--issue", issue]}[kind]]
         out = open(log_path, "ab")
-        cmd = [sys.executable, "-m", "pipeline", "funnel", *args]
+        cmd = [sys.executable, "-m", "pipeline", *args]
         if self.config_path:
             cmd += ["--config", str(self.config_path)]
         # readers come first: the job and everything it starts (ffmpeg, Chromium, the voice) get only the CPU and disk readers leave over
@@ -475,7 +521,55 @@ class Handler(RangeHandler):
         if url.path.startswith(("/api/", "/admin")) or url.path in ("/confirm", "/unsubscribe", "/healthz"):
             return self._send("", 405, "text/plain")
         self._static = True
+        if url.path in WEB_PAGES and self._web_page(head=True):
+            return None
         return super().do_HEAD()
+
+    def _web_page(self, head=False) -> bool:
+        """The newspaper from web/ (Next.js), with this server's headers, CSP and cache rule. False (serve
+        public/index.html instead) when web/ is not running or answers anything but the page."""
+        if not self.app or not self.app.web_alive():
+            return False
+        headers = {"Accept-Encoding": "identity", "X-Forwarded-Proto": self.headers.get("X-Forwarded-Proto") or "http"}
+        if self.headers.get("If-None-Match"):
+            headers["If-None-Match"] = self.headers["If-None-Match"]
+        conn = http.client.HTTPConnection("127.0.0.1", WEB_PORT, timeout=10)
+        try:
+            conn.request("GET", "/", headers=headers)
+            r = conn.getresponse()
+            body = r.read()
+            etag = r.getheader("ETag")
+        except (OSError, http.client.HTTPException):
+            return False
+        finally:
+            conn.close()
+        etag = etag if not etag or etag.startswith("W/") else "W/" + etag     # the same page whether gzipped or not
+        if r.status == 304:
+            self.send_response(304)
+            if etag:
+                self.send_header("ETag", etag)
+            self.send_header("Vary", "Accept-Encoding")
+            self.end_headers()
+            return True
+        if r.status != 200 or not (r.getheader("Content-Type") or "").startswith("text/html"):
+            log.warning("web answered %s for the page; serving public/index.html", r.status)
+            return False
+        self._inline = sec.allowed_inline(body.decode("utf-8", "replace"))
+        gz = "gzip" in (self.headers.get("Accept-Encoding") or "") and len(body) >= 1024
+        if gz:
+            body = gzip.compress(body, 6)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        if gz:
+            self.send_header("Content-Encoding", "gzip")
+        if etag:
+            self.send_header("ETag", etag)
+        self.send_header("Vary", "Accept-Encoding")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if not head:
+            self.wfile.write(body)
+        return True
 
     def _cookie(self, name):
         raw = self.headers.get("Cookie")
@@ -559,6 +653,8 @@ class Handler(RangeHandler):
             return self._json({"ok": True, "ads": "down" if code != 200 else "live" if cfg.get("live") else "simulated"})
         if not self.desk or not (url.path == "/admin" or url.path.startswith("/admin/")):
             self._static = True
+            if url.path in WEB_PAGES and self._web_page():
+                return None
             return super().do_GET()
         if url.path == "/admin/login":
             return self._send(pages.login(code=bool(self.app.codes)))
@@ -614,6 +710,51 @@ class Handler(RangeHandler):
             return self._send(dash_pages.news_page(dash.all_news(news, app.stats.connect(), q), date))
         if path == "/admin/news.csv":
             return self._news_csv(news, q)
+        if path == "/admin/copy/export":
+            return self._copy_export(desk, q)
+        if path.startswith("/admin/explainers"):
+            return self._explainers_get(path, q, news, date, common)
+        return self._send("Not found", 404, "text/plain")
+
+    # ---------- explainers (pipeline/explainer/) ----------
+    def _explainers_get(self, path, q, news, date, common):
+        from .explainer import build as eb, desk_pages as xp, library
+        eb.connect(news)
+        story_id = q.get("id", "")
+        if path == "/admin/explainers":
+            themes = library.themes()
+            theme = q.get("theme") if q.get("theme") in {t["id"] for t in themes} else themes[0]["id"]
+            ratio = q.get("ratio") if q.get("ratio") in ("9x16", "16x9") else "9x16"
+            rows = news.execute("SELECT * FROM explainers WHERE issue=? ORDER BY rank", (date,)).fetchall()
+            return self._send(xp.index(library.gallery(theme, ratio), rows, eb.portraits_needed(news), themes, theme, ratio, date, common["message"], common["error"]))
+        row = news.execute("SELECT * FROM explainers WHERE issue=? AND article_id=?", (date, story_id)).fetchone()
+        if not row:
+            return self._send("Not found", 404, "text/plain")
+        folder = dk.out_dir() / "issues" / date / "explainers" / row["article_id"]
+        if path == "/admin/explainers/file":
+            name = q.get("name", "")
+            if name not in ("9x16.mp4", "16x9.mp4", "9x16.jpg", "16x9.jpg", "captions.vtt", "plan.json") or not (folder / name).is_file():
+                return self._send("Not found", 404, "text/plain")
+            body = (folder / name).read_bytes()
+            ctype = {"mp4": "video/mp4", "jpg": "image/jpeg", "vtt": "text/vtt", "json": "application/json"}[name.rsplit(".", 1)[1]]
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return None
+        if path == "/admin/explainers/story":
+            r = dict(row)
+            prev = None
+            if r.get("plan"):
+                try:
+                    prev = library.preview(json.loads(r["plan"]), r.get("theme_override") or r.get("theme") or library.theme_ids()[0],
+                                           {"section": r.get("section") or "Technology", "n": (r.get("rank") or 0) + 1, "total": 50})
+                except (RuntimeError, ValueError) as e:
+                    common["error"] = f"The preview could not be drawn: {e}"
+            files = {k: {"video": f"{k}.mp4", "poster": f"{k}.jpg", "bytes": (folder / f"{k}.mp4").stat().st_size} for k in ("16x9", "9x16") if (folder / f"{k}.mp4").exists() and (folder / f"{k}.jpg").exists()}
+            return self._send(xp.story(r, prev, library.themes(), files, date, common["message"], common["error"]))
         return self._send("Not found", 404, "text/plain")
 
     def _dashboard(self, desk, news, q, common):
@@ -651,7 +792,8 @@ class Handler(RangeHandler):
         body = dash_pages.dashboard(
             r=dash.readers(stats, today, days), flow=flow, top=dash.top_stories(stats, news, dash.day_list(today, days)[0]), issue_rows=dash.issues(desk, stats),
             subs=dash.subscribers(desk, today, days), server=server, ads=ads, warnings=warnings, days=days,
-            publish_hour=due.astimezone(dash.IST).hour, publish_label=dk.publish_label(s), now=now, date=common["date"])
+            publish_hour=due.astimezone(dash.IST).hour, publish_label=dk.publish_label(s), now=now, date=common["date"],
+            copy={"last": s.get("copy_downloaded_at"), "point": copies.restore_point()}, message=common["message"], error=common["error"])
         return self._send(body)
 
     def _news_csv(self, news, q):
@@ -692,6 +834,146 @@ class Handler(RangeHandler):
             text = Path(row["log"]).read_text(errors="replace")[-20000:]
         return self._send(pages.log_page(job=row, text=text, **common))
 
+    # ---------- keep a copy (pipeline/copies.py) ----------
+    def _copy_export(self, desk, q):
+        app, now = self.app, self.app.clock()
+        if not app.copy_lock.acquire(blocking=False):
+            return self._redirect("/admin/dashboard?e=" + pages.quote("A copy is already being made or put back. Try again in a minute."))
+        dest = None
+        try:
+            copies.clean()
+            app.stats.flush()                                   # the last few seconds of reader counts go in too
+            dest = copies.home() / f".export-{secrets.token_hex(8)}.zip"
+            copies.export(dest, now)
+        except (copies.CopyError, OSError, sqlite3.Error) as e:
+            if dest:
+                dest.unlink(missing_ok=True)
+            log.exception("copy export failed")
+            return self._redirect("/admin/dashboard?e=" + pages.quote(f"The copy could not be made: {e}"))
+        finally:
+            app.copy_lock.release()
+        name = f"bought-copy-{now.astimezone(dash.IST).strftime('%Y-%m-%d-%H%M')}-IST.zip"
+        token = q.get("t", "")
+        f = open(dest, "rb")
+        size = os.fstat(f.fileno()).st_size
+        dest.unlink(missing_ok=True)                            # the open file still reads; the server keeps no copy, even mid-download
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("Content-Length", str(size))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            if re.fullmatch(r"[a-z0-9]{1,16}", token):           # tells the page the download has started
+                self.send_header("Set-Cookie", f"bought_copy={token}; Path=/admin; Max-Age=120; SameSite=Strict")
+            self.end_headers()
+            shutil.copyfileobj(f, self.wfile, 1 << 20)
+            desk.execute("INSERT INTO settings (key, value) VALUES ('copy_downloaded_at', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (dk.stamp(now),))
+        except (BrokenPipeError, ConnectionResetError):
+            log.warning("copy download stopped by the browser")
+        finally:
+            f.close()
+
+    def _copy_check(self):
+        """The browser sends the chosen file as the whole body. Saved, then checked file by file; nothing changes yet."""
+        app = self.app
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+        if n <= 0:
+            return self._json({"error": "No file came with the upload."}, 400)
+        if not app.copy_lock.acquire(blocking=False):
+            self._drain(n)
+            return self._json({"error": "A copy is already being made or put back. Try again in a minute."}, 409)
+        path = None
+        try:
+            base = copies.home()
+            copies.clean()
+            for old in base.glob(".upload-*.zip"):
+                old.unlink(missing_ok=True)                    # only the latest upload waits to be confirmed
+            if copies._free(base) < 2 * n + copies.SPARE:
+                self._drain(n)
+                return self._json({"error": f"Not enough free disk for this copy: it needs about {copies.size(2 * n + copies.SPARE)}, {copies.size(copies._free(base))} is free."}, 507)
+            token = secrets.token_hex(16)
+            path = base / f".upload-{token}.zip"
+            got = 0
+            with open(path, "wb") as f:
+                while got < n:
+                    chunk = self.rfile.read(min(1 << 20, n - got))
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    got += len(chunk)
+            if got != n:
+                path.unlink(missing_ok=True)
+                return self._json({"error": "The upload was cut short. Try again."}, 400)
+            info = copies.summary(copies.check(path))
+            return self._json({"ok": True, "id": token, "facts": dash_pages.copy_facts(info), "made": dash_pages.copy_facts(info)[0][1]})
+        except copies.CopyError as e:
+            if path:
+                path.unlink(missing_ok=True)
+            return self._json({"error": str(e)}, 400)
+        except OSError as e:
+            if path:
+                path.unlink(missing_ok=True)
+            return self._json({"error": f"The upload could not be saved: {e}"}, 500)
+        finally:
+            app.copy_lock.release()
+
+    def _drain(self, n: int) -> None:
+        left = n
+        while left > 0:
+            chunk = self.rfile.read(min(1 << 20, left))
+            if not chunk:
+                break
+            left -= len(chunk)
+
+    def _copy_hold(self, work):
+        """Runs `work` with the clock, new jobs and the reader counter paused, so nothing writes while the data is swapped."""
+        app = self.app
+        if not app.copy_lock.acquire(blocking=False):
+            raise copies.CopyError("A copy is already being made or put back. Try again in a minute.")
+        try:
+            app.stats.flush()
+            with app.tick_lock, app.job_lock, app.stats.write_lock:
+                desk = app.desk()
+                job = app.running_job(desk)
+                if job:
+                    raise copies.CopyError(f"A job is running ({job['kind']}). Wait for it to finish, then import.")
+                result = work()
+                app.fail_old_jobs()                         # a copy made mid-build shows that build as stopped, with Retry
+                return result
+        finally:
+            app.copy_lock.release()
+
+    def _copy_import(self, form):
+        token = str(form.get("id", ""))
+        if not re.fullmatch(r"[0-9a-f]{32}", token):
+            return self._json({"error": "Choose the file again."}, 400)
+        upload = copies.home() / f".upload-{token}.zip"
+        if not upload.exists():
+            return self._json({"error": "That upload is gone. Choose the file again."}, 400)
+        try:
+            info = self._copy_hold(lambda: copies.import_copy(upload, self.app.clock()))
+        except copies.CopyError as e:
+            return self._json({"error": str(e)}, 400)
+        except (OSError, sqlite3.Error) as e:
+            log.exception("copy import failed")
+            return self._json({"error": f"Importing failed: {type(e).__name__}: {e}"}, 500)
+        upload.unlink(missing_ok=True)
+        made = dash_pages.copy_facts(info)[0][1]
+        return self._json({"ok": True, "message": f"Done. This server now holds the copy made {made}: {info['files']:,} files, all checked. What was here before is kept, so you can undo it from the dashboard."})
+
+    def _copy_undo(self):
+        try:
+            self._copy_hold(lambda: copies.undo_import(self.app.clock()))
+        except copies.CopyError as e:
+            return self._redirect("/admin/dashboard?e=" + pages.quote(str(e)) + "#copy")
+        except (OSError, sqlite3.Error) as e:
+            log.exception("copy undo failed")
+            return self._redirect("/admin/dashboard?e=" + pages.quote(f"Undo failed: {type(e).__name__}: {e}") + "#copy")
+        return self._redirect("/admin/dashboard?m=" + pages.quote("Back to how this server was before. (That step can be undone too.)") + "#copy")
+
     # ---------- POST ----------
     def do_POST(self):
         if not self._host_ok():
@@ -717,7 +999,10 @@ class Handler(RangeHandler):
         if not self._signed_in():
             return self._json({"error": "sign in"}, 401)
         if not self._same_origin():
+            self._body()
             return self._json({"error": "refused"}, 403)
+        if url.path == "/admin/copy/check":
+            return self._copy_check()                    # its body is the whole file: read before _form could
         return self._admin_post(url.path)
 
     def _proxy(self):
@@ -810,6 +1095,10 @@ class Handler(RangeHandler):
             if path == "/admin/api/decide":
                 dk.decide(news, desk, form.get("id", ""), form.get("action", ""), date, now)
                 return self._json({"ok": True})
+            if path == "/admin/copy/import":
+                return self._copy_import(form)
+            if path == "/admin/copy/undo":
+                return self._copy_undo()
             if path == "/admin/logout":
                 return self._redirect("/admin/login", [self._session_cookie("", 0)])
             if path == "/admin/fetch":
@@ -855,6 +1144,8 @@ class Handler(RangeHandler):
             if path == "/admin/email/retry":
                 res = app.send_emails(desk, date)
                 return back("/email", m="Mail or the site address is not set yet." if res.get("skipped") else f"Sent {res['sent']}, failed {res['failed']}.")
+            if path in ("/admin/explainers/decide", "/admin/explainers/rerender"):
+                return self._explainers_post(path, form, news, desk, date)
             if path == "/admin/retry":
                 if app.running_job(desk):
                     return back("/final", e="Another job is running. Try again when it finishes.")
@@ -867,6 +1158,35 @@ class Handler(RangeHandler):
             target = {"/admin/settings": "/settings", "/admin/email/test": "/email", "/admin/email/retry": "/email"}.get(path, "/final")
             return back(target, e=str(e))
         return self._send("Not found", 404, "text/plain")
+
+
+def _explainers_post_impl(self, path, form, news, desk, date):
+    from .explainer import build as eb, library
+    eb.connect(news)
+    sid = form.get("id", "")
+    page = lambda **kw: self._redirect(f"/admin/explainers/story?date={date}&id={pages.quote(sid)}" + "".join(f"&{k}={pages.quote(v)}" for k, v in kw.items()))
+    if not news.execute("SELECT 1 FROM explainers WHERE issue=? AND article_id=?", (date, sid)).fetchone():
+        return self._send("Not found", 404, "text/plain")
+    if path == "/admin/explainers/decide":
+        decision = form.get("decision")
+        if decision not in ("approve", "hold", "auto"):
+            raise ValueError("unknown decision")
+        eb._save(news, date, sid, dk.stamp(self.app.clock()), decision=None if decision == "auto" else decision)
+        live = dk.is_live_on_site(date)
+        if live:                                         # an issue already on the site is published again, without (or with) this video
+            self.app.start_job("explainer", f"{date} {sid}") if decision == "approve" else fp.publish(self.app.cfg(), date, news, len(self.app.sources()), media=r2.store())
+        return page(m={"approve": "Approved: the video goes out.", "hold": "Held: the story goes out without its video.", "auto": "Released."}[decision] + (" The live issue was updated." if live and decision != "approve" else ""))
+    theme = form.get("theme", "")
+    rules = form.get("rules") == "1"
+    if theme and theme not in library.theme_ids():
+        raise ValueError("unknown theme")
+    if self.app.running_job(desk):
+        return page(e="Another job is running. Try again when it finishes.")
+    self.app.start_job("explainer", f"{date} {sid} {'rules' if rules else theme}")
+    return page(m="Re-rendering in the background (low priority). Refresh this page in a few minutes.")
+
+
+Handler._explainers_post = _explainers_post_impl
 
 
 class Server(ThreadingHTTPServer):
@@ -887,6 +1207,8 @@ def serve(host: str, port: int, config=None, sources=None, desk_host: str = "127
     backend = app.start_backend()
     if backend:
         atexit.register(backend.terminate)
+    if app.start_web():
+        atexit.register(lambda: app.web and app.web.terminate())     # the one running now, after any restart
     Handler.app = app
     server = Server((host, port), partial(PublicHandler, directory=str(dk.public_dir())))
     desk = Server((desk_host, desk_port), partial(Handler, directory=str(dk.public_dir())))

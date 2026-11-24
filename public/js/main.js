@@ -23,6 +23,8 @@ $("sheetwrap").addEventListener("click",e=>{if(e.target===$("sheetwrap"))Sheet.c
 $("ov").addEventListener("click",e=>{if(e.target===$("ov"))Ov.close()});
 $("rdscrim").addEventListener("click",()=>Reader.close());
 document.addEventListener("keydown",e=>{
+ /* Enter in a sign-in field moves on, like its button */
+ if(e.key==="Enter"&&Bid.st&&e.target.matches&&e.target.matches("#sheet #b-email,#sheet .otp input,#sheet #b-name")){e.preventDefault();Bid.next();return}
  if(e.key==="Escape"){if(!$("sheetwrap").hidden)Sheet.close();else if(!$("ov").hidden)Ov.close();else Reader.close();return}
  const el=e.target.closest&&e.target.closest(".vid,.bv");
  if(el&&(e.key==="Enter"||e.key===" ")){e.preventDefault();el.click();return}
@@ -41,8 +43,9 @@ document.addEventListener("visibilitychange",()=>{if(document.hidden)Vids.stop()
 addEventListener("resize",()=>{Toasts.place();clearTimeout(window._bal);window._bal=setTimeout(()=>Paper.balance(),150)},{passive:true});
 
 /* every second: countdowns + auto-settle */
-function tickCountdowns(){$$(".cdx[data-until]").forEach(el=>{el.textContent=hms(+el.dataset.until-now())})}
-setInterval(()=>{tickCountdowns();tickAuction()},1000);
+function tickCountdowns(){$$(".cdx[data-until]").forEach(el=>{const left=+el.dataset.until-now();el.textContent=hms(left);
+ if(el.hasAttribute("data-urgent"))el.classList.toggle("urgent",left>0&&left<URGENT_MS)})}
+setInterval(()=>{tickCountdowns();tickAuction();Adv.tickSold();Me.paint()},1000);
 
 $("lang").addEventListener("change",e=>Data.setLang(e.target.value));
 
@@ -51,14 +54,14 @@ $("lang").addEventListener("change",e=>Data.setLang(e.target.value));
  const h=location.hash.slice(1), link=h.match(/^s-(\d{4}-\d{2}-\d{2})-(\w+)$/);
  try{
  Theme.paint();
- if(!await Live.boot())initAuction();ADV.date=AU.dates[0];
+ if(!await Live.boot())initAuction();ADV.date=AU.dates[0];Me.restore();   /* the prototype remembers a sign-in in this browser */
  await Data.boot(link&&link[1]);
  Theme.edition(wdOf(ISSUE_DAY));document.body.classList.toggle("archive",!!LATEST&&ISSUE_DAY!==LATEST);
  Paper.render();Radio.init();Spec.render();
  Motion.init();Shell.init();Pager.init();
  go(link?"paper":VIEWS.includes(h)?h:h==="listen"?"radio":store.get("bought-view","paper"));
  }finally{document.body.classList.remove("booting")}   /* the page appears once, drawn: no empty frame first */
- BOOTED=true;Stats.visit(VIEW);
+ BOOTED=true;Stats.visit(VIEW);Me.paint();
  if(link){const s=S.find(x=>x.uid===link[2]);if(s)Reader.open(s.id)}
  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>Paper.balance());
  tickCountdowns();

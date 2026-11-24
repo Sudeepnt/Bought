@@ -66,50 +66,6 @@ def test_media_requires_command(tmp_path):
 
 
 @needs_ffmpeg
-def test_avatar_video_made_and_in_feed(tmp_path):
-    pytest.importorskip("PIL")
-    cfg = replace(cfg_with([sys.executable, "-c", STUB, "{wav}"]), avatar_enabled=True,
-                  avatar_size=(320, 180))
-    res, feed, out = go(tmp_path, cfg)
-    assert res["media"]["failed"] == 0
-    assert all(i["video_url"].split("?")[0].endswith(".mp4") for i in feed["prime"])
-    assert len(list((out.parent / "media").glob("*.mp4"))) == 25
-
-
-@needs_ffmpeg
-def test_anime_clip_with_laugh_and_cutaway(tmp_path):
-    pytest.importorskip("PIL")
-    from pipeline.clip import make_clip
-    cfg = replace(cfg_with([sys.executable, "-c", STUB, "{wav}"]), avatar_size=(320, 180))
-    spec = tmp_path / "s.yaml"
-    spec.write_text(yaml.safe_dump({
-        "name": "t", "character": "anime", "headline": "Hello there", "image": "pipeline/assets/library/podcast-earth.jpg",
-        "segments": [{"text": "Hi.", "mood": "happy"}, {"laugh": 0.5},
-                     {"text": "Bye.", "cutaway": True}]}))
-    feed = tmp_path / "feed.json"
-    feed.write_text(json.dumps({"prime": [{"id": "abc"}]}))
-    spec.write_text(spec.read_text() + "attach_to: abc\n")
-    res = make_clip(spec, cfg, feed_path=feed)
-    assert Path(res["mp4"]).exists() and 3 < res["duration_s"] < 8   # stub speech is 1 s per segment
-    item = json.loads(feed.read_text())["prime"][0]
-    assert item["video_url"].endswith("t.mp4") and item["duration_s"] == res["duration_s"]
-
-
-def test_mascot_presenter_renders_all_moods():
-    import numpy as np
-    from pipeline.avatar import motion
-    from pipeline.mascot import MascotPresenter
-    p = MascotPresenter(size=(640, 360))
-    m = motion(np.zeros(30), "t")
-    sizes = set()
-    for mood, blink in (("neutral", 0), ("happy", 1), ("laugh", 0), ("serious", 2)):
-        im = p.frame(0.3, blink, m, 3, mood)
-        assert im.mode == "RGBA" and im.getchannel("A").getbbox()
-        sizes.add(im.size)
-    assert len(sizes) == 1
-
-
-@needs_ffmpeg
 def test_podcast_builds_one_episode_with_chapters_and_is_idempotent(tmp_path):
     from pipeline.podcast import attach_podcast, build_podcast, story_script
     marker = tmp_path / "calls.txt"
@@ -135,39 +91,6 @@ def test_podcast_builds_one_episode_with_chapters_and_is_idempotent(tmp_path):
     res3 = build_podcast(cfg, feed, out, cache)
     assert res3["new"] == 1 and res3["built"]
     assert story_script({"id": "x", "headline": "Hi", "summary": "S", "category": "AI"}, 2, "AI").startswith("Story 2. Next.")
-
-
-def test_looks_are_picked_per_category_and_rotate_for_unknown_ones():
-    from pipeline.styles import pick_look
-    looks = {"AI": {"character": "mascot", "style": "funky"}, "Technology": {"character": "photo", "style": "studio"}}
-    cfg = replace(load_config(), avatar_looks=looks)
-    assert pick_look({"id": "a", "category": "AI"}, cfg) == ("mascot", "funky")
-    assert pick_look({"id": "b", "category": "technology"}, cfg) == ("photo", "studio")           # case-insensitive
-    other = {pick_look({"id": str(i), "category": "World"}, cfg) for i in range(40)}
-    assert other == {("mascot", "funky"), ("photo", "studio")}                                    # unknown: rotates over the looks
-    assert pick_look({"id": "a", "category": "World"}, cfg) == pick_look({"id": "a", "category": "World"}, cfg)
-    assert pick_look({"id": "a", "category": "AI"}, replace(load_config(), avatar_looks={})) == ("photo", "studio")   # no looks: original
-    with pytest.raises(ConfigError):
-        import yaml as _y, tempfile
-        p = Path(tempfile.mkdtemp()) / "c.yaml"
-        p.write_text(_y.safe_dump({"avatar_looks": {"AI": {"character": "robot", "style": "funky"}}}))
-        load_config(p)
-
-
-@needs_ffmpeg
-def test_mixed_looks_render_with_different_hosts_and_sets(tmp_path):
-    pytest.importorskip("PIL"); pytest.importorskip("numpy")
-    looks = {"AI": {"character": "mascot", "style": "funky"}, "Technology": {"character": "photo", "style": "studio"},
-             "Tech business": {"character": "anime", "style": "channel"}}
-    cfg = cfg_with([sys.executable, "-c", STUB, "{wav}"], avatar_enabled=True, avatar_size=(320, 180), avatar_looks=looks,
-                   avatar_cutaway_chance=0, media_time_budget_seconds=600)
-    res, feed, out = go(tmp_path, cfg)
-    media = out.parent / "media"
-    cats = {i["category"] for i in feed["prime"]}
-    assert {"AI", "Technology", "Tech business"} <= cats
-    assert all(i.get("video_url") and (media / Path(i["video_url"].split("?")[0]).name).exists() for i in feed["prime"])
-    sizes = {(media / Path(i["video_url"].split("?")[0]).name).stat().st_size for i in feed["prime"]}
-    assert len(sizes) > 5                                                                          # not 25 copies of one look
 
 
 def test_badges_rules_priority_and_engagement():

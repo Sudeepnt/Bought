@@ -9,7 +9,9 @@ def item(i, category="AI", video=False, picture=False, headline=None, summary="A
     it = {"id": f"id{i}", "headline": headline or f"Story number {i}", "summary": summary, "source": "Techmeme", "category": category, "link": f"https://x.test/{i}",
           "image_url": None, "image_credit": None, "published_at": "2026-11-05T06:45:00Z"}
     if video:
-        it.update(video_url=f"media/id{i}.mp4", poster_url=f"media/id{i}.jpg", image_url=f"media/id{i}.jpg", duration_s=40.1)
+        rel = f"explainers/id{i}"
+        it.update(video_url=f"{rel}/16x9.mp4", poster_url=f"{rel}/16x9.jpg", image_url=f"{rel}/16x9.jpg", reel_url=f"{rel}/9x16.mp4", reel_poster_url=f"{rel}/9x16.jpg",
+                  captions_url=f"{rel}/captions.vtt", plan_url=f"{rel}/plan.json", duration_s=40.1, explainer=True)
     if picture:
         it.update(image_url=f"https://x.test/{i}.jpg", image_credit="Wired")
     return it
@@ -54,11 +56,17 @@ def test_lead_is_the_first_story_with_a_video_and_a_video_is_never_a_brief():
     assert len(out) == len({i["id"] for i, _ in out}) == 10
 
 
+def explainer_files(base, i=1):
+    d = base / "explainers" / f"id{i}"
+    d.mkdir(parents=True, exist_ok=True)
+    for name in ("16x9.mp4", "16x9.jpg", "9x16.mp4", "9x16.jpg", "captions.vtt", "plan.json"):
+        (d / name).write_bytes(name.encode())
+    return d
+
+
 def test_publish_writes_the_issue_the_site_reads(tmp_path):
     base = tmp_path / "out" / "issues" / "2026-11-05"
-    (base / "media").mkdir(parents=True)
-    (base / "media" / "id1.mp4").write_bytes(b"v")
-    (base / "media" / "id1.jpg").write_bytes(b"p")
+    explainer_files(base)
     feed = {"generated_at": "2026-11-05T06:52:43Z", "prime": [item(1, video=True, headline="Acme raises $20M for robots"), item(2, picture=True), item(3)], "cards": [], "glance": []}
     (base / "feed.json").write_text(json.dumps(feed))
     (base / "rights_review.json").write_text(json.dumps({"note": "n", "pictures": []}))
@@ -76,7 +84,10 @@ def test_publish_writes_the_issue_the_site_reads(tmp_path):
     assert len(marked) == 3 and all("status='used'" in q and a[0] == "issue:2026-11-05" for q, a in marked)   # they can't run again tomorrow
     page = json.loads((pub / "issues/2026-11-05/issue.json").read_text())
     lead = page["stories"][0]
-    assert lead["sz"] == "lead" and lead["video"].startswith("issues/2026-11-05/media/id1.mp4") and (pub / "issues/2026-11-05/media/id1.mp4").exists()
+    ex = "issues/2026-11-05/explainers/id1"
+    assert lead["sz"] == "lead" and lead["video"].startswith(f"{ex}/16x9.mp4?v=") and lead["poster"].startswith(f"{ex}/16x9.jpg?v=")
+    assert lead["reel"].startswith(f"{ex}/9x16.mp4?v=") and lead["reel_poster"].startswith(f"{ex}/9x16.jpg?v=") and page["clips"][0] == lead["id"]
+    assert all((pub / ex / n).exists() for n in ("16x9.mp4", "16x9.jpg", "9x16.mp4", "9x16.jpg", "captions.vtt", "plan.json"))
     assert page["stories"][1]["media"] == "pic" and page["stories"][1]["picture"].endswith("id2.jpg")
     assert page["stories"][2]["media"] == "none"
     assert page["nums"][0][0] == "$20M" and page["nums"][0][2] == 0

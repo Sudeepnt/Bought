@@ -1,0 +1,34 @@
+{
+ "id": "people",
+ "n": 19,
+ "name": "People",
+ "description": "Founders ochre. Initials in circles, a handover arrow, a small org tree. No photos needed.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "standard",
+  "16x9": "standard"
+ },
+ "tokens": {
+  "--bg": "#f6efdf",
+  "--bg-solid": "#f6efdf",
+  "--ink": "#2e230f",
+  "--mute": "#8a7449",
+  "--line": "#2e230f",
+  "--acc": "#a3730c",
+  "--accink": "#fff",
+  "--mark": "#ecd9a8",
+  "--markink": "#2e230f",
+  "--card": "#fffaf0",
+  "--cardline": "#e0cfa6",
+  "--headfont": "var(--head)",
+  "--capfont": "var(--ui)",
+  "--capsize": "4.7cqw",
+  "--capweight": "600"
+ },
+ "css": []
+}

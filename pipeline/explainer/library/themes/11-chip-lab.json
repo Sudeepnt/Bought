@@ -1,0 +1,37 @@
+{
+ "id": "chip-lab",
+ "n": 11,
+ "name": "Chip Lab",
+ "description": "Graphite and copper. A chip drawn from above, generations shrinking, a bar chart. Caption sits in a bottom sheet.",
+ "fonts": {
+  "display": "Fraunces",
+  "head": "Newsreader",
+  "ui": "Geist",
+  "mono": "Geist Mono"
+ },
+ "layout": {
+  "9x16": "bottom-sheet",
+  "16x9": "bottom-sheet"
+ },
+ "tokens": {
+  "--bg": "radial-gradient(90% 60% at 50% 45%,#2a221b,#120f0c)",
+  "--bg-solid": "#1b1612",
+  "--ink": "#f2e8da",
+  "--mute": "#b8a38a",
+  "--line": "#c98b4a",
+  "--acc": "#ffb547",
+  "--accink": "#1b1612",
+  "--mark": "#ffb547",
+  "--markink": "#1b1612",
+  "--card": "rgba(201,139,74,.1)",
+  "--cardline": "rgba(201,139,74,.4)",
+  "--capfont": "var(--ui)",
+  "--capsize": "4.6cqw",
+  "--capweight": "600"
+ },
+ "css": [
+  "& .cap{margin:0 3cqw 3cqw;padding:4.5cqw 6cqw 6cqw;background:rgba(242,232,218,.08);border:1px solid rgba(201,139,74,.35);border-radius:4cqw;text-align:left}",
+  "& .card{margin-left:auto;max-width:62%}",
+  "&.w .cap{margin:0 3.6cqw 2.4cqw;padding:1.6cqw 2.4cqw;border-radius:1.6cqw;text-align:left}"
+ ]
+}

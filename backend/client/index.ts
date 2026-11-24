@@ -1,8 +1,7 @@
 // Bought's browser side with no interface of its own: sign-in, the camera profile and take checks,
-// the microphone check, the wake lock, the local recovery copy, upload to Cloudflare R2 on a signed
-// link, image upload, signed playback and checkout. The newspaper's Advertise page calls these from its own buttons.
+// the microphone check, the wake lock, the local recovery copy, video and picture upload to Cloudflare R2
+// on signed links, signed playback and checkout. The newspaper's Advertise page calls these from its own buttons.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { THUMBNAIL_BUCKET } from '../lib/drop-domain';
 import {
   deleteTake,
   loadTake,
@@ -50,6 +49,12 @@ export async function sendCode(email: string) {
   if (error) throw error;
 }
 
+// Ends the session in this browser (the profile picture's Sign out).
+export async function signOut() {
+  if (!client) return;
+  await client.auth.signOut();
+}
+
 export async function userEmail() {
   if (!client) return null;
   const { data } = await client.auth.getSession();
@@ -58,7 +63,7 @@ export async function userEmail() {
 
 const DONE_PAGE = '/auth/done.html';
 
-// Google sign-in in a small window, so the bid sheet keeps everything typed so far. The window comes back to
+// Google or Facebook sign-in in a small window, so the sheet keeps everything typed so far. The window comes back to
 // /auth/done.html, which stores the session (same origin, so this page reads it too) and says so on a
 // BroadcastChannel. Google's pages cut the window's link to this page, so `popup.closed` can't be trusted:
 // we wait for the message or the stored session, until cancelGoogle() or ten minutes.
@@ -69,19 +74,19 @@ export function cancelGoogle() {
   cancelWait?.();
 }
 
-export async function googleSignIn(): Promise<boolean> {
-  const popup = window.open('', 'bought-google', 'popup,width=500,height=680');
+export async function oauthSignIn(provider: 'google' | 'facebook'): Promise<boolean> {
+  const popup = window.open('', `bought-${provider}`, 'popup,width=500,height=680');
   const { data, error } = await supabase().auth.signInWithOAuth({
-    provider: 'google',
+    provider,
     options: {
       redirectTo: `${location.origin}${DONE_PAGE}${popup ? '' : '?back=1'}`,
       skipBrowserRedirect: true,
-      queryParams: { prompt: 'select_account' },
+      ...(provider === 'google' ? { queryParams: { prompt: 'select_account' } } : {}),
     },
   });
   if (error || !data?.url) {
     popup?.close();
-    throw error ?? new Error('Google sign-in is not available right now.');
+    throw error ?? new Error(`${provider === 'google' ? 'Google' : 'Facebook'} sign-in is not available right now.`);
   }
   if (!popup) {
     location.assign(data.url);
@@ -106,6 +111,8 @@ export async function googleSignIn(): Promise<boolean> {
     cancelWait = finish;
   });
 }
+
+export const googleSignIn = () => oauthSignIn('google');
 
 // Runs on /auth/done.html: the client reads the sign-in from the address and stores it.
 export async function finishSignIn(url: string, key: string) {
@@ -246,15 +253,17 @@ export async function uploadImage(adId: string, file: Blob) {
   const normalized = await normalizeThumbnail(
     file instanceof File ? file : new File([file], 'image.jpg', { type: file.type }),
   );
-  const target = await api<{ path: string; token: string }>(`ads/ads/${adId}/image`, {
+  // straight to R2 on a link for this ad's picture, locked to its type and exact size
+  const target = await api<{ url: string; contentType: string }>(`ads/ads/${adId}/image`, {
     contentType: normalized.type,
+    size: normalized.size,
   });
-  const { error } = await supabase()
-    .storage.from(THUMBNAIL_BUCKET)
-    .uploadToSignedUrl(target.path, target.token, normalized, {
-      contentType: normalized.type,
-    });
-  if (error) throw new Error('Image upload failed. Your bid is saved. Try again.');
+  const response = await fetch(target.url, {
+    method: 'PUT',
+    headers: { 'Content-Type': target.contentType },
+    body: normalized,
+  }).catch(() => null);
+  if (!response?.ok) throw new Error('Image upload failed. Your bid is saved. Try again.');
 }
 
 type UploadTarget = { url: string; key: string; contentType: string };

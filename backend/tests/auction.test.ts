@@ -69,7 +69,7 @@ const withdraw = async (db: PGlite, who: string, minor: number) =>
 async function signUp(db: PGlite, email: string) {
   const id = randomUUID();
   await db.query('insert into auth.users(id,email) values ($1,$2)', [id, email]);
-  const r = await one<{ r: { bonus: boolean } }>(db, "select public.bought_ad_open_account($1,$2,'Biz','India',null,'upi') as r", [id, email]);
+  const r = await one<{ r: { bonus: boolean } }>(db, "select public.bought_ad_open_account($1,$2,'Biz','founder') as r", [id, email]);
   return { id, bonus: r.r.bonus };
 }
 
@@ -160,7 +160,7 @@ void test('100 free points once per email; spent first; never withdrawn', async 
   assert.equal(first.bonus, true);
   assert.equal(await balance(db, first.id), 10000);
   assert.equal(await free(db, first.id), 10000);
-  const again = await one<{ r: { bonus: boolean } }>(db, "select public.bought_ad_open_account($1,'asha@example.com','Biz 2','India',null,'card') as r", [first.id]);
+  const again = await one<{ r: { bonus: boolean } }>(db, "select public.bought_ad_open_account($1,'asha@example.com','Biz 2','investor') as r", [first.id]);
   assert.equal(again.r.bonus, false, 'saving the account again gives nothing');
   const remade = await signUp(db, 'asha@example.com'); // the same email on a new sign-in account
   assert.equal(remade.bonus, false);
@@ -392,7 +392,7 @@ void test('the service role the API runs as can do the whole job', async () => {
   const c = randomUUID();
   await db.query("insert into auth.users(id,email) values ($1,'svc@example.com')", [c]);
   await db.exec('set role service_role');
-  await one(db, "select public.bought_ad_open_account($1,'svc@example.com','Biz','India',null,'upi')", [c]);
+  await one(db, "select public.bought_ad_open_account($1,'svc@example.com','Biz','marketer')", [c]);
   await db.exec('reset role');
   await db.close();
 });
@@ -429,5 +429,24 @@ void test('the desk dashboard gets ad totals, day by day and per issue', async (
   assert.equal(after.issues[0].issue, ISSUE);
   assert.deepEqual(after.open, []);
   assert.equal(after.days.length, 30);
+  await db.close();
+});
+
+void test('sign-up keeps a name and what describes you, nothing about payment; 100 points once per email', async () => {
+  const db = await testDatabase();
+  const a = await signUp(db, 'Neha@Example.com');
+  assert.equal(a.bonus, true, 'a new email gets the 100 free points (the page welcomes it)');
+  const row = await one<{ name: string; email: string; role: string; gstin: string | null }>(db, 'select name,email,role,gstin from public.bought_accounts where user_id=$1', [a.id]);
+  assert.deepEqual(row, { name: 'Biz', email: 'neha@example.com', role: 'founder', gstin: null });
+  // signing in again later: same account, no second gift, a changed role is kept
+  const again = await one<{ r: { bonus: boolean } }>(db, "select public.bought_ad_open_account($1,'neha@example.com','Neha','investor') as r", [a.id]);
+  assert.equal(again.r.bonus, false);
+  assert.equal((await one<{ role: string }>(db, 'select role from public.bought_accounts where user_id=$1', [a.id])).role, 'investor');
+  assert.equal(await balance(db, a.id), 10000);
+  // only the six roles the page offers
+  await assert.rejects(() => db.query("select public.bought_ad_open_account($1,'neha@example.com','Neha','hacker')", [a.id]));
+  // the page reads the role back with the account
+  const m = (await one<{ m: { me: { acct: { role: string; name: string } } } }>(db, 'select public.bought_ad_market($1) as m', [a.id])).m;
+  assert.equal(m.me.acct.role, 'investor');
   await db.close();
 });

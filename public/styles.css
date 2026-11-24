@@ -12,7 +12,7 @@
  --rule:#e3dbcd; --rule-2:#d2c9b7; --hi:#f3e6c2;
  --accent:#b4432b; --on-accent:#fff;
  --ad-bg:#efe8db; --ad-mark:#a8894a;
- --ok:#2d7a52; --warn:#9c6500;
+ --ok:#2d7a52; --warn:#9c6500; --urgent:#d1242f;
  --c-ai:#6553c4; --c-tech:#2a7385; --c-biz:#b4432b; --c-found:#a3730c; --c-launch:#38805a; --c-geo:#89496f;
  --theme:#ad6330; --theme-ink:color-mix(in srgb,var(--theme) 82%,var(--ink));
  --shadow:0 1px 2px rgba(48,36,16,.05),0 10px 30px rgba(48,36,16,.08);
@@ -33,7 +33,7 @@
  --ink:#e8e4dc; --ink-2:#cdc8be; --muted:#9c978e; --faint:#7d7972;
  --rule:#37383d; --rule-2:#45464c; --hi:#3a3526;
  --accent:#e27a5c; --on-accent:#1d1d1f; --ad-bg:#2b2a2b; --ad-mark:#c9a862;
- --ok:#5cb98a; --warn:#e0a53a;
+ --ok:#5cb98a; --warn:#e0a53a; --urgent:#ff5c5c;
  --c-ai:#9a8af0; --c-tech:#5fb0c2; --c-biz:#e8806a; --c-found:#dcae4e; --c-launch:#6cbd8e; --c-geo:#cd85ad;
  --desk:#1a1b1e; --page:#292a2e; --page-2:#24252a; --edge:#36373c; --edge-2:#3f4046; --grain:.35; --press:rgba(0,0,0,.35); --tint:9%;
  --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px rgba(0,0,0,.35); color-scheme:dark}}
@@ -42,7 +42,7 @@
  --ink:#e8e4dc; --ink-2:#cdc8be; --muted:#9c978e; --faint:#7d7972;
  --rule:#37383d; --rule-2:#45464c; --hi:#3a3526;
  --accent:#e27a5c; --on-accent:#1d1d1f; --ad-bg:#2b2a2b; --ad-mark:#c9a862;
- --ok:#5cb98a; --warn:#e0a53a;
+ --ok:#5cb98a; --warn:#e0a53a; --urgent:#ff5c5c;
  --c-ai:#9a8af0; --c-tech:#5fb0c2; --c-biz:#e8806a; --c-found:#dcae4e; --c-launch:#6cbd8e; --c-geo:#cd85ad;
  --desk:#1a1b1e; --page:#292a2e; --page-2:#24252a; --edge:#36373c; --edge-2:#3f4046; --grain:.35; --press:rgba(0,0,0,.35); --tint:9%;
  --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px rgba(0,0,0,.35); color-scheme:dark}
@@ -595,6 +595,10 @@ code{font:500 .86em var(--f-mono);background:color-mix(in srgb,var(--ink) 6%,tra
 .adv-dates button{scroll-snap-align:start;display:grid;gap:1px;text-align:left;border:1px solid var(--rule);background:var(--sheet);border-radius:12px;padding:10px 12px;cursor:pointer;transition:border-color .2s,background-color .2s,box-shadow .2s,transform .2s var(--ease)}
 .adv-dates button:hover{transform:translateY(-2px)}
 .adv-dates button[aria-selected="true"]{border-color:var(--ink);background:var(--raise);box-shadow:var(--shadow)}
+.adv-dates .sold{position:relative;overflow:hidden;cursor:not-allowed}
+.adv-dates .sold:hover{transform:none}
+.adv-dates .sold>span:not(.sold-tag){filter:blur(2.5px);opacity:.55;user-select:none}
+.sold-tag{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-6deg);padding:4px 10px;border:1.5px solid var(--urgent);border-radius:6px;background:color-mix(in srgb,var(--urgent) 10%,var(--sheet));color:var(--urgent);font:700 11px var(--f-ui);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,.12)}
 .dw{font:600 10px var(--f-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .dd{font:600 19px/1.15 var(--f-display);letter-spacing:-.01em}
 .dt{font:500 12px var(--f-ui);color:color-mix(in srgb,var(--th) 80%,var(--ink))}
@@ -1231,8 +1235,39 @@ body.no-issue .brief30,body.no-issue .tops,body.no-issue .pulse,body.no-issue .n
 .lead .hl.long{font-size:clamp(25px,2.6vw,32px);line-height:1.14}
 .clip b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
 /* advertiser sign-in (bid sheet): Google button and the "or" rule, in the sheet's own type and colours */
+.otp{display:grid;grid-template-columns:repeat(6,minmax(0,52px));gap:8px}
+.otp input{font:600 24px/1 var(--f-mono);text-align:center;color:var(--ink);background:var(--raise);border:1px solid var(--rule-2);border-radius:10px;height:58px;width:100%;min-width:0;padding:0;caret-color:var(--ink);transition:border-color .15s,box-shadow .15s}
+.otp input.on{border-color:color-mix(in srgb,var(--ink) 45%,var(--rule-2))}
+.otp input:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px color-mix(in srgb,var(--ink) 10%,transparent)}
+.otp-re .linkbtn:disabled{color:var(--muted);text-decoration:none;cursor:default}
 .g-btn{width:100%}.g-mark{width:18px;height:18px;flex:none}
 .or-rule{display:flex;align-items:center;gap:10px;margin:0;font:12px var(--f-ui);color:var(--muted)}.or-rule::before,.or-rule::after{content:"";flex:1;border-top:1px solid var(--rule-2)}
 .auth-done{display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;background:var(--paper)}
 /* until the first issue is drawn the empty page frame stays out of sight; main.js removes .booting (also if the boot fails) */
 body.booting main{visibility:hidden}
+/* payments not connected yet: the buying controls stay visible under a blur with a coming-soon tag */
+.soon{position:relative;border-radius:10px}
+.soon-in{display:grid;gap:10px;filter:blur(2.5px);opacity:.6;pointer-events:none;user-select:none}
+.soon-tag{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--paper);box-shadow:0 2px 10px rgba(0,0,0,.12);letter-spacing:.1em;text-transform:uppercase;pointer-events:none}
+/* the next close, under 10 minutes away: only its digits turn red and pulse, a little larger and back, once a second
+   (reduced motion: red, no pulse) */
+.cdx.urgent{color:var(--urgent);transform-origin:left center;animation:cdx-pulse 1s ease-in-out infinite}
+@keyframes cdx-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
+/* profile: one anime picture for everyone (no uploads); a green ring once signed in */
+.ab-me{width:36px;height:36px;padding:0;border-radius:50%;border:1px solid var(--rule);background:var(--sheet);overflow:hidden;cursor:pointer;display:grid;place-items:center;flex:none;transition:transform .3s var(--ease),border-color .2s,box-shadow .2s}
+.ab-me:active{transform:scale(.94)}
+.ab-me img{width:100%;height:100%;object-fit:cover;display:block}
+.ab-me.in{border-color:var(--ok);box-shadow:0 0 0 2px color-mix(in srgb,var(--ok) 28%,transparent)}
+.me-head{display:flex;align-items:center;gap:14px;min-width:0}
+.me-av{width:64px;height:64px;flex:none;border-radius:50%;border:1px solid var(--rule);background:var(--sheet);object-fit:cover}
+.me-head div{display:grid;gap:2px;min-width:0}
+.me-head b{font:600 16px var(--f-ui);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me-head small{font:13px var(--f-ui);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* a new account's welcome: a coin that pops in, and coins falling across the screen for a moment */
+.welcome{display:grid;justify-items:center;text-align:center;gap:6px;padding:6px 0 2px}
+.welcome .done-h{margin:6px 0 0}
+.wl-coin{width:96px;height:96px;border-radius:50%;display:grid;place-items:center;font:700 26px var(--f-mono);color:#5a3a00;background:radial-gradient(circle at 35% 30%,#fff3c4,#ebbd4f 55%,#a8730f);box-shadow:0 8px 26px rgba(235,189,79,.45),inset 0 -5px 0 rgba(0,0,0,.14);animation:coinpop .7s var(--ease) both}
+@keyframes coinpop{0%{transform:scale(.3) rotate(-25deg);opacity:0}65%{transform:scale(1.14) rotate(6deg);opacity:1}100%{transform:none}}
+.coinrain{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden}
+.coinrain i{position:absolute;top:-48px;left:var(--x);width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font:700 10px var(--f-mono);font-style:normal;color:#5a3a00;background:radial-gradient(circle at 35% 30%,#fff3c4,#ebbd4f 55%,#a8730f);box-shadow:inset 0 -2px 0 rgba(0,0,0,.15);scale:var(--s);animation:coinfall var(--d) cubic-bezier(.35,.1,.65,1) var(--w) forwards}
+@keyframes coinfall{to{transform:translateY(calc(100vh + 96px)) rotate(var(--r))}}

@@ -48,9 +48,9 @@ export function isLive() {
 export function configuredProviders() {
   const base = commonKeys.every((k) => !!setting(k));
   return {
-    stripe:
-      base &&
-      ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'].every((k) => !!setting(k)),
+    // Stripe needs only its secret key: the server asks Stripe whether each checkout was paid.
+    // STRIPE_WEBHOOK_SECRET is optional and adds refunds and disputes.
+    stripe: base && !!setting('STRIPE_SECRET_KEY'),
     razorpay:
       base &&
       [

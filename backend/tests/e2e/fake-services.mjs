@@ -1,6 +1,7 @@
 // Test rig only, never imported by the app. Loaded with `node --import` in front of the real backend:
-// answers Supabase (backed by PGlite running the REAL migration) and Upstash at their real URLs, so everything
-// in lib/server runs unchanged. Cloudflare R2 is NOT faked: uploads, checks (ffprobe) and playback hit the real bucket.
+// answers Supabase sign-in and database (PGlite running the REAL migration) and Upstash at their real URLs, so
+// everything in lib/server runs unchanged. There is no Supabase Storage here: every file (videos, pictures) goes to the
+// REAL Cloudflare R2 bucket, checked there (ffprobe, picture bytes) and shown from signed links.
 // Also serves control endpoints the browser test drives.
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -18,7 +19,7 @@ const sql = await readFile(new URL('../../supabase/migrations/20261105090000_new
 await db.exec(sql.replaceAll('clock_timestamp()', 'public.test_now()'));
 
 const CODE = '123456';
-const state = { sessions: new Map(), oauth: new Map(), objects: new Map(), sentCodes: [] };
+const state = { sessions: new Map(), oauth: new Map(), checkouts: new Map(), sentCodes: [] };
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...headers } });
 
 function coerce(v) { return v === 'null' ? null : v === 'true' ? true : v === 'false' ? false : v; }
@@ -127,6 +128,11 @@ async function auth(url, init, headers) {
     if (!grant || grant.challenge !== sent) return json({ error_code: 'bad_code_verifier', msg: 'invalid flow state', code: 400 }, 400, cors);
     return json(await sessionFor(grant.email), 200, cors);
   }
+  if (path === 'logout') {
+    // as Supabase does: the access token is revoked, so the old session can't be used again
+    state.sessions.delete((headers.get('authorization') || '').split('.').pop());
+    return new Response(null, { status: 204, headers: cors });
+  }
   if (path === 'user') {
     const token = (headers.get('authorization') || '').split('.').pop();
     const user = state.sessions.get(token);
@@ -135,42 +141,6 @@ async function auth(url, init, headers) {
   return json({}, 200, cors);
 }
 
-function storage(url, init) {
-  const path = url.pathname.replace('/storage/v1/', '');
-  const method = (init.method || 'GET').toUpperCase();
-  let m;
-  if ((m = path.match(/^object\/upload\/sign\/([^/]+)\/(.+)$/)) && method === 'POST') {
-    const object = decodeURIComponent(m[2]);
-    return json({ url: `/object/upload/sign/${m[1]}/${object}?token=up-${encodeURIComponent(object)}` });
-  }
-  if ((m = path.match(/^object\/upload\/sign\/([^/]+)\/(.+)$/)) && method === 'PUT') {
-    return (async () => { const bytes = await bytesOf(init.body, new Headers(init.headers).get('content-type')); state.objects.set(`${m[1]}/${decodeURIComponent(m[2])}`, bytes); return json({ Key: path }); })();
-  }
-  if ((m = path.match(/^object\/sign\/([^/]+)\/(.+)$/)) && method === 'POST') {
-    return json({ signedURL: `/object/sign/${m[1]}/${m[2]}?token=view` });
-  }
-  if ((m = path.match(/^object\/sign\/([^/]+)\/(.+)$/)) && method === 'GET') {
-    const b = state.objects.get(`${m[1]}/${decodeURIComponent(m[2])}`);
-    return b ? new Response(b, { headers: { 'content-type': 'image/jpeg' } }) : json({ message: 'not found' }, 404);
-  }
-  if ((m = path.match(/^object\/([^/]+)\/(.+)$/))) {
-    const key = `${m[1]}/${decodeURIComponent(m[2])}`;
-    if (method === 'GET') { const b = state.objects.get(key); return b ? new Response(b) : json({ message: 'not found' }, 404); }
-    if (method === 'POST' || method === 'PUT') return (async () => { state.objects.set(key, await bytesOf(init.body)); return json({ Key: key, Id: key }); })();
-  }
-  if (path.startsWith('object/') && method === 'DELETE') return json([]);
-  return json({ message: 'unsupported ' + method + ' ' + path }, 500);
-}
-async function bytesOf(body, type) {
-  if (type?.startsWith('multipart/')) {
-    const form = await new Response(body, { headers: { 'content-type': type } }).formData();
-    for (const [, v] of form.entries()) if (typeof v !== 'string') return Buffer.from(await v.arrayBuffer());
-  }
-  if (body instanceof Uint8Array) return Buffer.from(body);
-  if (typeof body?.arrayBuffer === 'function') return Buffer.from(await body.arrayBuffer());
-  if (typeof body?.get === 'function') { for (const [, v] of body.entries()) if (typeof v !== 'string') return Buffer.from(await v.arrayBuffer()); }
-  return Buffer.from(String(body ?? ''));
-}
 
 const real = globalThis.fetch;
 globalThis.fetch = async (input, init = {}) => {
@@ -182,7 +152,6 @@ globalThis.fetch = async (input, init = {}) => {
     if (merged.body instanceof Uint8Array && !url.pathname.startsWith('/storage/')) merged.body = Buffer.from(merged.body).toString();
     if (url.pathname.startsWith('/rest/v1/')) return rest(url, merged);
     if (url.pathname.startsWith('/auth/v1/')) return auth(url, merged, headers);
-    if (url.pathname.startsWith('/storage/v1/')) return storage(url, merged);
   }
   if (url.host === 'fake.upstash.test') return json({ result: 1 });
   if (url.host === 'api.razorpay.com' && url.pathname === '/v1/orders') {
@@ -191,8 +160,13 @@ globalThis.fetch = async (input, init = {}) => {
     return json({ id: 'order_' + randomUUID().replaceAll('-', ''), amount: b.amount, currency: b.currency, receipt: b.receipt, status: 'created' });
   }
   if (url.host === 'api.stripe.com') {
+    // Checkout Sessions as Stripe keeps them: unpaid until the buyer pays on Stripe's page (/stripe-pay below)
+    const read = url.pathname.match(/^\/v1\/checkout\/sessions\/([A-Za-z0-9_]+)$/);
+    if (read && (merged.method || 'GET') === 'GET') { const cs = state.checkouts.get(read[1]); return cs ? json(cs) : json({ error: { message: 'No such checkout.session' } }, 404); }
     const b = new URLSearchParams(merged.body);
-    return json({ id: 'cs_' + randomUUID().replaceAll('-', ''), url: 'https://checkout.stripe.com/fake', client_reference_id: b.get('client_reference_id'), amount_total: Number(b.get('line_items[0][price_data][unit_amount]')), currency: 'usd' });
+    const cs = { id: 'cs_test_' + randomUUID().replaceAll('-', ''), url: 'https://checkout.stripe.com/fake', client_reference_id: b.get('client_reference_id'), amount_total: Number(b.get('line_items[0][price_data][unit_amount]')), currency: 'usd', status: 'open', payment_status: 'unpaid', payment_intent: null };
+    state.checkouts.set(cs.id, cs);
+    return json(cs);
   }
   return real(input, init);
 };
@@ -214,10 +188,14 @@ createServer(async (req, res) => {
     if (url.pathname === '/query') {
       const q = await new Promise((r) => { let s = ''; req.on('data', (c) => (s += c)); req.on('end', () => r(s)); });
       out = (await db.query(q)).rows;
+    } else if (url.pathname === '/stripe-pay') {
+      // the buyer completes every open checkout on Stripe's page; no webhook is sent
+      for (const cs of state.checkouts.values()) if (cs.payment_status === 'unpaid') Object.assign(cs, { status: 'complete', payment_status: 'paid', payment_intent: 'pi_' + randomUUID().replaceAll('-', '').slice(0, 20) });
+      out = { paid: [...state.checkouts.values()].filter((c) => c.payment_status === 'paid').length };
     } else if (url.pathname === '/shift') {
       await db.exec(`set test.shift='${Number(url.searchParams.get('seconds'))} seconds'`);
     } else if (url.pathname === '/state') {
-      out = { codes: state.sentCodes, objects: [...state.objects.keys()] };
+      out = { codes: state.sentCodes };
     }
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(out));
   } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
